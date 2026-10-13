@@ -15,6 +15,7 @@ void MigrateConfig(Json& config){
         if(!config.contains("timingModel"))config["timingModel"]="euroscope-buffer";
         if(!config.contains("euroscopeBufferMinutes"))config["euroscopeBufferMinutes"]=2;
         if(!config.contains("euroscopeSuperstableBufferMinutes"))config["euroscopeSuperstableBufferMinutes"]=1;
+        if(!config.contains("euroscopeHighSpeedBufferMinutes"))config["euroscopeHighSpeedBufferMinutes"]=6;
         const auto clampRates=[](Json& rates){if(rates.is_object())for(auto& value:rates)if(value.is_number())value=std::clamp(value.get<double>(),60.0,600.0);};
         if(config.contains("rates"))clampRates(config["rates"]);
         if(config.contains("pending")&&config["pending"].is_object()&&config["pending"].contains("rates"))clampRates(config["pending"]["rates"]);
@@ -155,6 +156,7 @@ Json Context::Request(const std::string& method,const Json& data,bool supervisor
         if(config.contains("pendingRate")&&config["pendingRate"].is_object()&&config["pendingRate"].contains("seconds")){const auto& seconds=config["pendingRate"]["seconds"];if(!seconds.is_number()||seconds.get<double>()<60||seconds.get<double>()>600)throw RequestError(400,"Planned arrival rate must be 6–60 aircraft per hour");}
         if(config.value("timingModel",std::string("euroscope-buffer"))!="euroscope-buffer"||(settings&&!config.contains("euroscopeBufferMinutes"))||(config.contains("euroscopeBufferMinutes")&&(!config["euroscopeBufferMinutes"].is_number()||config["euroscopeBufferMinutes"].get<double>()<0||config["euroscopeBufferMinutes"].get<double>()>15)))throw RequestError(400,"EuroScope ETA buffer must be between 0 and 15 minutes");
         if((settings&&!config.contains("euroscopeSuperstableBufferMinutes"))||(config.contains("euroscopeSuperstableBufferMinutes")&&(!config["euroscopeSuperstableBufferMinutes"].is_number()||config["euroscopeSuperstableBufferMinutes"].get<double>()<0||config["euroscopeSuperstableBufferMinutes"].get<double>()>15)))throw RequestError(400,"Superstable ETA buffer must be between 0 and 15 minutes");
+        if((settings&&!config.contains("euroscopeHighSpeedBufferMinutes"))||(config.contains("euroscopeHighSpeedBufferMinutes")&&(!config["euroscopeHighSpeedBufferMinutes"].is_number()||config["euroscopeHighSpeedBufferMinutes"].get<double>()<0||config["euroscopeHighSpeedBufferMinutes"].get<double>()>15)))throw RequestError(400,"High-speed ETA buffer must be between 0 and 15 minutes");
         if(config.value("stableMinutes",15)!=15||config.value("superStableMinutes",4)!=4)throw RequestError(400,"Stable and Superstable horizons are fixed at 15 and 4 minutes");
         if(config.contains("displayPreferences")&&config["displayPreferences"].contains("labels")&&(!config["displayPreferences"]["labels"].value("type",true)||!config["displayPreferences"]["labels"].value("currentDelay",true)))throw RequestError(400,"Aircraft type and current instructions are part of the fixed label layout");
         for(auto it=config.begin();it!=config.end();++it){const bool op=operational.contains(it.key());

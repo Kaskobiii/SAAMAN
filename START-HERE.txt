@@ -1,7 +1,9 @@
-SAAMAN 1.3.6
+SAAMAN 1.3.7
 Unload the previous DLL before loading SAAMAN.dll.
 
 Fresh settings default to shared vatIRIS mode and VATSIM live.
+New: configurable speed compensation for landing ETA; feeder buffers remain 2/1
+minutes. Existing captured times stay fixed until Recompute.
 The connection starts automatically on load/login, even with the pane closed.
 Saved local/training choices remain available. Read docs/user-guide.html for
 the short controller guide; docs/user-guide-wiki.html is ready for wiki editing.

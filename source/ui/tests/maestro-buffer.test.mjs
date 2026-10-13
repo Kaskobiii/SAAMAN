@@ -26,7 +26,7 @@ test('direct, speed and route ETA changes do not recalculate accepted landing or
  const c=config(),first=runEngine(packet([flight()]),c,{})
  const next=runEngine(packet([flight({direct:'OTHER',assignedSpeed:210,assignedHeading:100,groundspeed:220,landingSeconds:600,route:[{name:'ELTOK',seconds:300}]})],now+2000),c,{},first)
  const a=first.flights[0],b=next.flights[0]
- assert.equal(b.eta,a.eta);assert.equal(b.sta,a.sta);assert.equal(b.staFf,a.staFf)
+ assert.equal(b.eta,b.liveBufferedEta);assert.notEqual(b.eta,a.eta);assert.equal(b.sta,a.sta);assert.equal(b.staFf,a.staFf)
  assert.equal(b.euroscopeBaseline.at,a.euroscopeBaseline.at);assert.equal(b.liveEuroscopeEta,now+602000);assert.equal(b.liveBufferedEta,now+722000)
 })
 test('Unstable allocations also retain their captured time until explicit Recompute',()=>{
@@ -178,14 +178,14 @@ test('slower Superstable/Frozen capture keeps one minute, while fast near-feeder
  assert.equal(euroscopeBufferMinutes(flight({groundspeed:250,landingSeconds:180}),c),1)
 })
 
-test('speed selection is captured once for landing while feeder keeps its base buffer until Recompute',()=>{
+test('live speed selection updates ETA while accepted landing and feeder captures wait for Recompute',()=>{
  const c=config(),first=runEngine(packet([flight({groundspeed:450})]),c,{}),a=first.flights[0]
  assert.equal(a.euroscopeBaseline.groundspeed,450);assert.equal(a.euroscopeBaseline.bufferMinutes,6)
  assert.equal(a.eta,now+1860000);assert.equal(a.etaFf,now+1020000);assert.equal(a.delay,0);assert.equal(a.euroscopeBaseline.feederBufferMinutes,2)
  const input=packet([flight({groundspeed:250,landingSeconds:1000,direct:'OTHER'})],now+2000)
  const next=runEngine(input,c,{},first),b=next.flights[0]
  assert.equal(b.sta,a.sta);assert.equal(b.staFf,a.staFf);assert.deepEqual(b.euroscopeBaseline,a.euroscopeBaseline)
- assert.equal(b.liveBufferedEta,input.timestamp+1360000)
+ assert.equal(b.liveBufferedEta,input.timestamp+1120000);assert.equal(b.eta,b.liveBufferedEta)
  const refreshed=runEngine({...input,timestamp:now+3000},c,{BUFFER:{recomputeAt:now+3000,changedAt:now+3000}},next).flights[0]
  assert.equal(refreshed.euroscopeBaseline.groundspeed,250);assert.equal(refreshed.euroscopeBaseline.bufferMinutes,2)
  assert.equal(refreshed.eta,now+1123000)
@@ -206,7 +206,53 @@ test('existing recorded high-speed baseline stays fixed until an explicit new Re
  const {input,config:c,previous}=speedFixture
  const held=runEngine(input,c,{},previous),sas=held.flights.find(f=>f.callsign==='SAS1AB'),old=previous.flights.find(f=>f.callsign==='SAS1AB')
  assert.deepEqual(sas.euroscopeBaseline,old.euroscopeBaseline)
- assert.equal(sas.eta,old.eta)
+ assert.equal(sas.eta,sas.liveBufferedEta);assert.notEqual(sas.eta,old.eta)
+})
+
+for(const [phase,seconds,capture] of [['Unstable',900,{unstableSeconds:60}],['Stable',700,{}],['Superstable',100,{}],['Frozen',60,{}]])
+test(`live ETA changes over repeated ${phase} updates without changing allocation or capture`,()=>{
+ const c={...config(),...capture},p=flight({route:[{name:'ELTOK',seconds}],landingSeconds:phase==='Frozen'?120:1500,groundspeed:phase==='Frozen'?250:450})
+ const first=runEngine(packet([p]),c,{}),original=structuredClone(first),a=first.flights[0]
+ assert.equal(a.state,['Unstable','Stable','Superstable','Frozen'].indexOf(phase))
+ let latest=first
+ for(let tick=1;tick<=20;tick++){
+  const t=now+tick*2000,landingSeconds=phase==='Frozen'?100:900+tick,groundspeed=phase==='Frozen'?250:250+tick*5
+  const updated={...p,groundspeed,landingSeconds,route:[{name:'ELTOK',seconds:seconds-tick*2}]}
+  latest=runEngine(packet([updated],t),c,{},latest);const b=latest.flights[0]
+  const buffer=euroscopeBufferMinutes(updated,c,latest.flights[0])
+  assert.equal(b.eta,t+(landingSeconds+buffer*60)*1000)
+  assert.equal(b.runwayDelay,Math.round((b.sta-b.eta)/1000))
+  assert.equal(b.sta,a.sta);assert.equal(b.staFf,a.staFf);assert.equal(b.order,a.order)
+  assert.deepEqual(b.euroscopeBaseline,a.euroscopeBaseline);assert.equal(b.initialEta,a.initialEta)
+ }
+ assert.deepEqual(first,original,'previous snapshots remain immutable')
+ const exported=toJuhaSequence(latest,c,{}).sequence[0]
+ assert.equal(exported.eet_ades,(latest.flights[0].eta-latest.timestamp)/1000)
+ assert.equal(exported.eet_rwy,(a.sta-latest.timestamp)/1000)
+})
+
+test('invalid or stale live observations retain the last valid ETA and accepted slot',()=>{
+ const c=config(),first=runEngine(packet([flight()]),c,{})
+ const valid=runEngine(packet([flight({groundspeed:375,landingSeconds:1200})],now+2000),c,{},first),a=valid.flights[0]
+ for(const invalid of [{positionAgeSeconds:16},{landingSeconds:-1},{landingSeconds:Infinity},{groundspeed:20}]){
+  const next=runEngine(packet([flight(invalid)],now+4000),c,{},valid).flights[0]
+  assert.equal(next.eta,a.eta);assert.equal(next.liveBufferedEta,undefined);assert.deepEqual(next.euroscopeBaseline,a.euroscopeBaseline)
+ }
+})
+
+test('a zero-minute final estimate updates live ETA without capturing another baseline',()=>{
+ const c=config(),first=runEngine(packet([flight({landingSeconds:180,route:[{name:'ELTOK',seconds:60}],groundspeed:250,altitude:1000})]),c,{})
+ const next=runEngine(packet([flight({landingSeconds:0,route:[{name:'ELTOK',seconds:-60}],groundspeed:140,altitude:500})],now+2000),c,{},first).flights[0]
+ assert.equal(next.eta,now+62000);assert.equal(next.sta,first.flights[0].sta);assert.deepEqual(next.euroscopeBaseline,first.flights[0].euroscopeBaseline)
+})
+
+test('shared checkpoint round trip keeps live forecasts separate from accepted scheduling times',()=>{
+ const c=config(),p=flight({route:[{name:'ELTOK',seconds:700}]}),first=runEngine(packet([{...p,groundspeed:450},{...p,callsign:'SECOND',landingSeconds:1510,groundspeed:450}]),c,{})
+ const next=runEngine(packet([{...p,groundspeed:250,landingSeconds:800},{...p,callsign:'SECOND',landingSeconds:600,groundspeed:300}],now+2000),c,{},first)
+ const synced=JSON.parse(JSON.stringify(next))
+ const repeated=runEngine(packet([{...p,groundspeed:375,landingSeconds:900},{...p,callsign:'SECOND',landingSeconds:750,groundspeed:250}],now+20000),c,{},synced)
+ for(const f of repeated.flights){const a=first.flights.find(p=>p.callsign===f.callsign);assert.equal(f.sta,a.sta);assert.equal(f.staFf,a.staFf);assert.equal(f.order,a.order)}
+ assert.ok(repeated.flights.find(f=>f.callsign==='SECOND').eta<repeated.flights.find(f=>f.callsign==='BUFFER').eta,'live forecast inversion does not reorder accepted sequence')
 })
 
 test('recording 7 clears line 0 just beyond twelve miles after ELTOK and retains its information delay',()=>{

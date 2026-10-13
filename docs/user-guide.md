@@ -88,4 +88,4 @@ Click **Coordinations** and choose one of the listed messages. Incoming messages
 - If shared data is stale or edits are unavailable, check your EuroScope connection, callsign, selected network and backend address. Avoid making repeated edits while an earlier change is awaiting confirmation.
 - `.saaman status` shows connection information. When reporting a problem, include the plugin version, callsign, network, action taken and diagnostic text.
 
-The supervisory pane is available with `.saaman supervisor` for authorised users. Its shared settings include normal, high-speed landing and near-fix ETA buffers. Saving these settings affects new captures and subsequent Recomputes.
+The supervisory pane is available with `.saaman supervisor` for authorised users. Its shared settings include normal, high-speed landing and near-fix ETA buffers. ETA updates live; changing a buffer leaves existing assigned slots in place until Recompute. Information shows the current ETA alongside the assigned STA.

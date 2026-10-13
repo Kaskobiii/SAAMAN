@@ -1,0 +1,274 @@
+[
+  {
+    "timestamp": 1791802194379,
+    "flight": {
+      "callsign": "TEST_DIRECT",
+      "aircraft": "A35K",
+      "wake": "H",
+      "departure": "EDDF",
+      "arrival": "ESSA",
+      "runway": "01R",
+      "landingSeconds": 3000,
+      "distanceNm": 357.988148556348,
+      "groundspeed": 461,
+      "altitude": 39111,
+      "dataWarnings": [],
+      "star": "NILUG3M",
+      "routeText": "EDDF/18 N0492F390 MARU9S MARUN Y150 TOLGI DCT OBATU DCT ROSOK DCT SONAL DCT VIBAR/N0488F270 Z227 NILUG NILU3M ESSA/01R",
+      "verticalSpeed": -12,
+      "assignedSpeed": 0,
+      "assignedMach": 0,
+      "finalAltitude": 39000,
+      "clearedAltitude": 0,
+      "heading": 30,
+      "assignedHeading": 0,
+      "direct": "",
+      "routeProblem": "",
+      "latitude": 54.95287999999999,
+      "longitude": 12.86786,
+      "positionAgeSeconds": 2,
+      "calculatedRouteIndex": 9,
+      "topskyMissedApproach": false,
+      "route": [
+        {
+          "latitude": 50.033306,
+          "longitude": 8.570456000000002,
+          "name": "EDDF",
+          "seconds": -60
+        },
+        {
+          "latitude": 50.821166999999996,
+          "longitude": 8.671942,
+          "name": "MARUN",
+          "seconds": -60
+        },
+        {
+          "latitude": 50.942222,
+          "longitude": 8.924444000000001,
+          "name": "UVANO",
+          "seconds": -60
+        },
+        {
+          "latitude": 51.111388999999996,
+          "longitude": 9.281666999999999,
+          "name": "NATSU",
+          "seconds": -60
+        },
+        {
+          "latitude": 51.29277800000001,
+          "longitude": 9.344444000000001,
+          "name": "OTMON",
+          "seconds": -60
+        },
+        {
+          "latitude": 51.829443999999995,
+          "longitude": 9.533056,
+          "name": "TOLGI",
+          "seconds": -60
+        },
+        {
+          "latitude": 52.705431000000004,
+          "longitude": 10.415189000000002,
+          "name": "OBATU",
+          "seconds": -60
+        },
+        {
+          "latitude": 54.21,
+          "longitude": 12.076667,
+          "name": "ROSOK",
+          "seconds": -60
+        },
+        {
+          "latitude": 54.878888999999994,
+          "longitude": 12.780277999999997,
+          "name": "SONAL",
+          "seconds": -60
+        },
+        {
+          "latitude": 57.578056000000004,
+          "longitude": 16.390556,
+          "name": "VIBAR",
+          "seconds": 1500
+        },
+        {
+          "latitude": 58.815833,
+          "longitude": 17.884721999999996,
+          "name": "NILUG",
+          "seconds": 2160
+        },
+        {
+          "latitude": 59.09766694444445,
+          "longitude": 18.152027777777775,
+          "name": "SA630",
+          "seconds": 2340
+        },
+        {
+          "latitude": 59.53169388888889,
+          "longitude": 18.20330583333333,
+          "name": "TEB",
+          "seconds": 2640
+        },
+        {
+          "latitude": 59.398738888888886,
+          "longitude": 17.868710833333335,
+          "name": "CI01R",
+          "seconds": 2760
+        },
+        {
+          "latitude": 59.431446944444446,
+          "longitude": 17.88042777777778,
+          "name": "FI01R",
+          "seconds": 2820
+        },
+        {
+          "latitude": 59.626396944444444,
+          "longitude": 17.950741666666666,
+          "name": "SA01R",
+          "seconds": 2940
+        },
+        {
+          "latitude": 59.65194399999999,
+          "longitude": 17.918611,
+          "name": "ESSA",
+          "seconds": 3000
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 1791803508383,
+    "flight": {
+      "callsign": "TEST_DIRECT",
+      "aircraft": "A35K",
+      "wake": "H",
+      "departure": "EDDF",
+      "arrival": "ESSA",
+      "runway": "01R",
+      "landingSeconds": 1560,
+      "distanceNm": 180.8271451889053,
+      "groundspeed": 487,
+      "altitude": 38990,
+      "dataWarnings": [],
+      "star": "NILUG3M",
+      "routeText": "EDDF/18 N0492F390 MARU9S MARUN Y150 TOLGI DCT OBATU DCT ROSOK DCT SONAL DCT VIBAR/N0488F270 Z227 NILUG NILU3M ESSA/01R",
+      "verticalSpeed": -104,
+      "assignedSpeed": 0,
+      "assignedMach": 0,
+      "finalAltitude": 39000,
+      "clearedAltitude": 11000,
+      "heading": 34,
+      "assignedHeading": 0,
+      "direct": "TEB",
+      "routeProblem": "",
+      "latitude": 57.283210000000004,
+      "longitude": 15.962890000000002,
+      "positionAgeSeconds": 4,
+      "calculatedRouteIndex": 9,
+      "topskyMissedApproach": false,
+      "route": [
+        {
+          "latitude": 50.033306,
+          "longitude": 8.570456000000002,
+          "name": "EDDF",
+          "seconds": -60
+        },
+        {
+          "latitude": 50.821166999999996,
+          "longitude": 8.671942,
+          "name": "MARUN",
+          "seconds": -60
+        },
+        {
+          "latitude": 50.942222,
+          "longitude": 8.924444000000001,
+          "name": "UVANO",
+          "seconds": -60
+        },
+        {
+          "latitude": 51.111388999999996,
+          "longitude": 9.281666999999999,
+          "name": "NATSU",
+          "seconds": -60
+        },
+        {
+          "latitude": 51.29277800000001,
+          "longitude": 9.344444000000001,
+          "name": "OTMON",
+          "seconds": -60
+        },
+        {
+          "latitude": 51.829443999999995,
+          "longitude": 9.533056,
+          "name": "TOLGI",
+          "seconds": -60
+        },
+        {
+          "latitude": 52.705431000000004,
+          "longitude": 10.415189000000002,
+          "name": "OBATU",
+          "seconds": -60
+        },
+        {
+          "latitude": 54.21,
+          "longitude": 12.076667,
+          "name": "ROSOK",
+          "seconds": -60
+        },
+        {
+          "latitude": 54.878888999999994,
+          "longitude": 12.780277999999997,
+          "name": "SONAL",
+          "seconds": -60
+        },
+        {
+          "latitude": 57.578056000000004,
+          "longitude": 16.390556,
+          "name": "VIBAR",
+          "seconds": -60
+        },
+        {
+          "latitude": 58.815833,
+          "longitude": 17.884721999999996,
+          "name": "NILUG",
+          "seconds": -60
+        },
+        {
+          "latitude": 59.09766694444445,
+          "longitude": 18.152027777777775,
+          "name": "SA630",
+          "seconds": -60
+        },
+        {
+          "latitude": 59.53169388888889,
+          "longitude": 18.20330583333333,
+          "name": "TEB",
+          "seconds": 1140
+        },
+        {
+          "latitude": 59.398738888888886,
+          "longitude": 17.868710833333335,
+          "name": "CI01R",
+          "seconds": 1320
+        },
+        {
+          "latitude": 59.431446944444446,
+          "longitude": 17.88042777777778,
+          "name": "FI01R",
+          "seconds": 1380
+        },
+        {
+          "latitude": 59.626396944444444,
+          "longitude": 17.950741666666666,
+          "name": "SA01R",
+          "seconds": 1500
+        },
+        {
+          "latitude": 59.65194399999999,
+          "longitude": 17.918611,
+          "name": "ESSA",
+          "seconds": 1560
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,11 @@
+ui/node_modules/
+ui/dist/
+generated/
+build/
+external/webview2/
+SAAMAN-plan.json*
+SAAMAN.json
+WebViewProfile/
+*.pdb
+*.dll
+*.exe

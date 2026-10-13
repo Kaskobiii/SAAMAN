@@ -1,0 +1,3312 @@
+{
+  "source": {
+    "repository": "https://github.com/junzis/openap",
+    "commit": "a19a1cd559aa51c2ff385a71ee1884a53d866a33",
+    "version": "2.6.2",
+    "license": "GPL-3.0 (data)",
+    "units": "WRAP: m/s, km, Mach; properties: ceiling m, vmo kt CAS, mmo Mach",
+    "files": {
+      "wrap/a319.txt": "8cef9bc1daf196cb91a20e85a26eae180b97a895e7b76b42e65f6d52c9e6f382",
+      "wrap/a320.txt": "a843534ba3f705aeede1a4b3ba920487588ffecab823270e3c2acef4c7a869eb",
+      "wrap/a321.txt": "f72513dda3b4fdd001542f8c709823ffc044c0a1cc9ec7c32cf6024d6ca7494f",
+      "wrap/a332.txt": "f501adf4087a7ff3663a1c2b57fc6fd9cc04b203f13c2ee09f1619c22cf6a6ee",
+      "wrap/a333.txt": "deb3c3269abe9d05ee53c5507ba4e62852fd3e9548e9b5dffd3969f85aaa956d",
+      "wrap/a343.txt": "ab57bb520d5862567c5ee0144f1530371d34ad2f28e5524cfad26f39349bfa98",
+      "wrap/a388.txt": "e042cd105bc44592f4eb5f7fa211e5fcd9327a452ef14f904d0faebf1874d084",
+      "wrap/b737.txt": "5c16c18219c9cd73c090ec812f68ab92f00e09f99e9afcfd39e5df1cc8174458",
+      "wrap/b738.txt": "1a02ecc1eb7e7b3b0d8dcfbd55567cabaefcc934642312cbe3ed9e41e2a76569",
+      "wrap/b739.txt": "4db3d4f550331b0b006993980b9e84d8042a8456d2861a42ca1415aa112001e1",
+      "wrap/b744.txt": "f42cd8d6ba0efc4350522159b7b8db9a73bf5a2bc5a8c8bd9dbbc8efc28f7595",
+      "wrap/b752.txt": "d4773e6402eaf7df0af7c33d098c291eb35e965dc51b054711912314b7e10f02",
+      "wrap/b763.txt": "af9b310ac4a1b3e02d264966706efb19762837c81ce8c0b2d043c53d886f93aa",
+      "wrap/b77w.txt": "57b2935c111be3478d1e509418ed4d94bbef29208eff9fa6d048b747d65f4e05",
+      "wrap/b788.txt": "2c196e69d5d8089302f1582537c39f6363a6687007b307384bd1ad696ae25823",
+      "wrap/b789.txt": "315c3f7294a1c499113dc756da5f1153842a69181b57d96b40bfce691f9ed5ff",
+      "wrap/e190.txt": "7385859ea435aca095d1ac8024002c49cd5097f5e1dd5cdf46adab16593c07bc",
+      "wrap/_synonym.csv": "0e32455c6c31ec31218c899260dcf23017d2b3dfc6a26ff04461d87ab97931a6",
+      "aircraft/a19n.yml": "e4c168ebcf6901b844d06a1ad494461c19d11bee64567dc7fca4414c9db15ecb",
+      "aircraft/a20n.yml": "0c31aa8e76a2223dfc1ef4075dea69ff0deba64362f06055986dc6f7a526dedf",
+      "aircraft/a21n.yml": "23034a8250e76bdb4ccc8956082d8cd2c9637cb10defa1cbb341cd571d3ac9b4",
+      "aircraft/a318.yml": "983a3a4f90302fd4f444091e85687a3bcddcf94bd98f90ea397b2021143f1966",
+      "aircraft/a319.yml": "0ea573a02590bae79a16f3a31623701b204f111649b898a558d06191740be5cb",
+      "aircraft/a320.yml": "31e631e89229666683715b6932d65a5cf1a1133c8d7c49da2ddc7ae5046ffa6f",
+      "aircraft/a321.yml": "ce0026f33986386cc0382116667c7f29478e3a8bc3e277dc6f335e5436240e2f",
+      "aircraft/a332.yml": "33e7391a695bc0dee8f8e19aac66177f790a65650be8b2483cab415fd932a6db",
+      "aircraft/a333.yml": "4083a5829f77b0158722d79f2369741ed614f4f3c2a3d0f908ee9483a12df4b9",
+      "aircraft/a343.yml": "849e49527d75b61f81ad31f9832550af91f693f77ebafe6e374da1161227fabd",
+      "aircraft/a359.yml": "3a1a949539147f9d5f6739f18c25655399ad175db2110f26ba499fdd8a8c25fe",
+      "aircraft/a388.yml": "a4018d5dc4c70aff88fb6eec72dc0c4d5d6fe469e676f91673066d1b09e661b2",
+      "aircraft/b37m.yml": "71c312218a7fbb08237c7af4ab85c180767091778f36a534457a820a73f0c148",
+      "aircraft/b38m.yml": "aebd0e89e5bc1f88563f52da1042c9bdd24f6f9366f542893380ce347f487025",
+      "aircraft/b39m.yml": "1a885db5111b886422f8ba7bae6b5dd2af60afbbb890e3ddd96e342ead76f886",
+      "aircraft/b3xm.yml": "c39baa9a11e389649922f34b155250b1062880f98cb6257d527d2dd6aea769d4",
+      "aircraft/b734.yml": "b601049afae52d89a73c18dd1027f5e842436ae3126bbce288c25b4ab10bb9a2",
+      "aircraft/b737.yml": "8ce62647af45affada5dbeac1df7c911af86efd6431525e71d09ab2787dd7ae8",
+      "aircraft/b738.yml": "1997c0344704517dafa5e47fe6c0b6ee8e58d599bb6841452f3ba0a38c4f43c5",
+      "aircraft/b739.yml": "2b5cbf454e6101ec237def278b0108304bcf62f46b28ef4dcaa77248f87c2a44",
+      "aircraft/b744.yml": "989ee3c3b18e700aec54e018ccf4d29214deb439fc029085bf6b3f653da5a553",
+      "aircraft/b748.yml": "adbc426281fa35b6bf3d19fd3ec4e698325611406ac129fc6ea94fb700ab4a02",
+      "aircraft/b752.yml": "ffb9194a477b73dab3dadba8abf2d57b76198532fb4882c02d3766b1efa6c157",
+      "aircraft/b763.yml": "9b6ce094a9eb119c496293896fd987a4cb3dde6539e14fe0a1b1b0c89b762985",
+      "aircraft/b772.yml": "c3c3031bef40f1c1bf35ade0625654eb1b9d0443aa0ea2399a98411d0881c05a",
+      "aircraft/b773.yml": "91fa15ffaf5fd984046c466e59e9582ac4c3e80c006e1a394c5ae59a9d72c8e4",
+      "aircraft/b77w.yml": "8e04851241f7045e2eddfb68ed0e4888d860d95fb831252767ed3aa0331753a5",
+      "aircraft/b788.yml": "77543c8ce8b4c31a6e289317fb608d2619665271311fb0e78c985bc027a035b1",
+      "aircraft/b789.yml": "05e730fe63b64547aa550c9969baa19d5edf0a3fb9cca0834936378c0c3b023d",
+      "aircraft/c550.yml": "6dd2d8b3e0f5223c7fb235bc7abb87eb83a3fe080476d03fb3325283c20041d7",
+      "aircraft/crj9.yml": "a0d2179c972fbd55f8b650a1152fd4e84fc61f676c3d58e17d8a60c7ac864efe",
+      "aircraft/e145.yml": "c44493313495728e578e171b27345bca0642fb06ce6322204a4bdf663cfb12fe",
+      "aircraft/e170.yml": "682de94c5b82e3c1b5640f35e03c134891b622c1874e12cd5b86b38056a1fecc",
+      "aircraft/e190.yml": "091a7ba800ca5ea1876947d875206314dfa82a06bb4e44ae616208769b1ce5ed",
+      "aircraft/e195.yml": "19e3773d606ef099ab078c872298cb1f37cd6f307cc85285661e3267cb2993d6",
+      "aircraft/e75l.yml": "c524d3c04659ff49a384683908301a35d77aa788866a953cba7918c4a17c523e",
+      "aircraft/glf6.yml": "abc55a6b632939286ab8c1d26499583061fd6b76df5c1d7d52fa40234b18fc87"
+    },
+    "rejectedProperties": {
+      "B788": {
+        "vmo": 515
+      },
+      "B789": {
+        "vmo": 515
+      }
+    }
+  },
+  "wrap": {
+    "A319": {
+      "to_v_lof": {
+        "default": 82.7,
+        "minimum": 72.5,
+        "maximum": 92.9
+      },
+      "to_d_tof": {
+        "default": 1.51,
+        "minimum": 1.06,
+        "maximum": 2.41
+      },
+      "to_acc_tof": {
+        "default": 1.84,
+        "minimum": 1.38,
+        "maximum": 2.29
+      },
+      "ic_va_avg": {
+        "default": 80,
+        "minimum": 73,
+        "maximum": 87
+      },
+      "ic_vs_avg": {
+        "default": 12.27,
+        "minimum": 9.52,
+        "maximum": 15.04
+      },
+      "cl_d_range": {
+        "default": 206,
+        "minimum": 157,
+        "maximum": 348
+      },
+      "cl_v_cas_const": {
+        "default": 149,
+        "minimum": 140,
+        "maximum": 159
+      },
+      "cl_v_mach_const": {
+        "default": 0.77,
+        "minimum": 0.74,
+        "maximum": 0.8
+      },
+      "cl_h_cas_const": {
+        "default": 3.2,
+        "minimum": 2.1,
+        "maximum": 6
+      },
+      "cl_h_mach_const": {
+        "default": 8.9,
+        "minimum": 8,
+        "maximum": 9.8
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 11.1,
+        "minimum": 8.41,
+        "maximum": 13.8
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 10.15,
+        "minimum": 7.63,
+        "maximum": 12.67
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 6.07,
+        "minimum": 3.99,
+        "maximum": 8.16
+      },
+      "cr_d_range": {
+        "default": 299,
+        "minimum": 182,
+        "maximum": 4019
+      },
+      "cr_v_cas_mean": {
+        "default": 125,
+        "minimum": 119,
+        "maximum": 139
+      },
+      "cr_v_cas_max": {
+        "default": 128,
+        "minimum": 121,
+        "maximum": 148
+      },
+      "cr_v_mach_mean": {
+        "default": 0.77,
+        "minimum": 0.74,
+        "maximum": 0.8
+      },
+      "cr_v_mach_max": {
+        "default": 0.79,
+        "minimum": 0.75,
+        "maximum": 0.82
+      },
+      "cr_h_init": {
+        "default": 11.54,
+        "minimum": 10.27,
+        "maximum": 11.97
+      },
+      "cr_h_mean": {
+        "default": 11.54,
+        "minimum": 10.21,
+        "maximum": 11.97
+      },
+      "cr_h_max": {
+        "default": 11.64,
+        "minimum": 10.3,
+        "maximum": 12.03
+      },
+      "de_d_range": {
+        "default": 233,
+        "minimum": 176,
+        "maximum": 473
+      },
+      "de_v_mach_const": {
+        "default": 0.76,
+        "minimum": 0.72,
+        "maximum": 0.8
+      },
+      "de_v_cas_const": {
+        "default": 145,
+        "minimum": 136,
+        "maximum": 164
+      },
+      "de_h_mach_const": {
+        "default": 9.2,
+        "minimum": 7.7,
+        "maximum": 10.7
+      },
+      "de_h_cas_const": {
+        "default": 5.3,
+        "minimum": 2.6,
+        "maximum": 8.1
+      },
+      "de_vs_avg_mach_const": {
+        "default": -5.87,
+        "minimum": -12.13,
+        "maximum": -2.41
+      },
+      "de_vs_avg_cas_const": {
+        "default": -9.84,
+        "minimum": -14.22,
+        "maximum": -5.45
+      },
+      "de_vs_avg_after_cas": {
+        "default": -5.88,
+        "minimum": -7.69,
+        "maximum": -4.07
+      },
+      "fa_va_avg": {
+        "default": 67,
+        "minimum": 63,
+        "maximum": 76
+      },
+      "fa_vs_avg": {
+        "default": -3.42,
+        "minimum": -4.19,
+        "maximum": -2.65
+      },
+      "fa_agl": {
+        "default": 3.15,
+        "minimum": 2.25,
+        "maximum": 4.05
+      },
+      "ld_v_app": {
+        "default": 66.2,
+        "minimum": 61,
+        "maximum": 71.5
+      },
+      "ld_d_brk": {
+        "default": 1.38,
+        "minimum": 0.71,
+        "maximum": 4.18
+      },
+      "ld_acc_brk": {
+        "default": -0.87,
+        "minimum": -1.79,
+        "maximum": -0.35
+      }
+    },
+    "A320": {
+      "to_v_lof": {
+        "default": 85.3,
+        "minimum": 74.5,
+        "maximum": 96
+      },
+      "to_d_tof": {
+        "default": 1.65,
+        "minimum": 1.06,
+        "maximum": 2.24
+      },
+      "to_acc_tof": {
+        "default": 1.93,
+        "minimum": 1.5,
+        "maximum": 2.37
+      },
+      "ic_va_avg": {
+        "default": 83,
+        "minimum": 76,
+        "maximum": 89
+      },
+      "ic_vs_avg": {
+        "default": 12.59,
+        "minimum": 9.15,
+        "maximum": 16.04
+      },
+      "cl_d_range": {
+        "default": 257,
+        "minimum": 141,
+        "maximum": 374
+      },
+      "cl_v_cas_const": {
+        "default": 151,
+        "minimum": 140,
+        "maximum": 161
+      },
+      "cl_v_mach_const": {
+        "default": 0.78,
+        "minimum": 0.73,
+        "maximum": 0.8
+      },
+      "cl_h_cas_const": {
+        "default": 3.7,
+        "minimum": 1.9,
+        "maximum": 5.4
+      },
+      "cl_h_mach_const": {
+        "default": 8.8,
+        "minimum": 7.9,
+        "maximum": 9.8
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 10.25,
+        "minimum": 7.63,
+        "maximum": 12.87
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 8.43,
+        "minimum": 6.28,
+        "maximum": 10.6
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 5.28,
+        "minimum": 3.6,
+        "maximum": 6.97
+      },
+      "cr_d_range": {
+        "default": 856,
+        "minimum": 487,
+        "maximum": 4352
+      },
+      "cr_v_cas_mean": {
+        "default": 133,
+        "minimum": 124,
+        "maximum": 143
+      },
+      "cr_v_cas_max": {
+        "default": 135,
+        "minimum": 128,
+        "maximum": 154
+      },
+      "cr_v_mach_mean": {
+        "default": 0.78,
+        "minimum": 0.75,
+        "maximum": 0.8
+      },
+      "cr_v_mach_max": {
+        "default": 0.8,
+        "minimum": 0.77,
+        "maximum": 0.83
+      },
+      "cr_h_init": {
+        "default": 10.82,
+        "minimum": 9.79,
+        "maximum": 11.85
+      },
+      "cr_h_mean": {
+        "default": 10.92,
+        "minimum": 10,
+        "maximum": 11.84
+      },
+      "cr_h_max": {
+        "default": 11.06,
+        "minimum": 10.2,
+        "maximum": 11.92
+      },
+      "de_d_range": {
+        "default": 234,
+        "minimum": 180,
+        "maximum": 457
+      },
+      "de_v_mach_const": {
+        "default": 0.77,
+        "minimum": 0.73,
+        "maximum": 0.81
+      },
+      "de_v_cas_const": {
+        "default": 144,
+        "minimum": 135,
+        "maximum": 163
+      },
+      "de_h_mach_const": {
+        "default": 9.6,
+        "minimum": 7.9,
+        "maximum": 10.7
+      },
+      "de_h_cas_const": {
+        "default": 5.7,
+        "minimum": 3,
+        "maximum": 8.5
+      },
+      "de_vs_avg_mach_const": {
+        "default": -5.76,
+        "minimum": -13.45,
+        "maximum": -2.26
+      },
+      "de_vs_avg_cas_const": {
+        "default": -10.03,
+        "minimum": -14.68,
+        "maximum": -5.35
+      },
+      "de_vs_avg_after_cas": {
+        "default": -6.08,
+        "minimum": -7.88,
+        "maximum": -4.27
+      },
+      "fa_va_avg": {
+        "default": 72,
+        "minimum": 67,
+        "maximum": 77
+      },
+      "fa_vs_avg": {
+        "default": -3.55,
+        "minimum": -4.18,
+        "maximum": -2.91
+      },
+      "fa_agl": {
+        "default": 3.06,
+        "minimum": 2.4,
+        "maximum": 3.73
+      },
+      "ld_v_app": {
+        "default": 69.4,
+        "minimum": 62.7,
+        "maximum": 76
+      },
+      "ld_d_brk": {
+        "default": 1.08,
+        "minimum": 0.63,
+        "maximum": 3.21
+      },
+      "ld_acc_brk": {
+        "default": -1.22,
+        "minimum": -1.97,
+        "maximum": -0.47
+      }
+    },
+    "A321": {
+      "to_v_lof": {
+        "default": 90.8,
+        "minimum": 80.1,
+        "maximum": 101.5
+      },
+      "to_d_tof": {
+        "default": 1.85,
+        "minimum": 1.18,
+        "maximum": 2.52
+      },
+      "to_acc_tof": {
+        "default": 1.95,
+        "minimum": 1.49,
+        "maximum": 2.42
+      },
+      "ic_va_avg": {
+        "default": 86,
+        "minimum": 79,
+        "maximum": 94
+      },
+      "ic_vs_avg": {
+        "default": 13.21,
+        "minimum": 9.34,
+        "maximum": 17.11
+      },
+      "cl_d_range": {
+        "default": 230,
+        "minimum": 164,
+        "maximum": 426
+      },
+      "cl_v_cas_const": {
+        "default": 155,
+        "minimum": 144,
+        "maximum": 166
+      },
+      "cl_v_mach_const": {
+        "default": 0.77,
+        "minimum": 0.74,
+        "maximum": 0.81
+      },
+      "cl_h_cas_const": {
+        "default": 3.7,
+        "minimum": 2.1,
+        "maximum": 5.4
+      },
+      "cl_h_mach_const": {
+        "default": 8.4,
+        "minimum": 7.5,
+        "maximum": 9.3
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 9.38,
+        "minimum": 7.03,
+        "maximum": 11.73
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 8.17,
+        "minimum": 5.91,
+        "maximum": 10.44
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 5.19,
+        "minimum": 3.33,
+        "maximum": 7.05
+      },
+      "cr_d_range": {
+        "default": 610,
+        "minimum": 196,
+        "maximum": 5338
+      },
+      "cr_v_cas_mean": {
+        "default": 138,
+        "minimum": 127,
+        "maximum": 149
+      },
+      "cr_v_cas_max": {
+        "default": 140,
+        "minimum": 130,
+        "maximum": 162
+      },
+      "cr_v_mach_mean": {
+        "default": 0.78,
+        "minimum": 0.75,
+        "maximum": 0.8
+      },
+      "cr_v_mach_max": {
+        "default": 0.79,
+        "minimum": 0.77,
+        "maximum": 0.84
+      },
+      "cr_h_init": {
+        "default": 10.34,
+        "minimum": 9.23,
+        "maximum": 11.46
+      },
+      "cr_h_mean": {
+        "default": 10.41,
+        "minimum": 9.36,
+        "maximum": 11.46
+      },
+      "cr_h_max": {
+        "default": 10.56,
+        "minimum": 9.6,
+        "maximum": 11.52
+      },
+      "de_d_range": {
+        "default": 236,
+        "minimum": 174,
+        "maximum": 463
+      },
+      "de_v_mach_const": {
+        "default": 0.77,
+        "minimum": 0.74,
+        "maximum": 0.8
+      },
+      "de_v_cas_const": {
+        "default": 150,
+        "minimum": 138,
+        "maximum": 163
+      },
+      "de_h_mach_const": {
+        "default": 9,
+        "minimum": 7.8,
+        "maximum": 10.3
+      },
+      "de_h_cas_const": {
+        "default": 6.2,
+        "minimum": 3.3,
+        "maximum": 8.5
+      },
+      "de_vs_avg_mach_const": {
+        "default": -5.52,
+        "minimum": -11.86,
+        "maximum": -2.17
+      },
+      "de_vs_avg_cas_const": {
+        "default": -9.41,
+        "minimum": -13.64,
+        "maximum": -5.15
+      },
+      "de_vs_avg_after_cas": {
+        "default": -6.01,
+        "minimum": -7.78,
+        "maximum": -4.24
+      },
+      "fa_va_avg": {
+        "default": 75,
+        "minimum": 70,
+        "maximum": 80
+      },
+      "fa_vs_avg": {
+        "default": -3.69,
+        "minimum": -4.36,
+        "maximum": -3.01
+      },
+      "fa_agl": {
+        "default": 3.01,
+        "minimum": 2.36,
+        "maximum": 3.66
+      },
+      "ld_v_app": {
+        "default": 72.9,
+        "minimum": 66.9,
+        "maximum": 78.9
+      },
+      "ld_d_brk": {
+        "default": 1.55,
+        "minimum": 0.64,
+        "maximum": 3.94
+      },
+      "ld_acc_brk": {
+        "default": -1.21,
+        "minimum": -1.98,
+        "maximum": -0.45
+      }
+    },
+    "A332": {
+      "to_v_lof": {
+        "default": 89.9,
+        "minimum": 77.9,
+        "maximum": 101.9
+      },
+      "to_d_tof": {
+        "default": 1.97,
+        "minimum": 1.16,
+        "maximum": 2.79
+      },
+      "to_acc_tof": {
+        "default": 1.75,
+        "minimum": 1.32,
+        "maximum": 2.18
+      },
+      "ic_va_avg": {
+        "default": 86,
+        "minimum": 78,
+        "maximum": 94
+      },
+      "ic_vs_avg": {
+        "default": 12.48,
+        "minimum": 8.41,
+        "maximum": 16.57
+      },
+      "cl_d_range": {
+        "default": 297,
+        "minimum": 152,
+        "maximum": 442
+      },
+      "cl_v_cas_const": {
+        "default": 152,
+        "minimum": 143,
+        "maximum": 162
+      },
+      "cl_v_mach_const": {
+        "default": 0.81,
+        "minimum": 0.76,
+        "maximum": 0.84
+      },
+      "cl_h_cas_const": {
+        "default": 3.6,
+        "minimum": 2.3,
+        "maximum": 6
+      },
+      "cl_h_mach_const": {
+        "default": 9.2,
+        "minimum": 8.3,
+        "maximum": 10.2
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 9.53,
+        "minimum": 7.04,
+        "maximum": 12.02
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 7.98,
+        "minimum": 5.51,
+        "maximum": 10.47
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 5.23,
+        "minimum": 3.03,
+        "maximum": 7.45
+      },
+      "cr_d_range": {
+        "default": 1023,
+        "minimum": 229,
+        "maximum": 11012
+      },
+      "cr_v_cas_mean": {
+        "default": 129,
+        "minimum": 123,
+        "maximum": 143
+      },
+      "cr_v_cas_max": {
+        "default": 135,
+        "minimum": 126,
+        "maximum": 160
+      },
+      "cr_v_mach_mean": {
+        "default": 0.81,
+        "minimum": 0.79,
+        "maximum": 0.84
+      },
+      "cr_v_mach_max": {
+        "default": 0.84,
+        "minimum": 0.81,
+        "maximum": 0.87
+      },
+      "cr_h_init": {
+        "default": 11.33,
+        "minimum": 9.99,
+        "maximum": 12.68
+      },
+      "cr_h_mean": {
+        "default": 11.67,
+        "minimum": 10.71,
+        "maximum": 12.63
+      },
+      "cr_h_max": {
+        "default": 11.95,
+        "minimum": 11.12,
+        "maximum": 12.79
+      },
+      "de_d_range": {
+        "default": 283,
+        "minimum": 207,
+        "maximum": 505
+      },
+      "de_v_mach_const": {
+        "default": 0.81,
+        "minimum": 0.76,
+        "maximum": 0.84
+      },
+      "de_v_cas_const": {
+        "default": 152,
+        "minimum": 136,
+        "maximum": 162
+      },
+      "de_h_mach_const": {
+        "default": 10.2,
+        "minimum": 8.4,
+        "maximum": 11.4
+      },
+      "de_h_cas_const": {
+        "default": 6.3,
+        "minimum": 3.6,
+        "maximum": 9
+      },
+      "de_vs_avg_mach_const": {
+        "default": -6.28,
+        "minimum": -12.53,
+        "maximum": -2.85
+      },
+      "de_vs_avg_cas_const": {
+        "default": -9.39,
+        "minimum": -13.44,
+        "maximum": -5.31
+      },
+      "de_vs_avg_after_cas": {
+        "default": -5.82,
+        "minimum": -7.56,
+        "maximum": -4.07
+      },
+      "fa_va_avg": {
+        "default": 72,
+        "minimum": 67,
+        "maximum": 78
+      },
+      "fa_vs_avg": {
+        "default": -3.62,
+        "minimum": -4.24,
+        "maximum": -2.99
+      },
+      "fa_agl": {
+        "default": 2.98,
+        "minimum": 2.44,
+        "maximum": 3.53
+      },
+      "ld_v_app": {
+        "default": 70.7,
+        "minimum": 65.5,
+        "maximum": 75.9
+      },
+      "ld_d_brk": {
+        "default": 1.54,
+        "minimum": 0.87,
+        "maximum": 3.67
+      },
+      "ld_acc_brk": {
+        "default": -1.18,
+        "minimum": -1.85,
+        "maximum": -0.5
+      }
+    },
+    "A333": {
+      "to_v_lof": {
+        "default": 89.9,
+        "minimum": 77.8,
+        "maximum": 102.1
+      },
+      "to_d_tof": {
+        "default": 1.86,
+        "minimum": 1.27,
+        "maximum": 3.01
+      },
+      "to_acc_tof": {
+        "default": 1.72,
+        "minimum": 1.32,
+        "maximum": 2.13
+      },
+      "ic_va_avg": {
+        "default": 87,
+        "minimum": 79,
+        "maximum": 94
+      },
+      "ic_vs_avg": {
+        "default": 12.28,
+        "minimum": 8.47,
+        "maximum": 16.11
+      },
+      "cl_d_range": {
+        "default": 287,
+        "minimum": 174,
+        "maximum": 456
+      },
+      "cl_v_cas_const": {
+        "default": 153,
+        "minimum": 142,
+        "maximum": 165
+      },
+      "cl_v_mach_const": {
+        "default": 0.8,
+        "minimum": 0.75,
+        "maximum": 0.84
+      },
+      "cl_h_cas_const": {
+        "default": 3.1,
+        "minimum": 1.9,
+        "maximum": 6.2
+      },
+      "cl_h_mach_const": {
+        "default": 9.1,
+        "minimum": 8,
+        "maximum": 10.2
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 8.82,
+        "minimum": 6.46,
+        "maximum": 11.19
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 7.65,
+        "minimum": 5.24,
+        "maximum": 10.08
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 4.56,
+        "minimum": 3.14,
+        "maximum": 7.9
+      },
+      "cr_d_range": {
+        "default": 789,
+        "minimum": 604,
+        "maximum": 8911
+      },
+      "cr_v_cas_mean": {
+        "default": 131,
+        "minimum": 124,
+        "maximum": 144
+      },
+      "cr_v_cas_max": {
+        "default": 137,
+        "minimum": 128,
+        "maximum": 161
+      },
+      "cr_v_mach_mean": {
+        "default": 0.81,
+        "minimum": 0.79,
+        "maximum": 0.83
+      },
+      "cr_v_mach_max": {
+        "default": 0.83,
+        "minimum": 0.81,
+        "maximum": 0.87
+      },
+      "cr_h_init": {
+        "default": 11.1,
+        "minimum": 9.74,
+        "maximum": 12.46
+      },
+      "cr_h_mean": {
+        "default": 11.49,
+        "minimum": 10.54,
+        "maximum": 12.45
+      },
+      "cr_h_max": {
+        "default": 12.53,
+        "minimum": 10.63,
+        "maximum": 12.48
+      },
+      "de_d_range": {
+        "default": 284,
+        "minimum": 214,
+        "maximum": 508
+      },
+      "de_v_mach_const": {
+        "default": 0.81,
+        "minimum": 0.77,
+        "maximum": 0.84
+      },
+      "de_v_cas_const": {
+        "default": 150,
+        "minimum": 137,
+        "maximum": 162
+      },
+      "de_h_mach_const": {
+        "default": 10.2,
+        "minimum": 8.5,
+        "maximum": 11.3
+      },
+      "de_h_cas_const": {
+        "default": 6.3,
+        "minimum": 3.4,
+        "maximum": 9.1
+      },
+      "de_vs_avg_mach_const": {
+        "default": -6.17,
+        "minimum": -12.5,
+        "maximum": -2.68
+      },
+      "de_vs_avg_cas_const": {
+        "default": -9.03,
+        "minimum": -13.07,
+        "maximum": -4.96
+      },
+      "de_vs_avg_after_cas": {
+        "default": -5.74,
+        "minimum": -7.41,
+        "maximum": -4.06
+      },
+      "fa_va_avg": {
+        "default": 73,
+        "minimum": 69,
+        "maximum": 78
+      },
+      "fa_vs_avg": {
+        "default": -3.74,
+        "minimum": -4.22,
+        "maximum": -2.97
+      },
+      "fa_agl": {
+        "default": 2.97,
+        "minimum": 2.44,
+        "maximum": 3.49
+      },
+      "ld_v_app": {
+        "default": 71.5,
+        "minimum": 65.5,
+        "maximum": 77.6
+      },
+      "ld_d_brk": {
+        "default": 1.48,
+        "minimum": 0.81,
+        "maximum": 3.79
+      },
+      "ld_acc_brk": {
+        "default": -1.2,
+        "minimum": -1.86,
+        "maximum": -0.53
+      }
+    },
+    "A343": {
+      "to_v_lof": {
+        "default": 87,
+        "minimum": 76,
+        "maximum": 98.2
+      },
+      "to_d_tof": {
+        "default": 2.16,
+        "minimum": 1.46,
+        "maximum": 3.82
+      },
+      "to_acc_tof": {
+        "default": 1.4,
+        "minimum": 1.01,
+        "maximum": 1.8
+      },
+      "ic_va_avg": {
+        "default": 84,
+        "minimum": 76,
+        "maximum": 93
+      },
+      "ic_vs_avg": {
+        "default": 6.44,
+        "minimum": 4.82,
+        "maximum": 11.01
+      },
+      "cl_d_range": {
+        "default": 293,
+        "minimum": 154,
+        "maximum": 431
+      },
+      "cl_v_cas_const": {
+        "default": 155,
+        "minimum": 144,
+        "maximum": 169
+      },
+      "cl_v_mach_const": {
+        "default": 0.78,
+        "minimum": 0.75,
+        "maximum": 0.81
+      },
+      "cl_h_cas_const": {
+        "default": 3.6,
+        "minimum": 1.7,
+        "maximum": 5.5
+      },
+      "cl_h_mach_const": {
+        "default": 8.5,
+        "minimum": 7.3,
+        "maximum": 9.8
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 6.54,
+        "minimum": 5.09,
+        "maximum": 10.41
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 6.59,
+        "minimum": 4.87,
+        "maximum": 10.05
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 4.08,
+        "minimum": 2.65,
+        "maximum": 7.17
+      },
+      "cr_d_range": {
+        "default": 6021,
+        "minimum": -1865,
+        "maximum": 13929
+      },
+      "cr_v_cas_mean": {
+        "default": 138,
+        "minimum": 128,
+        "maximum": 148
+      },
+      "cr_v_cas_max": {
+        "default": 149,
+        "minimum": 132,
+        "maximum": 165
+      },
+      "cr_v_mach_mean": {
+        "default": 0.81,
+        "minimum": 0.79,
+        "maximum": 0.83
+      },
+      "cr_v_mach_max": {
+        "default": 0.83,
+        "minimum": 0.81,
+        "maximum": 0.88
+      },
+      "cr_h_init": {
+        "default": 10.01,
+        "minimum": 8.92,
+        "maximum": 12.09
+      },
+      "cr_h_mean": {
+        "default": 10.86,
+        "minimum": 10.12,
+        "maximum": 12.1
+      },
+      "cr_h_max": {
+        "default": 11.7,
+        "minimum": 10.61,
+        "maximum": 12.35
+      },
+      "de_d_range": {
+        "default": 281,
+        "minimum": 203,
+        "maximum": 489
+      },
+      "de_v_mach_const": {
+        "default": 0.81,
+        "minimum": 0.76,
+        "maximum": 0.84
+      },
+      "de_v_cas_const": {
+        "default": 154,
+        "minimum": 138,
+        "maximum": 165
+      },
+      "de_h_mach_const": {
+        "default": 9.9,
+        "minimum": 8.3,
+        "maximum": 11.1
+      },
+      "de_h_cas_const": {
+        "default": 5.8,
+        "minimum": 3,
+        "maximum": 8.8
+      },
+      "de_vs_avg_mach_const": {
+        "default": -5.84,
+        "minimum": -12.15,
+        "maximum": -2.68
+      },
+      "de_vs_avg_cas_const": {
+        "default": -9.27,
+        "minimum": -13.56,
+        "maximum": -4.97
+      },
+      "de_vs_avg_after_cas": {
+        "default": -5.5,
+        "minimum": -7.22,
+        "maximum": -3.78
+      },
+      "fa_va_avg": {
+        "default": 74,
+        "minimum": 69,
+        "maximum": 79
+      },
+      "fa_vs_avg": {
+        "default": -3.64,
+        "minimum": -4.31,
+        "maximum": -2.97
+      },
+      "fa_agl": {
+        "default": 3.04,
+        "minimum": 2.47,
+        "maximum": 3.61
+      },
+      "ld_v_app": {
+        "default": 72.2,
+        "minimum": 67.5,
+        "maximum": 77
+      },
+      "ld_d_brk": {
+        "default": 1.65,
+        "minimum": 0.92,
+        "maximum": 3.99
+      },
+      "ld_acc_brk": {
+        "default": -1.01,
+        "minimum": -1.83,
+        "maximum": -0.49
+      }
+    },
+    "A388": {
+      "to_v_lof": {
+        "default": 89.9,
+        "minimum": 75.4,
+        "maximum": 104.4
+      },
+      "to_d_tof": {
+        "default": 2.56,
+        "minimum": 1.35,
+        "maximum": 3.78
+      },
+      "to_acc_tof": {
+        "default": 1.35,
+        "minimum": 1.04,
+        "maximum": 1.66
+      },
+      "ic_va_avg": {
+        "default": 88,
+        "minimum": 80,
+        "maximum": 96
+      },
+      "ic_vs_avg": {
+        "default": 5.65,
+        "minimum": 4.4,
+        "maximum": 8.94
+      },
+      "cl_d_range": {
+        "default": 296,
+        "minimum": 200,
+        "maximum": 446
+      },
+      "cl_v_cas_const": {
+        "default": 163,
+        "minimum": 155,
+        "maximum": 170
+      },
+      "cl_v_mach_const": {
+        "default": 0.84,
+        "minimum": 0.8,
+        "maximum": 0.86
+      },
+      "cl_h_cas_const": {
+        "default": 3.3,
+        "minimum": 1.3,
+        "maximum": 5.3
+      },
+      "cl_h_mach_const": {
+        "default": 8.9,
+        "minimum": 8.2,
+        "maximum": 9.7
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 7.85,
+        "minimum": 5.95,
+        "maximum": 9.75
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 7.51,
+        "minimum": 5.2,
+        "maximum": 9.82
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 5.56,
+        "minimum": 3.23,
+        "maximum": 7.91
+      },
+      "cr_d_range": {
+        "default": 4348,
+        "minimum": 892,
+        "maximum": 20565
+      },
+      "cr_v_cas_mean": {
+        "default": 136,
+        "minimum": 130,
+        "maximum": 145
+      },
+      "cr_v_cas_max": {
+        "default": 145,
+        "minimum": 134,
+        "maximum": 164
+      },
+      "cr_v_mach_mean": {
+        "default": 0.84,
+        "minimum": 0.82,
+        "maximum": 0.86
+      },
+      "cr_v_mach_max": {
+        "default": 0.87,
+        "minimum": 0.85,
+        "maximum": 0.9
+      },
+      "cr_h_init": {
+        "default": 11.55,
+        "minimum": 9.3,
+        "maximum": 12.23
+      },
+      "cr_h_mean": {
+        "default": 11.73,
+        "minimum": 10.87,
+        "maximum": 12.28
+      },
+      "cr_h_max": {
+        "default": 12.06,
+        "minimum": 11.52,
+        "maximum": 12.6
+      },
+      "de_d_range": {
+        "default": 310,
+        "minimum": 238,
+        "maximum": 528
+      },
+      "de_v_mach_const": {
+        "default": 0.83,
+        "minimum": 0.8,
+        "maximum": 0.87
+      },
+      "de_v_cas_const": {
+        "default": 154,
+        "minimum": 142,
+        "maximum": 167
+      },
+      "de_h_mach_const": {
+        "default": 10.1,
+        "minimum": 8.6,
+        "maximum": 11.5
+      },
+      "de_h_cas_const": {
+        "default": 6.6,
+        "minimum": 3.9,
+        "maximum": 9.4
+      },
+      "de_vs_avg_mach_const": {
+        "default": -6.06,
+        "minimum": -11.9,
+        "maximum": -2.97
+      },
+      "de_vs_avg_cas_const": {
+        "default": -8.36,
+        "minimum": -11.74,
+        "maximum": -4.97
+      },
+      "de_vs_avg_after_cas": {
+        "default": -5.48,
+        "minimum": -6.93,
+        "maximum": -4.02
+      },
+      "fa_va_avg": {
+        "default": 73,
+        "minimum": 68,
+        "maximum": 77
+      },
+      "fa_vs_avg": {
+        "default": -3.71,
+        "minimum": -4.13,
+        "maximum": -2.92
+      },
+      "fa_agl": {
+        "default": 2.9,
+        "minimum": 2.42,
+        "maximum": 3.38
+      },
+      "ld_v_app": {
+        "default": 70,
+        "minimum": 62.1,
+        "maximum": 78
+      },
+      "ld_d_brk": {
+        "default": 2.26,
+        "minimum": 0.73,
+        "maximum": 3.8
+      },
+      "ld_acc_brk": {
+        "default": -1.01,
+        "minimum": -1.51,
+        "maximum": -0.52
+      }
+    },
+    "B737": {
+      "to_v_lof": {
+        "default": 83.6,
+        "minimum": 72.3,
+        "maximum": 94.8
+      },
+      "to_d_tof": {
+        "default": 1.5,
+        "minimum": 1.03,
+        "maximum": 2.58
+      },
+      "to_acc_tof": {
+        "default": 1.77,
+        "minimum": 1.31,
+        "maximum": 2.23
+      },
+      "ic_va_avg": {
+        "default": 81,
+        "minimum": 71,
+        "maximum": 91
+      },
+      "ic_vs_avg": {
+        "default": 11.93,
+        "minimum": 8.05,
+        "maximum": 15.83
+      },
+      "cl_d_range": {
+        "default": 204,
+        "minimum": 155,
+        "maximum": 348
+      },
+      "cl_v_cas_const": {
+        "default": 151,
+        "minimum": 139,
+        "maximum": 164
+      },
+      "cl_v_mach_const": {
+        "default": 0.78,
+        "minimum": 0.72,
+        "maximum": 0.81
+      },
+      "cl_h_cas_const": {
+        "default": 3.4,
+        "minimum": 2.2,
+        "maximum": 6.1
+      },
+      "cl_h_mach_const": {
+        "default": 8.9,
+        "minimum": 7.9,
+        "maximum": 9.8
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 11.4,
+        "minimum": 8.01,
+        "maximum": 14.82
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 11.71,
+        "minimum": 8.49,
+        "maximum": 14.93
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 6.74,
+        "minimum": 4.4,
+        "maximum": 9.08
+      },
+      "cr_d_range": {
+        "default": 453,
+        "minimum": 175,
+        "maximum": 4929
+      },
+      "cr_v_cas_mean": {
+        "default": 122,
+        "minimum": 115,
+        "maximum": 136
+      },
+      "cr_v_cas_max": {
+        "default": 126,
+        "minimum": 118,
+        "maximum": 150
+      },
+      "cr_v_mach_mean": {
+        "default": 0.78,
+        "minimum": 0.74,
+        "maximum": 0.8
+      },
+      "cr_v_mach_max": {
+        "default": 0.8,
+        "minimum": 0.76,
+        "maximum": 0.83
+      },
+      "cr_h_init": {
+        "default": 12.52,
+        "minimum": 10.36,
+        "maximum": 12.47
+      },
+      "cr_h_mean": {
+        "default": 11.74,
+        "minimum": 10.73,
+        "maximum": 12.75
+      },
+      "cr_h_max": {
+        "default": 11.9,
+        "minimum": 11.03,
+        "maximum": 12.78
+      },
+      "de_d_range": {
+        "default": 244,
+        "minimum": 173,
+        "maximum": 566
+      },
+      "de_v_mach_const": {
+        "default": 0.78,
+        "minimum": 0.7,
+        "maximum": 0.81
+      },
+      "de_v_cas_const": {
+        "default": 146,
+        "minimum": 133,
+        "maximum": 159
+      },
+      "de_h_mach_const": {
+        "default": 9.6,
+        "minimum": 8.1,
+        "maximum": 11.2
+      },
+      "de_h_cas_const": {
+        "default": 5.7,
+        "minimum": 3,
+        "maximum": 8.5
+      },
+      "de_vs_avg_mach_const": {
+        "default": -5.63,
+        "minimum": -13.13,
+        "maximum": -2.29
+      },
+      "de_vs_avg_cas_const": {
+        "default": -9.39,
+        "minimum": -14.21,
+        "maximum": -4.55
+      },
+      "de_vs_avg_after_cas": {
+        "default": -5.85,
+        "minimum": -7.84,
+        "maximum": -3.86
+      },
+      "fa_va_avg": {
+        "default": 70,
+        "minimum": 65,
+        "maximum": 80
+      },
+      "fa_vs_avg": {
+        "default": -3.58,
+        "minimum": -4.45,
+        "maximum": -2.7
+      },
+      "fa_agl": {
+        "default": 3.08,
+        "minimum": 2.28,
+        "maximum": 3.87
+      },
+      "ld_v_app": {
+        "default": 68.8,
+        "minimum": 62.9,
+        "maximum": 74.6
+      },
+      "ld_d_brk": {
+        "default": 1.91,
+        "minimum": 0.66,
+        "maximum": 4.39
+      },
+      "ld_acc_brk": {
+        "default": -0.83,
+        "minimum": -1.9,
+        "maximum": -0.31
+      }
+    },
+    "B738": {
+      "to_v_lof": {
+        "default": 86.5,
+        "minimum": 75,
+        "maximum": 98
+      },
+      "to_d_tof": {
+        "default": 1.64,
+        "minimum": 1.13,
+        "maximum": 2.63
+      },
+      "to_acc_tof": {
+        "default": 1.82,
+        "minimum": 1.37,
+        "maximum": 2.28
+      },
+      "ic_va_avg": {
+        "default": 87,
+        "minimum": 80,
+        "maximum": 93
+      },
+      "ic_vs_avg": {
+        "default": 12.27,
+        "minimum": 8.29,
+        "maximum": 16.26
+      },
+      "cl_d_range": {
+        "default": 216,
+        "minimum": 168,
+        "maximum": 350
+      },
+      "cl_v_cas_const": {
+        "default": 151,
+        "minimum": 140,
+        "maximum": 161
+      },
+      "cl_v_mach_const": {
+        "default": 0.77,
+        "minimum": 0.75,
+        "maximum": 0.8
+      },
+      "cl_h_cas_const": {
+        "default": 3.6,
+        "minimum": 1.8,
+        "maximum": 5.4
+      },
+      "cl_h_mach_const": {
+        "default": 8.9,
+        "minimum": 7.9,
+        "maximum": 9.8
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 10.61,
+        "minimum": 7.83,
+        "maximum": 13.41
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 10.24,
+        "minimum": 7.7,
+        "maximum": 12.8
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 6.2,
+        "minimum": 4.31,
+        "maximum": 8.11
+      },
+      "cr_d_range": {
+        "default": 929,
+        "minimum": 502,
+        "maximum": 4953
+      },
+      "cr_v_cas_mean": {
+        "default": 130,
+        "minimum": 121,
+        "maximum": 139
+      },
+      "cr_v_cas_max": {
+        "default": 132,
+        "minimum": 125,
+        "maximum": 151
+      },
+      "cr_v_mach_mean": {
+        "default": 0.78,
+        "minimum": 0.75,
+        "maximum": 0.8
+      },
+      "cr_v_mach_max": {
+        "default": 0.8,
+        "minimum": 0.77,
+        "maximum": 0.83
+      },
+      "cr_h_init": {
+        "default": 11.13,
+        "minimum": 10.16,
+        "maximum": 12.1
+      },
+      "cr_h_mean": {
+        "default": 11.23,
+        "minimum": 10.35,
+        "maximum": 12.12
+      },
+      "cr_h_max": {
+        "default": 11.38,
+        "minimum": 10.57,
+        "maximum": 12.19
+      },
+      "de_d_range": {
+        "default": 241,
+        "minimum": 179,
+        "maximum": 472
+      },
+      "de_v_mach_const": {
+        "default": 0.77,
+        "minimum": 0.73,
+        "maximum": 0.81
+      },
+      "de_v_cas_const": {
+        "default": 145,
+        "minimum": 132,
+        "maximum": 159
+      },
+      "de_h_mach_const": {
+        "default": 9.7,
+        "minimum": 8.3,
+        "maximum": 11.1
+      },
+      "de_h_cas_const": {
+        "default": 5.9,
+        "minimum": 3.2,
+        "maximum": 8.7
+      },
+      "de_vs_avg_mach_const": {
+        "default": -5.8,
+        "minimum": -12.73,
+        "maximum": -2.11
+      },
+      "de_vs_avg_cas_const": {
+        "default": -9.95,
+        "minimum": -14.39,
+        "maximum": -5.48
+      },
+      "de_vs_avg_after_cas": {
+        "default": -6.23,
+        "minimum": -7.91,
+        "maximum": -4.53
+      },
+      "fa_va_avg": {
+        "default": 77,
+        "minimum": 72,
+        "maximum": 82
+      },
+      "fa_vs_avg": {
+        "default": -3.84,
+        "minimum": -4.56,
+        "maximum": -3.12
+      },
+      "fa_agl": {
+        "default": 3.02,
+        "minimum": 2.33,
+        "maximum": 3.72
+      },
+      "ld_v_app": {
+        "default": 75.4,
+        "minimum": 69.5,
+        "maximum": 81.3
+      },
+      "ld_d_brk": {
+        "default": 1.25,
+        "minimum": 0.68,
+        "maximum": 3.6
+      },
+      "ld_acc_brk": {
+        "default": -1.36,
+        "minimum": -2.14,
+        "maximum": -0.57
+      }
+    },
+    "B739": {
+      "to_v_lof": {
+        "default": 91.3,
+        "minimum": 77.6,
+        "maximum": 105
+      },
+      "to_d_tof": {
+        "default": 1.91,
+        "minimum": 1.14,
+        "maximum": 2.9
+      },
+      "to_acc_tof": {
+        "default": 1.87,
+        "minimum": 1.41,
+        "maximum": 2.32
+      },
+      "ic_va_avg": {
+        "default": 91,
+        "minimum": 84,
+        "maximum": 99
+      },
+      "ic_vs_avg": {
+        "default": 12.36,
+        "minimum": 7.85,
+        "maximum": 16.9
+      },
+      "cl_d_range": {
+        "default": 239,
+        "minimum": 142,
+        "maximum": 337
+      },
+      "cl_v_cas_const": {
+        "default": 154,
+        "minimum": 143,
+        "maximum": 166
+      },
+      "cl_v_mach_const": {
+        "default": 0.78,
+        "minimum": 0.75,
+        "maximum": 0.81
+      },
+      "cl_h_cas_const": {
+        "default": 3.4,
+        "minimum": 2.3,
+        "maximum": 5.9
+      },
+      "cl_h_mach_const": {
+        "default": 8.6,
+        "minimum": 7.7,
+        "maximum": 9.5
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 10.18,
+        "minimum": 7.64,
+        "maximum": 12.72
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 8.88,
+        "minimum": 6.66,
+        "maximum": 11.12
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 5.55,
+        "minimum": 3.67,
+        "maximum": 7.43
+      },
+      "cr_d_range": {
+        "default": 338,
+        "minimum": 193,
+        "maximum": 4458
+      },
+      "cr_v_cas_mean": {
+        "default": 138,
+        "minimum": 127,
+        "maximum": 149
+      },
+      "cr_v_cas_max": {
+        "default": 145,
+        "minimum": 131,
+        "maximum": 159
+      },
+      "cr_v_mach_mean": {
+        "default": 0.78,
+        "minimum": 0.76,
+        "maximum": 0.81
+      },
+      "cr_v_mach_max": {
+        "default": 0.81,
+        "minimum": 0.78,
+        "maximum": 0.84
+      },
+      "cr_h_init": {
+        "default": 10.43,
+        "minimum": 9.43,
+        "maximum": 11.43
+      },
+      "cr_h_mean": {
+        "default": 10.52,
+        "minimum": 9.63,
+        "maximum": 11.41
+      },
+      "cr_h_max": {
+        "default": 10.74,
+        "minimum": 9.73,
+        "maximum": 11.61
+      },
+      "de_d_range": {
+        "default": 245,
+        "minimum": 180,
+        "maximum": 505
+      },
+      "de_v_mach_const": {
+        "default": 0.78,
+        "minimum": 0.73,
+        "maximum": 0.8
+      },
+      "de_v_cas_const": {
+        "default": 148,
+        "minimum": 138,
+        "maximum": 159
+      },
+      "de_h_mach_const": {
+        "default": 9.4,
+        "minimum": 8.2,
+        "maximum": 10.6
+      },
+      "de_h_cas_const": {
+        "default": 6.5,
+        "minimum": 4.2,
+        "maximum": 8.8
+      },
+      "de_vs_avg_mach_const": {
+        "default": -4.78,
+        "minimum": -11.29,
+        "maximum": -1.79
+      },
+      "de_vs_avg_cas_const": {
+        "default": -8.96,
+        "minimum": -13.87,
+        "maximum": -4.17
+      },
+      "de_vs_avg_after_cas": {
+        "default": -6.02,
+        "minimum": -7.69,
+        "maximum": -4.35
+      },
+      "fa_va_avg": {
+        "default": 78,
+        "minimum": 72,
+        "maximum": 83
+      },
+      "fa_vs_avg": {
+        "default": -3.92,
+        "minimum": -4.72,
+        "maximum": -3.13
+      },
+      "fa_agl": {
+        "default": 3.03,
+        "minimum": 2.43,
+        "maximum": 3.64
+      },
+      "ld_v_app": {
+        "default": 76.8,
+        "minimum": 70.5,
+        "maximum": 83.2
+      },
+      "ld_d_brk": {
+        "default": 1.45,
+        "minimum": 0.7,
+        "maximum": 4.22
+      },
+      "ld_acc_brk": {
+        "default": -1.33,
+        "minimum": -2.12,
+        "maximum": -0.54
+      }
+    },
+    "B744": {
+      "to_v_lof": {
+        "default": 92.4,
+        "minimum": 79.3,
+        "maximum": 105.4
+      },
+      "to_d_tof": {
+        "default": 2.29,
+        "minimum": 1.27,
+        "maximum": 3.31
+      },
+      "to_acc_tof": {
+        "default": 1.67,
+        "minimum": 1.21,
+        "maximum": 2.13
+      },
+      "ic_va_avg": {
+        "default": 91,
+        "minimum": 82,
+        "maximum": 101
+      },
+      "ic_vs_avg": {
+        "default": 9.24,
+        "minimum": 6.76,
+        "maximum": 13.74
+      },
+      "cl_d_range": {
+        "default": 223,
+        "minimum": 175,
+        "maximum": 374
+      },
+      "cl_v_cas_const": {
+        "default": 168,
+        "minimum": 157,
+        "maximum": 180
+      },
+      "cl_v_mach_const": {
+        "default": 0.84,
+        "minimum": 0.81,
+        "maximum": 0.87
+      },
+      "cl_h_cas_const": {
+        "default": 3.9,
+        "minimum": 2.2,
+        "maximum": 5.6
+      },
+      "cl_h_mach_const": {
+        "default": 8.3,
+        "minimum": 7.6,
+        "maximum": 9.7
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 8.66,
+        "minimum": 6,
+        "maximum": 11.33
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 8.77,
+        "minimum": 6.65,
+        "maximum": 13.11
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 6.72,
+        "minimum": 4.07,
+        "maximum": 9.39
+      },
+      "cr_d_range": {
+        "default": 5580,
+        "minimum": -1544,
+        "maximum": 12725
+      },
+      "cr_v_cas_mean": {
+        "default": 146,
+        "minimum": 134,
+        "maximum": 158
+      },
+      "cr_v_cas_max": {
+        "default": 157,
+        "minimum": 139,
+        "maximum": 174
+      },
+      "cr_v_mach_mean": {
+        "default": 0.84,
+        "minimum": 0.82,
+        "maximum": 0.87
+      },
+      "cr_v_mach_max": {
+        "default": 0.87,
+        "minimum": 0.84,
+        "maximum": 0.92
+      },
+      "cr_h_init": {
+        "default": 10.28,
+        "minimum": 8.87,
+        "maximum": 11.7
+      },
+      "cr_h_mean": {
+        "default": 10.81,
+        "minimum": 9.77,
+        "maximum": 11.84
+      },
+      "cr_h_max": {
+        "default": 11.29,
+        "minimum": 10.17,
+        "maximum": 12.4
+      },
+      "de_d_range": {
+        "default": 262,
+        "minimum": 195,
+        "maximum": 510
+      },
+      "de_v_mach_const": {
+        "default": 0.83,
+        "minimum": 0.77,
+        "maximum": 0.87
+      },
+      "de_v_cas_const": {
+        "default": 152,
+        "minimum": 139,
+        "maximum": 164
+      },
+      "de_h_mach_const": {
+        "default": 10,
+        "minimum": 8.7,
+        "maximum": 11.3
+      },
+      "de_h_cas_const": {
+        "default": 6.6,
+        "minimum": 4,
+        "maximum": 9.2
+      },
+      "de_vs_avg_mach_const": {
+        "default": -5.43,
+        "minimum": -12.37,
+        "maximum": -2.2
+      },
+      "de_vs_avg_cas_const": {
+        "default": -9.17,
+        "minimum": -13.85,
+        "maximum": -4.48
+      },
+      "de_vs_avg_after_cas": {
+        "default": -6.29,
+        "minimum": -8.02,
+        "maximum": -4.55
+      },
+      "fa_va_avg": {
+        "default": 79,
+        "minimum": 72,
+        "maximum": 85
+      },
+      "fa_vs_avg": {
+        "default": -4.03,
+        "minimum": -4.6,
+        "maximum": -3.03
+      },
+      "fa_agl": {
+        "default": 2.98,
+        "minimum": 2.33,
+        "maximum": 3.64
+      },
+      "ld_v_app": {
+        "default": 77.9,
+        "minimum": 71,
+        "maximum": 84.9
+      },
+      "ld_d_brk": {
+        "default": 1.64,
+        "minimum": 0.93,
+        "maximum": 4.06
+      },
+      "ld_acc_brk": {
+        "default": -1.18,
+        "minimum": -1.98,
+        "maximum": -0.6
+      }
+    },
+    "B752": {
+      "to_v_lof": {
+        "default": 90.5,
+        "minimum": 76.8,
+        "maximum": 104.3
+      },
+      "to_d_tof": {
+        "default": 1.7,
+        "minimum": 0.98,
+        "maximum": 2.66
+      },
+      "to_acc_tof": {
+        "default": 1.91,
+        "minimum": 1.46,
+        "maximum": 2.37
+      },
+      "ic_va_avg": {
+        "default": 88,
+        "minimum": 78,
+        "maximum": 98
+      },
+      "ic_vs_avg": {
+        "default": 12.99,
+        "minimum": 8.6,
+        "maximum": 17.4
+      },
+      "cl_d_range": {
+        "default": 220,
+        "minimum": 167,
+        "maximum": 384
+      },
+      "cl_v_cas_const": {
+        "default": 155,
+        "minimum": 144,
+        "maximum": 166
+      },
+      "cl_v_mach_const": {
+        "default": 0.79,
+        "minimum": 0.75,
+        "maximum": 0.82
+      },
+      "cl_h_cas_const": {
+        "default": 4,
+        "minimum": 2.3,
+        "maximum": 5.7
+      },
+      "cl_h_mach_const": {
+        "default": 8.7,
+        "minimum": 8,
+        "maximum": 9.5
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 10.29,
+        "minimum": 7.8,
+        "maximum": 12.8
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 8.95,
+        "minimum": 6.41,
+        "maximum": 11.51
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 6.23,
+        "minimum": 3.8,
+        "maximum": 8.67
+      },
+      "cr_d_range": {
+        "default": 497,
+        "minimum": 512,
+        "maximum": 6087
+      },
+      "cr_v_cas_mean": {
+        "default": 131,
+        "minimum": 123,
+        "maximum": 145
+      },
+      "cr_v_cas_max": {
+        "default": 138,
+        "minimum": 128,
+        "maximum": 159
+      },
+      "cr_v_mach_mean": {
+        "default": 0.79,
+        "minimum": 0.77,
+        "maximum": 0.82
+      },
+      "cr_v_mach_max": {
+        "default": 0.81,
+        "minimum": 0.79,
+        "maximum": 0.86
+      },
+      "cr_h_init": {
+        "default": 11,
+        "minimum": 9.96,
+        "maximum": 12.05
+      },
+      "cr_h_mean": {
+        "default": 11.17,
+        "minimum": 10.28,
+        "maximum": 12.07
+      },
+      "cr_h_max": {
+        "default": 11.64,
+        "minimum": 10.39,
+        "maximum": 12.22
+      },
+      "de_d_range": {
+        "default": 247,
+        "minimum": 178,
+        "maximum": 504
+      },
+      "de_v_mach_const": {
+        "default": 0.79,
+        "minimum": 0.75,
+        "maximum": 0.82
+      },
+      "de_v_cas_const": {
+        "default": 151,
+        "minimum": 137,
+        "maximum": 165
+      },
+      "de_h_mach_const": {
+        "default": 9.4,
+        "minimum": 8,
+        "maximum": 10.8
+      },
+      "de_h_cas_const": {
+        "default": 6.3,
+        "minimum": 3.9,
+        "maximum": 8.8
+      },
+      "de_vs_avg_mach_const": {
+        "default": -6.8,
+        "minimum": -12.65,
+        "maximum": -2.52
+      },
+      "de_vs_avg_cas_const": {
+        "default": -9.56,
+        "minimum": -14.46,
+        "maximum": -4.64
+      },
+      "de_vs_avg_after_cas": {
+        "default": -6.16,
+        "minimum": -7.9,
+        "maximum": -4.41
+      },
+      "fa_va_avg": {
+        "default": 69,
+        "minimum": 62,
+        "maximum": 76
+      },
+      "fa_vs_avg": {
+        "default": -3.41,
+        "minimum": -4.2,
+        "maximum": -2.62
+      },
+      "fa_agl": {
+        "default": 3.09,
+        "minimum": 2.2,
+        "maximum": 3.98
+      },
+      "ld_v_app": {
+        "default": 66.7,
+        "minimum": 60.2,
+        "maximum": 73.2
+      },
+      "ld_d_brk": {
+        "default": 1.21,
+        "minimum": 0.68,
+        "maximum": 3.43
+      },
+      "ld_acc_brk": {
+        "default": -1.03,
+        "minimum": -1.85,
+        "maximum": -0.46
+      }
+    },
+    "B763": {
+      "to_v_lof": {
+        "default": 92.4,
+        "minimum": 79.6,
+        "maximum": 105.3
+      },
+      "to_d_tof": {
+        "default": 1.82,
+        "minimum": 1.03,
+        "maximum": 2.61
+      },
+      "to_acc_tof": {
+        "default": 1.97,
+        "minimum": 1.46,
+        "maximum": 2.49
+      },
+      "ic_va_avg": {
+        "default": 88,
+        "minimum": 80,
+        "maximum": 96
+      },
+      "ic_vs_avg": {
+        "default": 14.28,
+        "minimum": 9.45,
+        "maximum": 19.12
+      },
+      "cl_d_range": {
+        "default": 202,
+        "minimum": 160,
+        "maximum": 338
+      },
+      "cl_v_cas_const": {
+        "default": 159,
+        "minimum": 146,
+        "maximum": 171
+      },
+      "cl_v_mach_const": {
+        "default": 0.79,
+        "minimum": 0.76,
+        "maximum": 0.83
+      },
+      "cl_h_cas_const": {
+        "default": 4,
+        "minimum": 2.6,
+        "maximum": 5.5
+      },
+      "cl_h_mach_const": {
+        "default": 8.3,
+        "minimum": 7.6,
+        "maximum": 9.8
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 10.16,
+        "minimum": 7.27,
+        "maximum": 13.07
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 10.26,
+        "minimum": 7.06,
+        "maximum": 13.48
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 6.95,
+        "minimum": 3.76,
+        "maximum": 10.16
+      },
+      "cr_d_range": {
+        "default": 1201,
+        "minimum": 562,
+        "maximum": 9544
+      },
+      "cr_v_cas_mean": {
+        "default": 137,
+        "minimum": 127,
+        "maximum": 148
+      },
+      "cr_v_cas_max": {
+        "default": 142,
+        "minimum": 132,
+        "maximum": 165
+      },
+      "cr_v_mach_mean": {
+        "default": 0.8,
+        "minimum": 0.77,
+        "maximum": 0.83
+      },
+      "cr_v_mach_max": {
+        "default": 0.82,
+        "minimum": 0.79,
+        "maximum": 0.87
+      },
+      "cr_h_init": {
+        "default": 10.65,
+        "minimum": 9.11,
+        "maximum": 11.75
+      },
+      "cr_h_mean": {
+        "default": 10.81,
+        "minimum": 9.9,
+        "maximum": 11.73
+      },
+      "cr_h_max": {
+        "default": 11.17,
+        "minimum": 10.3,
+        "maximum": 12.04
+      },
+      "de_d_range": {
+        "default": 244,
+        "minimum": 178,
+        "maximum": 489
+      },
+      "de_v_mach_const": {
+        "default": 0.79,
+        "minimum": 0.76,
+        "maximum": 0.83
+      },
+      "de_v_cas_const": {
+        "default": 151,
+        "minimum": 139,
+        "maximum": 164
+      },
+      "de_h_mach_const": {
+        "default": 9.5,
+        "minimum": 8.3,
+        "maximum": 10.8
+      },
+      "de_h_cas_const": {
+        "default": 6.7,
+        "minimum": 4.4,
+        "maximum": 9
+      },
+      "de_vs_avg_mach_const": {
+        "default": -6.29,
+        "minimum": -13.2,
+        "maximum": -2.33
+      },
+      "de_vs_avg_cas_const": {
+        "default": -9.98,
+        "minimum": -14.99,
+        "maximum": -4.94
+      },
+      "de_vs_avg_after_cas": {
+        "default": -6.29,
+        "minimum": -7.99,
+        "maximum": -4.58
+      },
+      "fa_va_avg": {
+        "default": 74,
+        "minimum": 68,
+        "maximum": 80
+      },
+      "fa_vs_avg": {
+        "default": -3.76,
+        "minimum": -4.37,
+        "maximum": -2.75
+      },
+      "fa_agl": {
+        "default": 2.98,
+        "minimum": 2.22,
+        "maximum": 3.74
+      },
+      "ld_v_app": {
+        "default": 72.1,
+        "minimum": 65.3,
+        "maximum": 78.9
+      },
+      "ld_d_brk": {
+        "default": 1.51,
+        "minimum": 0.66,
+        "maximum": 3.71
+      },
+      "ld_acc_brk": {
+        "default": -1.1,
+        "minimum": -1.94,
+        "maximum": -0.52
+      }
+    },
+    "B77W": {
+      "to_v_lof": {
+        "default": 96.4,
+        "minimum": 83.9,
+        "maximum": 109
+      },
+      "to_d_tof": {
+        "default": 2.21,
+        "minimum": 1.38,
+        "maximum": 3.04
+      },
+      "to_acc_tof": {
+        "default": 1.89,
+        "minimum": 1.45,
+        "maximum": 2.33
+      },
+      "ic_va_avg": {
+        "default": 98,
+        "minimum": 88,
+        "maximum": 106
+      },
+      "ic_vs_avg": {
+        "default": 13.02,
+        "minimum": 9.69,
+        "maximum": 16.36
+      },
+      "cl_d_range": {
+        "default": 214,
+        "minimum": 173,
+        "maximum": 354
+      },
+      "cl_v_cas_const": {
+        "default": 164,
+        "minimum": 158,
+        "maximum": 170
+      },
+      "cl_v_mach_const": {
+        "default": 0.83,
+        "minimum": 0.8,
+        "maximum": 0.86
+      },
+      "cl_h_cas_const": {
+        "default": 3.8,
+        "minimum": 1.8,
+        "maximum": 5.9
+      },
+      "cl_h_mach_const": {
+        "default": 8.8,
+        "minimum": 8.1,
+        "maximum": 9.5
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 8.99,
+        "minimum": 6.8,
+        "maximum": 11.19
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 8.55,
+        "minimum": 6.41,
+        "maximum": 12.95
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 5.76,
+        "minimum": 3.31,
+        "maximum": 10.81
+      },
+      "cr_d_range": {
+        "default": 4843,
+        "minimum": 758,
+        "maximum": 14177
+      },
+      "cr_v_cas_mean": {
+        "default": 148,
+        "minimum": 139,
+        "maximum": 158
+      },
+      "cr_v_cas_max": {
+        "default": 159,
+        "minimum": 142,
+        "maximum": 175
+      },
+      "cr_v_mach_mean": {
+        "default": 0.84,
+        "minimum": 0.82,
+        "maximum": 0.86
+      },
+      "cr_v_mach_max": {
+        "default": 0.86,
+        "minimum": 0.84,
+        "maximum": 0.91
+      },
+      "cr_h_init": {
+        "default": 9.63,
+        "minimum": 8.74,
+        "maximum": 11.52
+      },
+      "cr_h_mean": {
+        "default": 10.35,
+        "minimum": 9.75,
+        "maximum": 11.4
+      },
+      "cr_h_max": {
+        "default": 11,
+        "minimum": 10.31,
+        "maximum": 11.69
+      },
+      "de_d_range": {
+        "default": 257,
+        "minimum": 197,
+        "maximum": 476
+      },
+      "de_v_mach_const": {
+        "default": 0.82,
+        "minimum": 0.79,
+        "maximum": 0.86
+      },
+      "de_v_cas_const": {
+        "default": 156,
+        "minimum": 140,
+        "maximum": 167
+      },
+      "de_h_mach_const": {
+        "default": 9.7,
+        "minimum": 8.6,
+        "maximum": 10.8
+      },
+      "de_h_cas_const": {
+        "default": 6.7,
+        "minimum": 4.2,
+        "maximum": 9.2
+      },
+      "de_vs_avg_mach_const": {
+        "default": -7.04,
+        "minimum": -12.03,
+        "maximum": -2.02
+      },
+      "de_vs_avg_cas_const": {
+        "default": -9.05,
+        "minimum": -13.36,
+        "maximum": -4.72
+      },
+      "de_vs_avg_after_cas": {
+        "default": -6.3,
+        "minimum": -7.92,
+        "maximum": -4.67
+      },
+      "fa_va_avg": {
+        "default": 78,
+        "minimum": 73,
+        "maximum": 83
+      },
+      "fa_vs_avg": {
+        "default": -4.03,
+        "minimum": -4.49,
+        "maximum": -3.27
+      },
+      "fa_agl": {
+        "default": 2.95,
+        "minimum": 2.44,
+        "maximum": 3.46
+      },
+      "ld_v_app": {
+        "default": 76.9,
+        "minimum": 70.8,
+        "maximum": 83.1
+      },
+      "ld_d_brk": {
+        "default": 1.49,
+        "minimum": 0.84,
+        "maximum": 3.52
+      },
+      "ld_acc_brk": {
+        "default": -1.33,
+        "minimum": -2,
+        "maximum": -0.66
+      }
+    },
+    "B788": {
+      "to_v_lof": {
+        "default": 90.3,
+        "minimum": 74.4,
+        "maximum": 106.3
+      },
+      "to_d_tof": {
+        "default": 2.16,
+        "minimum": 1.08,
+        "maximum": 3.25
+      },
+      "to_acc_tof": {
+        "default": 1.61,
+        "minimum": 1.16,
+        "maximum": 2.07
+      },
+      "ic_va_avg": {
+        "default": 87,
+        "minimum": 78,
+        "maximum": 97
+      },
+      "ic_vs_avg": {
+        "default": 10.65,
+        "minimum": 6.27,
+        "maximum": 14.45
+      },
+      "cl_d_range": {
+        "default": 286,
+        "minimum": 146,
+        "maximum": 427
+      },
+      "cl_v_cas_const": {
+        "default": 158,
+        "minimum": 146,
+        "maximum": 170
+      },
+      "cl_v_mach_const": {
+        "default": 0.85,
+        "minimum": 0.81,
+        "maximum": 0.87
+      },
+      "cl_h_cas_const": {
+        "default": 3.8,
+        "minimum": 2.5,
+        "maximum": 6.3
+      },
+      "cl_h_mach_const": {
+        "default": 9.5,
+        "minimum": 8.4,
+        "maximum": 10.6
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 9.58,
+        "minimum": 7.32,
+        "maximum": 11.85
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 9.02,
+        "minimum": 6.12,
+        "maximum": 11.93
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 6.02,
+        "minimum": 3.59,
+        "maximum": 8.47
+      },
+      "cr_d_range": {
+        "default": 1874,
+        "minimum": 269,
+        "maximum": 11619
+      },
+      "cr_v_cas_mean": {
+        "default": 132,
+        "minimum": 126,
+        "maximum": 146
+      },
+      "cr_v_cas_max": {
+        "default": 139,
+        "minimum": 130,
+        "maximum": 164
+      },
+      "cr_v_mach_mean": {
+        "default": 0.85,
+        "minimum": 0.83,
+        "maximum": 0.87
+      },
+      "cr_v_mach_max": {
+        "default": 0.87,
+        "minimum": 0.85,
+        "maximum": 0.91
+      },
+      "cr_h_init": {
+        "default": 11.65,
+        "minimum": 10.37,
+        "maximum": 12.92
+      },
+      "cr_h_mean": {
+        "default": 12.01,
+        "minimum": 11.16,
+        "maximum": 12.85
+      },
+      "cr_h_max": {
+        "default": 12.28,
+        "minimum": 11.52,
+        "maximum": 13.06
+      },
+      "de_d_range": {
+        "default": 292,
+        "minimum": 219,
+        "maximum": 551
+      },
+      "de_v_mach_const": {
+        "default": 0.84,
+        "minimum": 0.8,
+        "maximum": 0.87
+      },
+      "de_v_cas_const": {
+        "default": 153,
+        "minimum": 140,
+        "maximum": 167
+      },
+      "de_h_mach_const": {
+        "default": 10.5,
+        "minimum": 8.8,
+        "maximum": 11.7
+      },
+      "de_h_cas_const": {
+        "default": 7,
+        "minimum": 4.4,
+        "maximum": 9.7
+      },
+      "de_vs_avg_mach_const": {
+        "default": -7.59,
+        "minimum": -14.16,
+        "maximum": -3.35
+      },
+      "de_vs_avg_cas_const": {
+        "default": -9.52,
+        "minimum": -13.91,
+        "maximum": -5.11
+      },
+      "de_vs_avg_after_cas": {
+        "default": -6.2,
+        "minimum": -7.94,
+        "maximum": -4.45
+      },
+      "fa_va_avg": {
+        "default": 75,
+        "minimum": 70,
+        "maximum": 80
+      },
+      "fa_vs_avg": {
+        "default": -3.99,
+        "minimum": -4.59,
+        "maximum": -3.11
+      },
+      "fa_agl": {
+        "default": 2.88,
+        "minimum": 2.37,
+        "maximum": 3.4
+      },
+      "ld_v_app": {
+        "default": 71.3,
+        "minimum": 62,
+        "maximum": 80.6
+      },
+      "ld_d_brk": {
+        "default": 2.08,
+        "minimum": 0.45,
+        "maximum": 3.71
+      },
+      "ld_acc_brk": {
+        "default": -1.12,
+        "minimum": -1.79,
+        "maximum": -0.46
+      }
+    },
+    "B789": {
+      "to_v_lof": {
+        "default": 96.1,
+        "minimum": 81.1,
+        "maximum": 111.2
+      },
+      "to_d_tof": {
+        "default": 2.49,
+        "minimum": 1.31,
+        "maximum": 3.69
+      },
+      "to_acc_tof": {
+        "default": 1.63,
+        "minimum": 1.2,
+        "maximum": 2.06
+      },
+      "ic_va_avg": {
+        "default": 92,
+        "minimum": 81,
+        "maximum": 103
+      },
+      "ic_vs_avg": {
+        "default": 10.6,
+        "minimum": 6.48,
+        "maximum": 14.74
+      },
+      "cl_d_range": {
+        "default": 263,
+        "minimum": 173,
+        "maximum": 420
+      },
+      "cl_v_cas_const": {
+        "default": 163,
+        "minimum": 151,
+        "maximum": 174
+      },
+      "cl_v_mach_const": {
+        "default": 0.84,
+        "minimum": 0.82,
+        "maximum": 0.87
+      },
+      "cl_h_cas_const": {
+        "default": 4.1,
+        "minimum": 2.3,
+        "maximum": 5.9
+      },
+      "cl_h_mach_const": {
+        "default": 9.1,
+        "minimum": 8.1,
+        "maximum": 10.2
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 9.46,
+        "minimum": 7.18,
+        "maximum": 11.75
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 8.68,
+        "minimum": 6.04,
+        "maximum": 11.81
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 6.05,
+        "minimum": 3.63,
+        "maximum": 8.47
+      },
+      "cr_d_range": {
+        "default": 5695,
+        "minimum": -3140,
+        "maximum": 14555
+      },
+      "cr_v_cas_mean": {
+        "default": 139,
+        "minimum": 129,
+        "maximum": 149
+      },
+      "cr_v_cas_max": {
+        "default": 148,
+        "minimum": 133,
+        "maximum": 170
+      },
+      "cr_v_mach_mean": {
+        "default": 0.85,
+        "minimum": 0.83,
+        "maximum": 0.87
+      },
+      "cr_v_mach_max": {
+        "default": 0.87,
+        "minimum": 0.85,
+        "maximum": 0.92
+      },
+      "cr_h_init": {
+        "default": 11.3,
+        "minimum": 9.42,
+        "maximum": 12.44
+      },
+      "cr_h_mean": {
+        "default": 11.58,
+        "minimum": 10.72,
+        "maximum": 12.44
+      },
+      "cr_h_max": {
+        "default": 11.99,
+        "minimum": 11.28,
+        "maximum": 12.7
+      },
+      "de_d_range": {
+        "default": 293,
+        "minimum": 224,
+        "maximum": 550
+      },
+      "de_v_mach_const": {
+        "default": 0.84,
+        "minimum": 0.79,
+        "maximum": 0.87
+      },
+      "de_v_cas_const": {
+        "default": 154,
+        "minimum": 139,
+        "maximum": 169
+      },
+      "de_h_mach_const": {
+        "default": 10.5,
+        "minimum": 8.6,
+        "maximum": 11.6
+      },
+      "de_h_cas_const": {
+        "default": 7,
+        "minimum": 4.3,
+        "maximum": 9.6
+      },
+      "de_vs_avg_mach_const": {
+        "default": -7.16,
+        "minimum": -12.88,
+        "maximum": -2.81
+      },
+      "de_vs_avg_cas_const": {
+        "default": -9.14,
+        "minimum": -13.41,
+        "maximum": -4.84
+      },
+      "de_vs_avg_after_cas": {
+        "default": -6.19,
+        "minimum": -7.91,
+        "maximum": -4.46
+      },
+      "fa_va_avg": {
+        "default": 77,
+        "minimum": 72,
+        "maximum": 83
+      },
+      "fa_vs_avg": {
+        "default": -4.15,
+        "minimum": -4.71,
+        "maximum": -3.15
+      },
+      "fa_agl": {
+        "default": 2.89,
+        "minimum": 2.36,
+        "maximum": 3.43
+      },
+      "ld_v_app": {
+        "default": 74,
+        "minimum": 64.8,
+        "maximum": 83.3
+      },
+      "ld_d_brk": {
+        "default": 2.49,
+        "minimum": 0.68,
+        "maximum": 4.31
+      },
+      "ld_acc_brk": {
+        "default": -1.11,
+        "minimum": -1.74,
+        "maximum": -0.47
+      }
+    },
+    "E190": {
+      "to_v_lof": {
+        "default": 88.1,
+        "minimum": 78.7,
+        "maximum": 97.5
+      },
+      "to_d_tof": {
+        "default": 1.8,
+        "minimum": 1.19,
+        "maximum": 2.42
+      },
+      "to_acc_tof": {
+        "default": 1.83,
+        "minimum": 1.38,
+        "maximum": 2.28
+      },
+      "ic_va_avg": {
+        "default": 78,
+        "minimum": 66,
+        "maximum": 91
+      },
+      "ic_vs_avg": {
+        "default": 11.19,
+        "minimum": 5.78,
+        "maximum": 16.62
+      },
+      "cl_d_range": {
+        "default": 215,
+        "minimum": 162,
+        "maximum": 389
+      },
+      "cl_v_cas_const": {
+        "default": 140,
+        "minimum": 133,
+        "maximum": 156
+      },
+      "cl_v_mach_const": {
+        "default": 0.75,
+        "minimum": 0.71,
+        "maximum": 0.8
+      },
+      "cl_h_cas_const": {
+        "default": 3,
+        "minimum": 1.8,
+        "maximum": 6.5
+      },
+      "cl_h_mach_const": {
+        "default": 9.2,
+        "minimum": 8.1,
+        "maximum": 10.2
+      },
+      "cl_vs_avg_pre_cas": {
+        "default": 10.44,
+        "minimum": 7.18,
+        "maximum": 13.71
+      },
+      "cl_vs_avg_cas_const": {
+        "default": 8.93,
+        "minimum": 6.27,
+        "maximum": 11.6
+      },
+      "cl_vs_avg_mach_const": {
+        "default": 4.82,
+        "minimum": 2.95,
+        "maximum": 6.7
+      },
+      "cr_d_range": {
+        "default": 734,
+        "minimum": 464,
+        "maximum": 2710
+      },
+      "cr_v_cas_mean": {
+        "default": 131,
+        "minimum": 120,
+        "maximum": 141
+      },
+      "cr_v_cas_max": {
+        "default": 137,
+        "minimum": 124,
+        "maximum": 150
+      },
+      "cr_v_mach_mean": {
+        "default": 0.77,
+        "minimum": 0.74,
+        "maximum": 0.81
+      },
+      "cr_v_mach_max": {
+        "default": 0.79,
+        "minimum": 0.76,
+        "maximum": 0.85
+      },
+      "cr_h_init": {
+        "default": 10.99,
+        "minimum": 9.99,
+        "maximum": 12
+      },
+      "cr_h_mean": {
+        "default": 11.05,
+        "minimum": 10.05,
+        "maximum": 12.05
+      },
+      "cr_h_max": {
+        "default": 11.16,
+        "minimum": 10.21,
+        "maximum": 12.13
+      },
+      "de_d_range": {
+        "default": 253,
+        "minimum": 171,
+        "maximum": 425
+      },
+      "de_v_mach_const": {
+        "default": 0.77,
+        "minimum": 0.72,
+        "maximum": 0.81
+      },
+      "de_v_cas_const": {
+        "default": 148,
+        "minimum": 134,
+        "maximum": 159
+      },
+      "de_h_mach_const": {
+        "default": 9.3,
+        "minimum": 8,
+        "maximum": 10.6
+      },
+      "de_h_cas_const": {
+        "default": 5.4,
+        "minimum": 2.6,
+        "maximum": 8.2
+      },
+      "de_vs_avg_mach_const": {
+        "default": -5.25,
+        "minimum": -11.79,
+        "maximum": -2.1
+      },
+      "de_vs_avg_cas_const": {
+        "default": -9.08,
+        "minimum": -13.29,
+        "maximum": -4.85
+      },
+      "de_vs_avg_after_cas": {
+        "default": -5.9,
+        "minimum": -7.92,
+        "maximum": -3.88
+      },
+      "fa_va_avg": {
+        "default": 70,
+        "minimum": 64,
+        "maximum": 76
+      },
+      "fa_vs_avg": {
+        "default": -3.57,
+        "minimum": -4.34,
+        "maximum": -2.81
+      },
+      "fa_agl": {
+        "default": 2.92,
+        "minimum": 2.38,
+        "maximum": 3.46
+      },
+      "ld_v_app": {
+        "default": 66.9,
+        "minimum": 56.6,
+        "maximum": 77.2
+      },
+      "ld_d_brk": {
+        "default": 2.1,
+        "minimum": 0.7,
+        "maximum": 3.52
+      },
+      "ld_acc_brk": {
+        "default": -1.08,
+        "minimum": -1.8,
+        "maximum": -0.36
+      }
+    }
+  },
+  "properties": {
+    "A19N": {
+      "ceiling": 12500,
+      "vmo": 350,
+      "mmo": 0.82
+    },
+    "A20N": {
+      "ceiling": 12500,
+      "vmo": 350,
+      "mmo": 0.82
+    },
+    "A21N": {
+      "ceiling": 12500,
+      "vmo": 350,
+      "mmo": 0.82
+    },
+    "A318": {
+      "ceiling": 12500,
+      "vmo": 350,
+      "mmo": 0.82
+    },
+    "A319": {
+      "ceiling": 12500,
+      "vmo": 350,
+      "mmo": 0.82
+    },
+    "A320": {
+      "ceiling": 12500,
+      "vmo": 350,
+      "mmo": 0.82
+    },
+    "A321": {
+      "ceiling": 12500,
+      "vmo": 350,
+      "mmo": 0.82
+    },
+    "A332": {
+      "ceiling": 12500,
+      "vmo": 330,
+      "mmo": 0.86
+    },
+    "A333": {
+      "ceiling": 12500,
+      "vmo": 330,
+      "mmo": 0.86
+    },
+    "A343": {
+      "ceiling": 12500,
+      "vmo": 330,
+      "mmo": 0.86
+    },
+    "A359": {
+      "ceiling": 13100,
+      "vmo": 340,
+      "mmo": 0.89
+    },
+    "A388": {
+      "ceiling": 13100,
+      "vmo": 340,
+      "mmo": 0.89
+    },
+    "B37M": {
+      "ceiling": 12500,
+      "vmo": 340,
+      "mmo": 0.82
+    },
+    "B38M": {
+      "ceiling": 12500,
+      "vmo": 340,
+      "mmo": 0.82
+    },
+    "B39M": {
+      "ceiling": 12500,
+      "vmo": 340,
+      "mmo": 0.82
+    },
+    "B3XM": {
+      "ceiling": 12500,
+      "vmo": 340,
+      "mmo": 0.82
+    },
+    "B734": {
+      "ceiling": 12500,
+      "vmo": 340,
+      "mmo": 0.82
+    },
+    "B737": {
+      "ceiling": 12500,
+      "vmo": 340,
+      "mmo": 0.82
+    },
+    "B738": {
+      "ceiling": 12500,
+      "vmo": 340,
+      "mmo": 0.82
+    },
+    "B739": {
+      "ceiling": 12500,
+      "vmo": 340,
+      "mmo": 0.82
+    },
+    "B744": {
+      "ceiling": 13700,
+      "vmo": 365,
+      "mmo": 0.92
+    },
+    "B748": {
+      "ceiling": 13100,
+      "vmo": 365,
+      "mmo": 0.92
+    },
+    "B752": {
+      "ceiling": 12800,
+      "vmo": 350,
+      "mmo": 0.86
+    },
+    "B763": {
+      "ceiling": 13100,
+      "vmo": 360,
+      "mmo": 0.86
+    },
+    "B772": {
+      "ceiling": 13100,
+      "vmo": 330,
+      "mmo": 0.89
+    },
+    "B773": {
+      "ceiling": 13100,
+      "vmo": 330,
+      "mmo": 0.89
+    },
+    "B77W": {
+      "ceiling": 13100,
+      "vmo": 330,
+      "mmo": 0.89
+    },
+    "B788": {
+      "ceiling": 13100,
+      "mmo": 0.9
+    },
+    "B789": {
+      "ceiling": 13100,
+      "mmo": 0.9
+    },
+    "C550": {
+      "ceiling": 13100,
+      "vmo": 270,
+      "mmo": 0.7
+    },
+    "CRJ9": {
+      "ceiling": 12500,
+      "vmo": 320,
+      "mmo": 0.82
+    },
+    "E145": {
+      "ceiling": 11300,
+      "vmo": 320,
+      "mmo": 0.78
+    },
+    "E170": {
+      "ceiling": 12500,
+      "vmo": 320,
+      "mmo": 0.82
+    },
+    "E190": {
+      "ceiling": 12500,
+      "vmo": 320,
+      "mmo": 0.82
+    },
+    "E195": {
+      "ceiling": 12500,
+      "vmo": 320,
+      "mmo": 0.82
+    },
+    "E75L": {
+      "ceiling": 12500,
+      "vmo": 320,
+      "mmo": 0.82
+    },
+    "GLF6": {
+      "ceiling": 16000,
+      "mmo": 0.925
+    }
+  },
+  "synonyms": {
+    "A124": "B744",
+    "A19N": "A320",
+    "A20N": "A320",
+    "A21N": "A320",
+    "A306": "A332",
+    "A310": "A319",
+    "A318": "A319",
+    "A359": "B789",
+    "AT72": "E190",
+    "AT75": "E190",
+    "AT76": "E190",
+    "B37M": "B737",
+    "B38M": "B737",
+    "B39M": "B737",
+    "B3XM": "B737",
+    "B733": "B737",
+    "B734": "B737",
+    "B735": "B737",
+    "B748": "B744",
+    "B762": "B752",
+    "B772": "B77W",
+    "B773": "B77W",
+    "B77L": "B77W",
+    "C25A": "E190",
+    "C525": "E190",
+    "C550": "E190",
+    "C56X": "E190",
+    "CRJ2": "E190",
+    "CRJ9": "E190",
+    "E145": "E190",
+    "E170": "E190",
+    "E75L": "E190",
+    "E195": "E190",
+    "E290": "E190",
+    "GLF5": "E190",
+    "GL5T": "E190",
+    "GLF6": "E190",
+    "LJ45": "E190",
+    "MD11": "B77W",
+    "PC24": "E190",
+    "SU95": "E190"
+  }
+}

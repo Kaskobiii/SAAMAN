@@ -1,0 +1,2798 @@
+{
+  "previous": {
+    "timestamp": 1791813567820,
+    "source": "ESSA_FMP",
+    "simulation": false,
+    "flights": [
+      {
+        "callsign": "TEST_LATER",
+        "aircraft": "B738",
+        "wake": "M",
+        "departure": "ESNU",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "landingSeconds": 2100,
+        "distanceNm": 236.2294030396284,
+        "groundspeed": 345,
+        "altitude": 14553,
+        "dataWarnings": [],
+        "star": "",
+        "routeText": "DEDIT DCT BODRI DCT TOGMI DCT SIPRI T31 HMR",
+        "verticalSpeed": 8676,
+        "assignedSpeed": 0,
+        "assignedMach": 0,
+        "finalAltitude": 32000,
+        "clearedAltitude": 0,
+        "heading": 182,
+        "assignedHeading": 0,
+        "direct": "",
+        "routeProblem": "",
+        "latitude": 63.38294,
+        "longitude": 20.452509999999997,
+        "positionAgeSeconds": 4,
+        "calculatedRouteIndex": 1,
+        "topskyMissedApproach": false,
+        "route": [
+          {
+            "latitude": 63.79305600000001,
+            "longitude": 20.279999999999998,
+            "name": "ESNU",
+            "seconds": -60
+          },
+          {
+            "latitude": 63.258250000000004,
+            "longitude": 20.450611,
+            "name": "DEDIT",
+            "seconds": 60
+          },
+          {
+            "latitude": 62.415,
+            "longitude": 19.824167000000003,
+            "name": "BODRI",
+            "seconds": 480
+          },
+          {
+            "latitude": 61.761944,
+            "longitude": 19.540278,
+            "name": "TOGMI",
+            "seconds": 780
+          },
+          {
+            "latitude": 60.845556,
+            "longitude": 18.751667,
+            "name": "SIPRI",
+            "seconds": 1260
+          },
+          {
+            "latitude": 60.279222000000004,
+            "longitude": 18.391556,
+            "name": "HMR",
+            "seconds": 1560
+          },
+          {
+            "latitude": 59.65194399999999,
+            "longitude": 17.918611,
+            "name": "ESSA",
+            "seconds": 2100
+          }
+        ],
+        "euroscopeRunway": "",
+        "sdkRunwayExplicit": false,
+        "runwaySource": "active",
+        "firstSeen": 1791813173821,
+        "lastSeen": 1791813567820,
+        "initialEta": 1791815847822,
+        "initialEtaFf": 1791814913821,
+        "eta": 1791815847822,
+        "etaFf": 1791814913821,
+        "euroscopeBaseline": {
+          "at": 1791813207822,
+          "bufferMinutes": 2,
+          "eta": 1791815847822,
+          "etaFf": 1791814913821,
+          "feederBuffered": true,
+          "rawEta": 1791815727822,
+          "rawEtaFf": 1791814793821
+        },
+        "liveEuroscopeEta": 1791815667820,
+        "liveBufferedEta": 1791815787820,
+        "liveEuroscopeEtaFf": 1791814793821,
+        "liveBufferedEtaFf": 1791814913821,
+        "bufferedFeederVerified": true,
+        "secondaryRunwayAccepted": false,
+        "sta": 1791815847822,
+        "staFf": 1791814913821,
+        "feeder": "OTHER",
+        "feederId": "-",
+        "ff": "-",
+        "passedFeeder": false,
+        "missedRecovery": false,
+        "state": 0,
+        "mode": "sequenced",
+        "delay": 0,
+        "totalDelay": 0,
+        "order": 6,
+        "lost": false,
+        "issue": "",
+        "minimumArrival": 1791813567820,
+        "minimumArrivalSource": "new",
+        "slotBefore": 0,
+        "slotAfter": 0,
+        "recomputedAt": 0,
+        "lastTrustedEta": 1791815847822,
+        "predictionSource": "route",
+        "originalLandingSeconds": 2100,
+        "amanRoute": [],
+        "amanRoutePassed": 0,
+        "aircraftPerformance": {
+          "type": "B738",
+          "status": "missing",
+          "blobSha": "af94db8b72e961dccfb4d1779c8a5c682be5f126",
+          "provider": "generic",
+          "gainEligible": false
+        },
+        "editTracking": true,
+        "appliedOrder": 6,
+        "appliedChangedAt": 1791813567820,
+        "appliedOrderGroup": "1791813567820-s75fjap2",
+        "gainCapacitySeconds": 0,
+        "spacingActive": true,
+        "line0Suppressed": false,
+        "planningEta": 1791815847822,
+        "feederDelayMs": 0,
+        "wakeDelayMs": 0,
+        "rateDelayMs": 0,
+        "closureDelayMs": 0,
+        "spacingConflict": false,
+        "runwayDelay": 0,
+        "refreshedDelayAt": 0,
+        "initialSta": 1791815847822,
+        "initialStaFf": 1791814913821,
+        "originalAssignedSta": 1791815847822,
+        "maximumDelayExceeded": false,
+        "planningDelaySeconds": 0,
+        "separation": {
+          "leader": "TEST_FOLLOWER",
+          "wakeNm": 3,
+          "wakeSeconds": 77.14285714285714,
+          "rateSeconds": 90,
+          "scheduledSeconds": 1166.003
+        },
+        "guidance": {
+          "point": "-",
+          "predicted": 1791814913821,
+          "scheduled": 1791814913821,
+          "reference": 1791814913821,
+          "instructionSeconds": 0,
+          "policy": "current trajectory",
+          "constraints": [
+            "controller sequence order"
+          ],
+          "earliestPlanningTime": 1791815847822,
+          "validUntil": 1791813582820,
+          "absorption": {
+            "mode": "none"
+          }
+        },
+        "planKey": "[\"ESSA/01R\",90,[],0,0]"
+      },
+      {
+        "callsign": "TEST_FIRST",
+        "aircraft": "A339",
+        "wake": "H",
+        "departure": "ESKN",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "landingSeconds": 60,
+        "distanceNm": 4.05841337916252,
+        "groundspeed": 115,
+        "altitude": 1059,
+        "dataWarnings": [],
+        "star": "",
+        "routeText": "TRS DCT TEB",
+        "verticalSpeed": -1392,
+        "assignedSpeed": 0,
+        "assignedMach": 0,
+        "finalAltitude": 15000,
+        "clearedAltitude": 1,
+        "heading": 6,
+        "assignedHeading": 0,
+        "direct": "",
+        "routeProblem": "",
+        "latitude": 59.58485999999999,
+        "longitude": 17.93565,
+        "positionAgeSeconds": 2,
+        "calculatedRouteIndex": 3,
+        "topskyMissedApproach": false,
+        "route": [
+          {
+            "latitude": 58.788611,
+            "longitude": 16.903610999999998,
+            "name": "ESKN",
+            "seconds": -60
+          },
+          {
+            "latitude": 58.93791694444444,
+            "longitude": 17.502305833333335,
+            "name": "TRS",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.531693999999995,
+            "longitude": 18.203305999999998,
+            "name": "TEB",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.65194399999999,
+            "longitude": 17.918611,
+            "name": "ESSA",
+            "seconds": 60
+          }
+        ],
+        "euroscopeRunway": "",
+        "sdkRunwayExplicit": false,
+        "runwaySource": "active",
+        "firstSeen": 1791812775852,
+        "lastSeen": 1791813567820,
+        "initialEta": 1791813615852,
+        "initialEtaFf": 1791812895852,
+        "eta": 1791813621823,
+        "etaFf": 1791813627820,
+        "euroscopeBaseline": {
+          "at": 1791812781823,
+          "bufferMinutes": 2,
+          "eta": 1791813621823,
+          "etaFf": 1791812901823,
+          "feederBuffered": true,
+          "rawEta": 1791813501823,
+          "rawEtaFf": 1791812781823
+        },
+        "liveEuroscopeEta": 1791813627820,
+        "liveBufferedEta": 1791813687820,
+        "liveEuroscopeEtaFf": 1791813567820,
+        "liveBufferedEtaFf": 1791813627820,
+        "bufferedFeederVerified": true,
+        "secondaryRunwayAccepted": false,
+        "sta": 1791813621823,
+        "staFf": 1791812901823,
+        "feeder": "OTHER",
+        "feederId": "-",
+        "ff": "-",
+        "passedFeeder": false,
+        "missedRecovery": false,
+        "state": 3,
+        "mode": "sequenced",
+        "delay": 0,
+        "totalDelay": -726,
+        "order": 0,
+        "lost": false,
+        "issue": "",
+        "minimumArrival": 1791813567820,
+        "minimumArrivalSource": "new",
+        "slotBefore": 0,
+        "slotAfter": 0,
+        "recomputedAt": 1791812782617,
+        "lastTrustedEta": 1791813621823,
+        "predictionSource": "route",
+        "originalLandingSeconds": 60,
+        "amanRoute": [],
+        "amanRoutePassed": 0,
+        "aircraftPerformance": {
+          "type": "A339",
+          "status": "missing",
+          "blobSha": "af94db8b72e961dccfb4d1779c8a5c682be5f126",
+          "provider": "generic",
+          "gainEligible": false
+        },
+        "editTracking": true,
+        "appliedOrder": 0,
+        "appliedChangedAt": 1791813567820,
+        "appliedOrderGroup": "1791813567820-s75fjap2",
+        "gainCapacitySeconds": 0,
+        "spacingActive": true,
+        "line0Suppressed": false,
+        "planningEta": 1791813621823,
+        "feederDelayMs": 0,
+        "wakeDelayMs": 0,
+        "rateDelayMs": 0,
+        "closureDelayMs": 0,
+        "spacingConflict": false,
+        "runwayDelay": 0,
+        "tmaTiming": {
+          "delay": 0,
+          "rateSeconds": 90,
+          "instructionSource": "none",
+          "referenceSta": 1791813621823,
+          "referenceDelay": 0,
+          "referenceSource": "none"
+        },
+        "refreshedDelayAt": 0,
+        "initialSta": 1791813615852,
+        "initialStaFf": 1791812895852,
+        "originalAssignedSta": 1791813621823,
+        "maximumDelayExceeded": false,
+        "planningDelaySeconds": 0,
+        "guidance": {
+          "point": "-",
+          "predicted": 1791813627820,
+          "scheduled": 1791812901823,
+          "reference": 1791812901823,
+          "instructionSeconds": 0,
+          "policy": "accepted allocation; live prediction observational",
+          "constraints": [
+            "controller sequence order",
+            "accepted TMA assignment; Recompute refreshes time"
+          ],
+          "earliestPlanningTime": 1791813621823,
+          "validUntil": 1791813582820,
+          "absorption": {
+            "mode": "none"
+          }
+        },
+        "planKey": "[\"ESSA/01R\",90,[],0,0]",
+        "committedSta": 1791813621823
+      },
+      {
+        "callsign": "TEST_SECOND",
+        "aircraft": "A320",
+        "wake": "M",
+        "departure": "EFHK",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "landingSeconds": 300,
+        "distanceNm": 20.850844592534315,
+        "groundspeed": 248,
+        "altitude": 4004,
+        "dataWarnings": [],
+        "star": "XILAN5M",
+        "routeText": "ADIVO Y365 POGOK DCT LUPET L77 XILAN",
+        "verticalSpeed": -976,
+        "assignedSpeed": 0,
+        "assignedMach": 0,
+        "finalAltitude": 30000,
+        "clearedAltitude": 0,
+        "heading": 254,
+        "assignedHeading": 0,
+        "direct": "",
+        "routeProblem": "",
+        "latitude": 59.372279999999996,
+        "longitude": 18.028950000000002,
+        "positionAgeSeconds": 0,
+        "calculatedRouteIndex": 8,
+        "topskyMissedApproach": false,
+        "route": [
+          {
+            "latitude": 60.317221999999994,
+            "longitude": 24.963332999999995,
+            "name": "EFHK",
+            "seconds": -60
+          },
+          {
+            "latitude": 60.29750000000001,
+            "longitude": 23.981388999999997,
+            "name": "ADIVO",
+            "seconds": -60
+          },
+          {
+            "latitude": 60.141389,
+            "longitude": 22.599721999999996,
+            "name": "PEPIG",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.991111000000004,
+            "longitude": 21.387778,
+            "name": "POGOK",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.640278,
+            "longitude": 19.876389,
+            "name": "LUPET",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.65944399999999,
+            "longitude": 19.076111,
+            "name": "XILAN",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.60444388888889,
+            "longitude": 18.695082777777777,
+            "name": "SA570",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.53169388888889,
+            "longitude": 18.20330583333333,
+            "name": "TEB",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.398738888888886,
+            "longitude": 17.868710833333335,
+            "name": "CI01R",
+            "seconds": 60
+          },
+          {
+            "latitude": 59.431446944444446,
+            "longitude": 17.88042777777778,
+            "name": "FI01R",
+            "seconds": 120
+          },
+          {
+            "latitude": 59.626396944444444,
+            "longitude": 17.950741666666666,
+            "name": "SA01R",
+            "seconds": 240
+          },
+          {
+            "latitude": 59.65194399999999,
+            "longitude": 17.918611,
+            "name": "ESSA",
+            "seconds": 300
+          }
+        ],
+        "euroscopeRunway": "01R",
+        "sdkRunwayExplicit": false,
+        "runwaySource": "filed",
+        "firstSeen": 1791812781823,
+        "lastSeen": 1791813567820,
+        "initialEta": 1791813981823,
+        "initialEtaFf": 1791813201823,
+        "eta": 1791813961819,
+        "etaFf": 1791813154826,
+        "euroscopeBaseline": {
+          "at": 1791813541819,
+          "bufferMinutes": 1,
+          "eta": 1791813961819,
+          "etaFf": 1791813600819,
+          "feederBuffered": true,
+          "rawEta": 1791813901819,
+          "rawEtaFf": 1791813540819
+        },
+        "liveEuroscopeEta": 1791813867820,
+        "liveBufferedEta": 1791813927820,
+        "liveEuroscopeEtaFf": 1791813566820,
+        "liveBufferedEtaFf": 1791813626820,
+        "bufferedFeederVerified": true,
+        "secondaryRunwayAccepted": false,
+        "sta": 1791813961819,
+        "staFf": 1791813201823,
+        "feeder": "XILAN",
+        "feederId": "X",
+        "ff": "XILAN",
+        "passedFeeder": true,
+        "missedRecovery": false,
+        "state": 2,
+        "mode": "sequenced",
+        "delay": 0,
+        "totalDelay": 47,
+        "order": 1,
+        "tmaAssignment": {
+          "at": 1791813541819,
+          "instruction": 0,
+          "sta": 1791813961819
+        },
+        "lost": false,
+        "issue": "",
+        "minimumArrival": 1791813567820,
+        "minimumArrivalSource": "new",
+        "slotBefore": 0,
+        "slotAfter": 0,
+        "recomputedAt": 1791813544619,
+        "lastTrustedEta": 1791813961819,
+        "predictionSource": "route",
+        "originalLandingSeconds": 300,
+        "amanRoute": [
+          {
+            "latitude": 59.65944399999999,
+            "longitude": 19.076111,
+            "name": "XILAN",
+            "seconds": 300
+          },
+          {
+            "latitude": 59.60444388888889,
+            "longitude": 18.695082777777777,
+            "name": "SA570",
+            "seconds": 420
+          },
+          {
+            "latitude": 59.53169388888889,
+            "longitude": 18.20330583333333,
+            "name": "TEB",
+            "seconds": 600
+          },
+          {
+            "latitude": 59.398738888888886,
+            "longitude": 17.868710833333335,
+            "name": "CI01R",
+            "seconds": 780
+          },
+          {
+            "latitude": 59.431446944444446,
+            "longitude": 17.88042777777778,
+            "name": "FI01R",
+            "seconds": 840
+          },
+          {
+            "latitude": 59.626396944444444,
+            "longitude": 17.950741666666666,
+            "name": "SA01R",
+            "seconds": 1020
+          }
+        ],
+        "amanRoutePassed": 3,
+        "aircraftPerformance": {
+          "type": "A320",
+          "status": "missing",
+          "blobSha": "af94db8b72e961dccfb4d1779c8a5c682be5f126",
+          "provider": "generic",
+          "gainEligible": false
+        },
+        "editTracking": true,
+        "appliedOrder": 1,
+        "appliedChangedAt": 1791813567820,
+        "appliedOrderGroup": "1791813567820-s75fjap2",
+        "gainCapacitySeconds": 0,
+        "feederDistanceNm": 36.25624497627757,
+        "spacingActive": true,
+        "line0Suppressed": true,
+        "planningEta": 1791813961819,
+        "feederDelayMs": 0,
+        "wakeDelayMs": 0,
+        "rateDelayMs": 0,
+        "closureDelayMs": 0,
+        "spacingConflict": false,
+        "runwayDelay": 0,
+        "tmaTiming": {
+          "delay": 0,
+          "rateSeconds": 90,
+          "instructionSource": "none",
+          "referenceSta": 1791813961819,
+          "referenceDelay": 0,
+          "referenceSource": "none"
+        },
+        "refreshedDelayAt": 0,
+        "initialSta": 1791813981823,
+        "initialStaFf": 1791813201823,
+        "originalAssignedSta": 1791813961819,
+        "maximumDelayExceeded": false,
+        "planningDelaySeconds": 0,
+        "separation": {
+          "leader": "TEST_FIRST",
+          "wakeNm": 5,
+          "wakeSeconds": 128.57142857142856,
+          "rateSeconds": 90,
+          "scheduledSeconds": 339.996
+        },
+        "guidance": {
+          "point": "runway threshold",
+          "predicted": 1791813927820,
+          "scheduled": 1791813961819,
+          "reference": 1791813961819,
+          "instructionSeconds": 0,
+          "policy": "accepted allocation; live prediction observational",
+          "constraints": [
+            "controller sequence order",
+            "accepted TMA assignment; Recompute refreshes time"
+          ],
+          "earliestPlanningTime": 1791813961819,
+          "validUntil": 1791813582820,
+          "absorption": {
+            "mode": "none"
+          }
+        },
+        "planKey": "[\"ESSA/01R\",90,[],0,0]",
+        "committedSta": 1791813961819
+      },
+      {
+        "callsign": "TEST_ADVANCED",
+        "aircraft": "A320",
+        "wake": "M",
+        "departure": "ENZV",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "landingSeconds": 540,
+        "distanceNm": 39.759359114775386,
+        "groundspeed": 279,
+        "altitude": 7936,
+        "dataWarnings": [],
+        "star": "ELTOK8M",
+        "routeText": "UPLEV DCT ELTOK",
+        "verticalSpeed": -1964,
+        "assignedSpeed": 0,
+        "assignedMach": 0,
+        "finalAltitude": 37000,
+        "clearedAltitude": 0,
+        "heading": 130,
+        "assignedHeading": 0,
+        "direct": "",
+        "routeProblem": "",
+        "latitude": 59.64508,
+        "longitude": 17.36414,
+        "positionAgeSeconds": 3,
+        "calculatedRouteIndex": 5,
+        "topskyMissedApproach": false,
+        "route": [
+          {
+            "latitude": 58.87666699999999,
+            "longitude": 5.637778,
+            "name": "ENZV",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.101611,
+            "longitude": 6.866167,
+            "name": "UPLEV",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.82444399999999,
+            "longitude": 16.989917,
+            "name": "ELTOK",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.79061083333333,
+            "longitude": 17.176471944444447,
+            "name": "SA820",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.696443888888886,
+            "longitude": 17.244805833333334,
+            "name": "SA854",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.53897194444444,
+            "longitude": 17.358360833333336,
+            "name": "OBCIV",
+            "seconds": 60
+          },
+          {
+            "latitude": 59.398738888888886,
+            "longitude": 17.868710833333335,
+            "name": "CI01R",
+            "seconds": 300
+          },
+          {
+            "latitude": 59.431446944444446,
+            "longitude": 17.88042777777778,
+            "name": "FI01R",
+            "seconds": 360
+          },
+          {
+            "latitude": 59.626396944444444,
+            "longitude": 17.950741666666666,
+            "name": "SA01R",
+            "seconds": 480
+          },
+          {
+            "latitude": 59.65194399999999,
+            "longitude": 17.918611,
+            "name": "ESSA",
+            "seconds": 540
+          }
+        ],
+        "euroscopeRunway": "01R",
+        "sdkRunwayExplicit": false,
+        "runwaySource": "filed",
+        "firstSeen": 1791812783877,
+        "lastSeen": 1791813567820,
+        "initialEta": 1791814223877,
+        "initialEtaFf": 1791813443877,
+        "eta": 1791814201819,
+        "etaFf": 1791813428821,
+        "euroscopeBaseline": {
+          "at": 1791813541819,
+          "bufferMinutes": 1,
+          "eta": 1791814201819,
+          "etaFf": 1791813600819,
+          "feederBuffered": true,
+          "rawEta": 1791814141819,
+          "rawEtaFf": 1791813540819
+        },
+        "liveEuroscopeEta": 1791814107820,
+        "liveBufferedEta": 1791814167820,
+        "liveEuroscopeEtaFf": 1791813566820,
+        "liveBufferedEtaFf": 1791813626820,
+        "bufferedFeederVerified": true,
+        "secondaryRunwayAccepted": false,
+        "sta": 1791814591819,
+        "staFf": 1791813534822,
+        "feeder": "ELTOK",
+        "feederId": "E",
+        "ff": "ELTOK",
+        "passedFeeder": true,
+        "missedRecovery": false,
+        "state": 2,
+        "mode": "sequenced",
+        "delay": 390,
+        "totalDelay": 106,
+        "order": 4,
+        "tmaAssignment": {
+          "at": 1791813541819,
+          "instruction": 390,
+          "sta": 1791814591819
+        },
+        "lost": false,
+        "issue": "",
+        "minimumArrival": 1791813567820,
+        "minimumArrivalSource": "new",
+        "slotBefore": 0,
+        "slotAfter": 0,
+        "recomputedAt": 1791813544619,
+        "lastTrustedEta": 1791814201819,
+        "predictionSource": "route",
+        "originalLandingSeconds": 540,
+        "amanRoute": [
+          {
+            "latitude": 59.82444399999999,
+            "longitude": 16.989917,
+            "name": "ELTOK",
+            "seconds": 540
+          },
+          {
+            "latitude": 59.79061083333333,
+            "longitude": 17.176471944444447,
+            "name": "SA820",
+            "seconds": 600
+          },
+          {
+            "latitude": 59.696443888888886,
+            "longitude": 17.244805833333334,
+            "name": "SA854",
+            "seconds": 660
+          },
+          {
+            "latitude": 59.53897194444444,
+            "longitude": 17.358360833333336,
+            "name": "OBCIV",
+            "seconds": 780
+          },
+          {
+            "latitude": 59.398738888888886,
+            "longitude": 17.868710833333335,
+            "name": "CI01R",
+            "seconds": 1020
+          },
+          {
+            "latitude": 59.431446944444446,
+            "longitude": 17.88042777777778,
+            "name": "FI01R",
+            "seconds": 1080
+          },
+          {
+            "latitude": 59.626396944444444,
+            "longitude": 17.950741666666666,
+            "name": "SA01R",
+            "seconds": 1260
+          }
+        ],
+        "amanRoutePassed": 3,
+        "aircraftPerformance": {
+          "type": "A320",
+          "status": "missing",
+          "blobSha": "af94db8b72e961dccfb4d1779c8a5c682be5f126",
+          "provider": "generic",
+          "gainEligible": false
+        },
+        "editTracking": true,
+        "appliedOrder": 4,
+        "appliedChangedAt": 1791813567820,
+        "appliedOrderGroup": "1791813567820-s75fjap2",
+        "gainCapacitySeconds": 0,
+        "feederDistanceNm": 15.627219756460125,
+        "spacingActive": true,
+        "line0Suppressed": true,
+        "planningEta": 1791814201819,
+        "feederDelayMs": 0,
+        "wakeDelayMs": 0,
+        "rateDelayMs": 0,
+        "closureDelayMs": 0,
+        "spacingConflict": false,
+        "runwayDelay": 390,
+        "tmaTiming": {
+          "delay": 390,
+          "rateSeconds": 90,
+          "instructionSource": "constraint",
+          "referenceSta": 1791814591819,
+          "referenceDelay": 390,
+          "referenceSource": "constraint"
+        },
+        "refreshedDelayAt": 0,
+        "initialSta": 1791814401823,
+        "initialStaFf": 1791813621823,
+        "originalAssignedSta": 1791814591819,
+        "maximumDelayExceeded": false,
+        "planningDelaySeconds": 390,
+        "separation": {
+          "leader": "TEST_PRECEDING",
+          "wakeNm": 3,
+          "wakeSeconds": 77.14285714285714,
+          "rateSeconds": 90,
+          "scheduledSeconds": 390
+        },
+        "guidance": {
+          "point": "runway threshold",
+          "predicted": 1791814167820,
+          "scheduled": 1791814591819,
+          "reference": 1791814201819,
+          "instructionSeconds": 390,
+          "policy": "accepted allocation; live prediction observational",
+          "constraints": [
+            "controller sequence order",
+            "accepted TMA assignment; Recompute refreshes time"
+          ],
+          "earliestPlanningTime": 1791814201819,
+          "validUntil": 1791813582820,
+          "absorption": {
+            "mode": "holding",
+            "maxIas": 230
+          }
+        },
+        "planKey": "[\"ESSA/01R\",90,[],0,0]",
+        "committedSta": 1791814591819
+      },
+      {
+        "callsign": "TEST_FOLLOWER",
+        "aircraft": "B736",
+        "wake": "M",
+        "departure": "ESNU",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "landingSeconds": 480,
+        "distanceNm": 38.17548655850706,
+        "groundspeed": 250,
+        "altitude": 8485,
+        "dataWarnings": [],
+        "star": "VACRA1M",
+        "routeText": "DEDIT DCT GALPI DCT BODRI/N0382F280 T31 VACRA",
+        "verticalSpeed": -1528,
+        "assignedSpeed": 0,
+        "assignedMach": 0,
+        "finalAltitude": 36000,
+        "clearedAltitude": 0,
+        "heading": 198,
+        "assignedHeading": 0,
+        "direct": "",
+        "routeProblem": "",
+        "latitude": 59.68183,
+        "longitude": 18.304930000000002,
+        "positionAgeSeconds": 1,
+        "calculatedRouteIndex": 8,
+        "topskyMissedApproach": false,
+        "route": [
+          {
+            "latitude": 63.79305600000001,
+            "longitude": 20.279999999999998,
+            "name": "ESNU",
+            "seconds": -60
+          },
+          {
+            "latitude": 63.258250000000004,
+            "longitude": 20.450611,
+            "name": "DEDIT",
+            "seconds": -60
+          },
+          {
+            "latitude": 62.84694399999999,
+            "longitude": 20.140278000000002,
+            "name": "GALPI",
+            "seconds": -60
+          },
+          {
+            "latitude": 62.415,
+            "longitude": 19.824167000000003,
+            "name": "BODRI",
+            "seconds": -60
+          },
+          {
+            "latitude": 60.845556,
+            "longitude": 18.751667,
+            "name": "SIPRI",
+            "seconds": -60
+          },
+          {
+            "latitude": 60.279222000000004,
+            "longitude": 18.391556,
+            "name": "VACRA",
+            "seconds": -60
+          },
+          {
+            "latitude": 60.01658277777778,
+            "longitude": 18.369749722222224,
+            "name": "SA539",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.74783277777778,
+            "longitude": 18.347860833333332,
+            "name": "SA540",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.53169388888889,
+            "longitude": 18.20330583333333,
+            "name": "TEB",
+            "seconds": 60
+          },
+          {
+            "latitude": 59.398738888888886,
+            "longitude": 17.868710833333335,
+            "name": "CI01R",
+            "seconds": 240
+          },
+          {
+            "latitude": 59.431446944444446,
+            "longitude": 17.88042777777778,
+            "name": "FI01R",
+            "seconds": 300
+          },
+          {
+            "latitude": 59.626396944444444,
+            "longitude": 17.950741666666666,
+            "name": "SA01R",
+            "seconds": 420
+          },
+          {
+            "latitude": 59.65194399999999,
+            "longitude": 17.918611,
+            "name": "ESSA",
+            "seconds": 480
+          }
+        ],
+        "euroscopeRunway": "01R",
+        "sdkRunwayExplicit": false,
+        "runwaySource": "filed",
+        "firstSeen": 1791812779820,
+        "lastSeen": 1791813567820,
+        "initialEta": 1791814339820,
+        "initialEtaFf": 1791813199820,
+        "eta": 1791814141819,
+        "etaFf": 1791813168816,
+        "euroscopeBaseline": {
+          "at": 1791813541819,
+          "bufferMinutes": 1,
+          "eta": 1791814141819,
+          "etaFf": 1791813600819,
+          "feederBuffered": true,
+          "rawEta": 1791814081819,
+          "rawEtaFf": 1791813540819
+        },
+        "liveEuroscopeEta": 1791814047820,
+        "liveBufferedEta": 1791814107820,
+        "liveEuroscopeEtaFf": 1791813566820,
+        "liveBufferedEtaFf": 1791813626820,
+        "bufferedFeederVerified": true,
+        "secondaryRunwayAccepted": false,
+        "sta": 1791814681819,
+        "staFf": 1791813324822,
+        "feeder": "VACRA",
+        "feederId": "V",
+        "ff": "VACRA",
+        "passedFeeder": true,
+        "missedRecovery": false,
+        "state": 2,
+        "mode": "sequenced",
+        "delay": 540,
+        "totalDelay": 156,
+        "order": 5,
+        "tmaAssignment": {
+          "at": 1791813541819,
+          "instruction": 540,
+          "sta": 1791814681819
+        },
+        "lost": false,
+        "issue": "",
+        "minimumArrival": 1791813567820,
+        "minimumArrivalSource": "new",
+        "slotBefore": 0,
+        "slotAfter": 0,
+        "recomputedAt": 1791813544619,
+        "lastTrustedEta": 1791814141819,
+        "predictionSource": "route",
+        "originalLandingSeconds": 480,
+        "amanRoute": [
+          {
+            "latitude": 60.279222000000004,
+            "longitude": 18.391556,
+            "name": "VACRA",
+            "seconds": 300
+          },
+          {
+            "latitude": 60.01658277777778,
+            "longitude": 18.369749722222224,
+            "name": "SA539",
+            "seconds": 540
+          },
+          {
+            "latitude": 59.74783277777778,
+            "longitude": 18.347860833333332,
+            "name": "SA540",
+            "seconds": 780
+          },
+          {
+            "latitude": 59.53169388888889,
+            "longitude": 18.20330583333333,
+            "name": "TEB",
+            "seconds": 960
+          },
+          {
+            "latitude": 59.398738888888886,
+            "longitude": 17.868710833333335,
+            "name": "CI01R",
+            "seconds": 1140
+          },
+          {
+            "latitude": 59.431446944444446,
+            "longitude": 17.88042777777778,
+            "name": "FI01R",
+            "seconds": 1200
+          },
+          {
+            "latitude": 59.626396944444444,
+            "longitude": 17.950741666666666,
+            "name": "SA01R",
+            "seconds": 1380
+          }
+        ],
+        "amanRoutePassed": 3,
+        "aircraftPerformance": {
+          "type": "B736",
+          "status": "missing",
+          "blobSha": "af94db8b72e961dccfb4d1779c8a5c682be5f126",
+          "provider": "generic",
+          "gainEligible": false
+        },
+        "editTracking": true,
+        "appliedOrder": 5,
+        "appliedChangedAt": 1791813567820,
+        "appliedOrderGroup": "1791813567820-s75fjap2",
+        "gainCapacitySeconds": 0,
+        "feederDistanceNm": 35.96194337756714,
+        "spacingActive": true,
+        "line0Suppressed": true,
+        "planningEta": 1791814141819,
+        "feederDelayMs": 0,
+        "wakeDelayMs": 0,
+        "rateDelayMs": 0,
+        "closureDelayMs": 0,
+        "spacingConflict": false,
+        "runwayDelay": 540,
+        "tmaTiming": {
+          "delay": 540,
+          "rateSeconds": 90,
+          "instructionSource": "constraint",
+          "referenceSta": 1791814681819,
+          "referenceDelay": 540,
+          "referenceSource": "constraint"
+        },
+        "refreshedDelayAt": 0,
+        "initialSta": 1791814339820,
+        "initialStaFf": 1791813199820,
+        "originalAssignedSta": 1791814681819,
+        "maximumDelayExceeded": false,
+        "planningDelaySeconds": 540,
+        "separation": {
+          "leader": "TEST_ADVANCED",
+          "wakeNm": 3,
+          "wakeSeconds": 77.14285714285714,
+          "rateSeconds": 90,
+          "scheduledSeconds": 90
+        },
+        "guidance": {
+          "point": "runway threshold",
+          "predicted": 1791814107820,
+          "scheduled": 1791814681819,
+          "reference": 1791814141819,
+          "instructionSeconds": 540,
+          "policy": "accepted allocation; live prediction observational",
+          "constraints": [
+            "controller sequence order",
+            "accepted TMA assignment; Recompute refreshes time",
+            "runway arrival rate"
+          ],
+          "earliestPlanningTime": 1791814141819,
+          "validUntil": 1791813582820,
+          "absorption": {
+            "mode": "holding",
+            "maxIas": 230
+          }
+        },
+        "planKey": "[\"ESSA/01R\",90,[],0,0]",
+        "committedSta": 1791814681819
+      },
+      {
+        "callsign": "TEST_PRECEDING",
+        "aircraft": "A21N",
+        "wake": "M",
+        "departure": "EDDM",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "landingSeconds": 600,
+        "distanceNm": 51.78985519494875,
+        "groundspeed": 356,
+        "altitude": 11027,
+        "dataWarnings": [],
+        "star": "NILUG3M",
+        "routeText": "AKINI1N/26R AKINI Y104 MAMOR L132 AGNAV DCT SUPIL DCT KILNU DCT GODUR DCT ADLIR DCT FARCU DCT GOSOT DCT VIBAR Z227 NILUG ",
+        "verticalSpeed": -3932,
+        "assignedSpeed": 0,
+        "assignedMach": 0,
+        "finalAltitude": 37000,
+        "clearedAltitude": 0,
+        "heading": 37,
+        "assignedHeading": 0,
+        "direct": "",
+        "routeProblem": "",
+        "latitude": 59.14797,
+        "longitude": 18.1291,
+        "positionAgeSeconds": 1,
+        "calculatedRouteIndex": 14,
+        "topskyMissedApproach": false,
+        "route": [
+          {
+            "latitude": 48.35378299999999,
+            "longitude": 11.786086000000001,
+            "name": "EDDM",
+            "seconds": -60
+          },
+          {
+            "latitude": 48.749722000000006,
+            "longitude": 12.124166999999998,
+            "name": "AKINI",
+            "seconds": -60
+          },
+          {
+            "latitude": 48.885833,
+            "longitude": 12.222221999999999,
+            "name": "MAMOR",
+            "seconds": -60
+          },
+          {
+            "latitude": 49.335833,
+            "longitude": 12.541396999999998,
+            "name": "RUDNO",
+            "seconds": -60
+          },
+          {
+            "latitude": 49.567917,
+            "longitude": 12.614503,
+            "name": "AGNAV",
+            "seconds": -60
+          },
+          {
+            "latitude": 50.37324699999999,
+            "longitude": 12.813511,
+            "name": "SUPIL",
+            "seconds": -60
+          },
+          {
+            "latitude": 50.476943999999996,
+            "longitude": 12.911667,
+            "name": "KILNU",
+            "seconds": -60
+          },
+          {
+            "latitude": 51.830556,
+            "longitude": 13.279722,
+            "name": "GODUR",
+            "seconds": -60
+          },
+          {
+            "latitude": 52.400278,
+            "longitude": 13.621944,
+            "name": "ADLIR",
+            "seconds": -60
+          },
+          {
+            "latitude": 53.893888999999994,
+            "longitude": 14.212777999999998,
+            "name": "FARCU",
+            "seconds": -60
+          },
+          {
+            "latitude": 54.805556,
+            "longitude": 14.857778,
+            "name": "GOSOT",
+            "seconds": -60
+          },
+          {
+            "latitude": 57.578056000000004,
+            "longitude": 16.390556,
+            "name": "VIBAR",
+            "seconds": -60
+          },
+          {
+            "latitude": 58.815833,
+            "longitude": 17.884721999999996,
+            "name": "NILUG",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.09766694444445,
+            "longitude": 18.152027777777775,
+            "name": "SA630",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.53169388888889,
+            "longitude": 18.20330583333333,
+            "name": "TEB",
+            "seconds": 240
+          },
+          {
+            "latitude": 59.398738888888886,
+            "longitude": 17.868710833333335,
+            "name": "CI01R",
+            "seconds": 360
+          },
+          {
+            "latitude": 59.431446944444446,
+            "longitude": 17.88042777777778,
+            "name": "FI01R",
+            "seconds": 420
+          },
+          {
+            "latitude": 59.626396944444444,
+            "longitude": 17.950741666666666,
+            "name": "SA01R",
+            "seconds": 540
+          },
+          {
+            "latitude": 59.65194399999999,
+            "longitude": 17.918611,
+            "name": "ESSA",
+            "seconds": 600
+          }
+        ],
+        "euroscopeRunway": "01R",
+        "sdkRunwayExplicit": false,
+        "runwaySource": "manual",
+        "firstSeen": 1791812781823,
+        "lastSeen": 1791813567820,
+        "initialEta": 1791814221823,
+        "initialEtaFf": 1791813441823,
+        "eta": 1791814201819,
+        "etaFf": 1791813404833,
+        "euroscopeBaseline": {
+          "at": 1791813541819,
+          "bufferMinutes": 1,
+          "eta": 1791814201819,
+          "etaFf": 1791813600819,
+          "feederBuffered": true,
+          "rawEta": 1791814141819,
+          "rawEtaFf": 1791813540819
+        },
+        "liveEuroscopeEta": 1791814167820,
+        "liveBufferedEta": 1791814227820,
+        "liveEuroscopeEtaFf": 1791813566820,
+        "liveBufferedEtaFf": 1791813626820,
+        "bufferedFeederVerified": true,
+        "secondaryRunwayAccepted": false,
+        "sta": 1791814201819,
+        "staFf": 1791813414822,
+        "feeder": "NILUG",
+        "feederId": "N",
+        "ff": "NILUG",
+        "passedFeeder": true,
+        "missedRecovery": false,
+        "state": 2,
+        "mode": "sequenced",
+        "delay": 0,
+        "totalDelay": 10,
+        "order": 3,
+        "tmaAssignment": {
+          "at": 1791813567820,
+          "sta": 1791814201819,
+          "instruction": 0
+        },
+        "lost": false,
+        "issue": "",
+        "minimumArrival": 1791813567820,
+        "minimumArrivalSource": "new",
+        "slotBefore": 0,
+        "slotAfter": 0,
+        "recomputedAt": 1791813544619,
+        "lastTrustedEta": 1791814201819,
+        "predictionSource": "route",
+        "originalLandingSeconds": 600,
+        "amanRoute": [
+          {
+            "latitude": 58.815833,
+            "longitude": 17.884721999999996,
+            "name": "NILUG",
+            "seconds": 540
+          },
+          {
+            "latitude": 59.09766694444445,
+            "longitude": 18.152027777777775,
+            "name": "SA630",
+            "seconds": 660
+          },
+          {
+            "latitude": 59.53169388888889,
+            "longitude": 18.20330583333333,
+            "name": "TEB",
+            "seconds": 900
+          },
+          {
+            "latitude": 59.398738888888886,
+            "longitude": 17.868710833333335,
+            "name": "CI01R",
+            "seconds": 1080
+          },
+          {
+            "latitude": 59.431446944444446,
+            "longitude": 17.88042777777778,
+            "name": "FI01R",
+            "seconds": 1140
+          },
+          {
+            "latitude": 59.626396944444444,
+            "longitude": 17.950741666666666,
+            "name": "SA01R",
+            "seconds": 1260
+          }
+        ],
+        "amanRoutePassed": 1,
+        "aircraftPerformance": {
+          "type": "A21N",
+          "status": "missing",
+          "blobSha": "af94db8b72e961dccfb4d1779c8a5c682be5f126",
+          "provider": "generic",
+          "gainEligible": false
+        },
+        "editTracking": true,
+        "appliedOrder": 3,
+        "appliedChangedAt": 1791813567820,
+        "appliedOrderGroup": "1791813567820-s75fjap2",
+        "gainCapacitySeconds": 0,
+        "feederDistanceNm": 21.326871599405678,
+        "spacingActive": true,
+        "line0Suppressed": true,
+        "planningEta": 1791814201819,
+        "feederDelayMs": 0,
+        "wakeDelayMs": 0,
+        "rateDelayMs": 0,
+        "closureDelayMs": 0,
+        "spacingConflict": false,
+        "runwayDelay": 0,
+        "tmaTiming": {
+          "delay": 0,
+          "rateSeconds": 90,
+          "instructionSource": "none",
+          "referenceSta": 1791814201819,
+          "referenceDelay": 0,
+          "referenceSource": "none"
+        },
+        "refreshedDelayAt": 0,
+        "initialSta": 1791814221823,
+        "initialStaFf": 1791813441823,
+        "originalAssignedSta": 1791814201819,
+        "maximumDelayExceeded": false,
+        "planningDelaySeconds": 0,
+        "separation": {
+          "leader": "TEST_LEADER",
+          "wakeNm": 3,
+          "wakeSeconds": 77.14285714285714,
+          "rateSeconds": 90,
+          "scheduledSeconds": 114.02618188476562
+        },
+        "guidance": {
+          "point": "runway threshold",
+          "predicted": 1791814227820,
+          "scheduled": 1791814201819,
+          "reference": 1791814201819,
+          "instructionSeconds": 0,
+          "policy": "accepted instruction policy",
+          "constraints": [
+            "controller sequence order"
+          ],
+          "earliestPlanningTime": 1791814201819,
+          "validUntil": 1791813582820,
+          "absorption": {
+            "mode": "none"
+          }
+        },
+        "planKey": "[\"ESSA/01R\",90,[],0,0]",
+        "committedSta": 1791814201819
+      },
+      {
+        "callsign": "TEST_LEADER",
+        "aircraft": "BCS3",
+        "wake": "M",
+        "departure": "EDDM",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "landingSeconds": 780,
+        "distanceNm": 54.07966703796789,
+        "groundspeed": 333,
+        "altitude": 14984,
+        "dataWarnings": [],
+        "star": "NILUG3M",
+        "routeText": "AKINI1N/26R AKINI Y104 MAMOR L132 AGNAV DCT SUPIL DCT KILNU DCT RENKI DCT FARCU DCT GOSOT DCT VIBAR/N0459F270 Z227 NILUG ",
+        "verticalSpeed": -6164,
+        "assignedSpeed": 0,
+        "assignedMach": 0,
+        "finalAltitude": 37000,
+        "clearedAltitude": 0,
+        "heading": 356,
+        "assignedHeading": 0,
+        "direct": "",
+        "routeProblem": "",
+        "latitude": 59.15304,
+        "longitude": 17.830260000000003,
+        "positionAgeSeconds": 3,
+        "calculatedRouteIndex": 13,
+        "topskyMissedApproach": false,
+        "route": [
+          {
+            "latitude": 48.35378299999999,
+            "longitude": 11.786086000000001,
+            "name": "EDDM",
+            "seconds": -60
+          },
+          {
+            "latitude": 48.749722000000006,
+            "longitude": 12.124166999999998,
+            "name": "AKINI",
+            "seconds": -60
+          },
+          {
+            "latitude": 48.885833,
+            "longitude": 12.222221999999999,
+            "name": "MAMOR",
+            "seconds": -60
+          },
+          {
+            "latitude": 49.335833,
+            "longitude": 12.541396999999998,
+            "name": "RUDNO",
+            "seconds": -60
+          },
+          {
+            "latitude": 49.567917,
+            "longitude": 12.614503,
+            "name": "AGNAV",
+            "seconds": -60
+          },
+          {
+            "latitude": 50.37324699999999,
+            "longitude": 12.813511,
+            "name": "SUPIL",
+            "seconds": -60
+          },
+          {
+            "latitude": 50.476943999999996,
+            "longitude": 12.911667,
+            "name": "KILNU",
+            "seconds": -60
+          },
+          {
+            "latitude": 52.91484199999999,
+            "longitude": 13.961678,
+            "name": "RENKI",
+            "seconds": -60
+          },
+          {
+            "latitude": 53.893888999999994,
+            "longitude": 14.212777999999998,
+            "name": "FARCU",
+            "seconds": -60
+          },
+          {
+            "latitude": 54.805556,
+            "longitude": 14.857778,
+            "name": "GOSOT",
+            "seconds": -60
+          },
+          {
+            "latitude": 57.578056000000004,
+            "longitude": 16.390556,
+            "name": "VIBAR",
+            "seconds": -60
+          },
+          {
+            "latitude": 58.815833,
+            "longitude": 17.884721999999996,
+            "name": "NILUG",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.09766694444445,
+            "longitude": 18.152027777777775,
+            "name": "SA630",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.53169388888889,
+            "longitude": 18.20330583333333,
+            "name": "TEB",
+            "seconds": 300
+          },
+          {
+            "latitude": 59.398738888888886,
+            "longitude": 17.868710833333335,
+            "name": "CI01R",
+            "seconds": 480
+          },
+          {
+            "latitude": 59.431446944444446,
+            "longitude": 17.88042777777778,
+            "name": "FI01R",
+            "seconds": 540
+          },
+          {
+            "latitude": 59.626396944444444,
+            "longitude": 17.950741666666666,
+            "name": "SA01R",
+            "seconds": 720
+          },
+          {
+            "latitude": 59.65194399999999,
+            "longitude": 17.918611,
+            "name": "ESSA",
+            "seconds": 780
+          }
+        ],
+        "euroscopeRunway": "01R",
+        "sdkRunwayExplicit": false,
+        "runwaySource": "filed",
+        "firstSeen": 1791812783877,
+        "lastSeen": 1791813567820,
+        "initialEta": 1791814223877,
+        "initialEtaFf": 1791813443877,
+        "eta": 1791814501819,
+        "etaFf": 1791813422825,
+        "euroscopeBaseline": {
+          "at": 1791813541819,
+          "bufferMinutes": 1,
+          "eta": 1791814501819,
+          "etaFf": 1791813600819,
+          "feederBuffered": true,
+          "rawEta": 1791814441819,
+          "rawEtaFf": 1791813540819
+        },
+        "liveEuroscopeEta": 1791814347820,
+        "liveBufferedEta": 1791814407820,
+        "liveEuroscopeEtaFf": 1791813566820,
+        "liveBufferedEtaFf": 1791813626820,
+        "bufferedFeederVerified": true,
+        "secondaryRunwayAccepted": false,
+        "sta": 1791814087792.818,
+        "staFf": 1791813444822,
+        "feeder": "NILUG",
+        "feederId": "N",
+        "ff": "NILUG",
+        "passedFeeder": true,
+        "missedRecovery": false,
+        "state": 2,
+        "mode": "sequenced",
+        "delay": 0,
+        "totalDelay": 22,
+        "order": 2,
+        "tmaAssignment": {
+          "at": 1791813567820,
+          "sta": 1791814087792.818,
+          "instruction": 0
+        },
+        "lost": false,
+        "issue": "",
+        "minimumArrival": 1791813567820,
+        "minimumArrivalSource": "new",
+        "slotBefore": 0,
+        "slotAfter": 0,
+        "recomputedAt": 1791813544619,
+        "lastTrustedEta": 1791814501819,
+        "predictionSource": "route",
+        "originalLandingSeconds": 780,
+        "amanRoute": [
+          {
+            "latitude": 58.815833,
+            "longitude": 17.884721999999996,
+            "name": "NILUG",
+            "seconds": 540
+          },
+          {
+            "latitude": 59.09766694444445,
+            "longitude": 18.152027777777775,
+            "name": "SA630",
+            "seconds": 660
+          },
+          {
+            "latitude": 59.53169388888889,
+            "longitude": 18.20330583333333,
+            "name": "TEB",
+            "seconds": 960
+          },
+          {
+            "latitude": 59.398738888888886,
+            "longitude": 17.868710833333335,
+            "name": "CI01R",
+            "seconds": 1080
+          },
+          {
+            "latitude": 59.431446944444446,
+            "longitude": 17.88042777777778,
+            "name": "FI01R",
+            "seconds": 1140
+          },
+          {
+            "latitude": 59.626396944444444,
+            "longitude": 17.950741666666666,
+            "name": "SA01R",
+            "seconds": 1260
+          }
+        ],
+        "amanRoutePassed": 1,
+        "aircraftPerformance": {
+          "type": "BCS3",
+          "status": "missing",
+          "blobSha": "af94db8b72e961dccfb4d1779c8a5c682be5f126",
+          "provider": "generic",
+          "gainEligible": false
+        },
+        "editTracking": true,
+        "appliedOrder": 2,
+        "appliedTarget": 1791814087792.818,
+        "appliedChangedAt": 1791813567820,
+        "appliedOrderGroup": "1791813567820-s75fjap2",
+        "gainCapacitySeconds": 0,
+        "feederDistanceNm": 20.3160501241668,
+        "spacingActive": true,
+        "line0Suppressed": true,
+        "planningEta": 1791814501819,
+        "feederDelayMs": 0,
+        "wakeDelayMs": 0,
+        "rateDelayMs": 0,
+        "closureDelayMs": 0,
+        "spacingConflict": false,
+        "runwayDelay": -414,
+        "reorderTiming": {
+          "eta": 1791814501819,
+          "scheduled": 1791814087792.818,
+          "delay": 0
+        },
+        "tmaTiming": {
+          "delay": 0,
+          "rateSeconds": 90,
+          "instructionSource": "none",
+          "referenceSta": 1791814501819,
+          "referenceDelay": 0,
+          "referenceSource": "none"
+        },
+        "refreshedDelayAt": 0,
+        "initialSta": 1791814311823,
+        "initialStaFf": 1791813531823,
+        "originalAssignedSta": 1791814501819,
+        "maximumDelayExceeded": false,
+        "planningDelaySeconds": 0,
+        "separation": {
+          "leader": "TEST_SECOND",
+          "wakeNm": 3,
+          "wakeSeconds": 77.14285714285714,
+          "rateSeconds": 90,
+          "scheduledSeconds": 125.97381811523438
+        },
+        "guidance": {
+          "point": "runway threshold",
+          "predicted": 1791814407820,
+          "scheduled": 1791814087792.818,
+          "reference": 1791814501819,
+          "instructionSeconds": 0,
+          "policy": "accepted instruction policy",
+          "constraints": [
+            "controller sequence order",
+            "manual time / slot"
+          ],
+          "earliestPlanningTime": 1791814501819,
+          "validUntil": 1791813582820,
+          "absorption": {
+            "mode": "none"
+          }
+        },
+        "planKey": "[\"ESSA/01R\",90,[],0,0]",
+        "committedSta": 1791814087792.818
+      }
+    ],
+    "terminatedCallsigns": [],
+    "knownFlights": [
+      {
+        "aircraft": "A20N",
+        "arrival": "ESSA",
+        "callsign": "BAL7VE",
+        "departure": "EVRA",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "BCS3",
+        "arrival": "ESSA",
+        "callsign": "TEST_LEADER",
+        "departure": "EDDM",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A21N",
+        "arrival": "ESSA",
+        "callsign": "TEST_PRECEDING",
+        "departure": "EDDM",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A320",
+        "arrival": "ESSA",
+        "callsign": "DLH4RJ",
+        "departure": "EDDF",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A320",
+        "arrival": "ESSA",
+        "callsign": "DLH806",
+        "departure": "EDDF",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A320",
+        "arrival": "ESSA",
+        "callsign": "TEST_SECOND",
+        "departure": "EFHK",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A320",
+        "arrival": "ESSA",
+        "callsign": "TEST_ADVANCED",
+        "departure": "ENZV",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A339",
+        "arrival": "ESSA",
+        "callsign": "NDF5211",
+        "departure": "LIPZ",
+        "runway": "01R",
+        "wake": "H"
+      },
+      {
+        "aircraft": "B738",
+        "arrival": "ESSA",
+        "callsign": "TEST_LATER",
+        "departure": "ESNU",
+        "runway": "",
+        "wake": "M"
+      },
+      {
+        "aircraft": "B736",
+        "arrival": "ESSA",
+        "callsign": "TEST_FOLLOWER",
+        "departure": "ESNU",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A320",
+        "arrival": "ESSA",
+        "callsign": "SAS2848",
+        "departure": "LPFR",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A20N",
+        "arrival": "ESSA",
+        "callsign": "SAS61A",
+        "departure": "EKCH",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A339",
+        "arrival": "ESSA",
+        "callsign": "TEST_FIRST",
+        "departure": "ESKN",
+        "runway": "",
+        "wake": "H"
+      }
+    ],
+    "diagnostics": [],
+    "slotsKey": "[]",
+    "winds": {},
+    "grounded": {},
+    "observedCallsigns": [
+      "TEST_LATER",
+      "TEST_FIRST",
+      "TEST_SECOND",
+      "TEST_ADVANCED",
+      "TEST_FOLLOWER",
+      "TEST_PRECEDING",
+      "TEST_LEADER"
+    ],
+    "runways": {},
+    "activeRunways": {
+      "arrivals": [],
+      "departures": []
+    },
+    "wind": {
+      "direction": 0,
+      "speed": 0,
+      "auto": true
+    },
+    "landings": []
+  },
+  "input": {
+    "source": "ESSA_FMP",
+    "timestamp": 1791813569817,
+    "simulation": false,
+    "terminatedCallsigns": [],
+    "winds": {},
+    "runways": {},
+    "activeRunways": {
+      "arrivals": [],
+      "departures": []
+    },
+    "flights": [
+      {
+        "callsign": "TEST_LATER",
+        "aircraft": "B738",
+        "wake": "M",
+        "departure": "ESNU",
+        "arrival": "ESSA",
+        "runway": "",
+        "landingSeconds": 2100,
+        "distanceNm": 235.74035455082245,
+        "groundspeed": 346,
+        "altitude": 14864,
+        "dataWarnings": [],
+        "star": "",
+        "routeText": "DEDIT DCT BODRI DCT TOGMI DCT SIPRI T31 HMR",
+        "verticalSpeed": 7028,
+        "assignedSpeed": 0,
+        "assignedMach": 0,
+        "finalAltitude": 32000,
+        "clearedAltitude": 0,
+        "heading": 182,
+        "assignedHeading": 0,
+        "direct": "",
+        "routeProblem": "",
+        "latitude": 63.37479,
+        "longitude": 20.452379999999998,
+        "positionAgeSeconds": 1,
+        "calculatedRouteIndex": 1,
+        "topskyMissedApproach": false,
+        "route": [
+          {
+            "latitude": 63.79305600000001,
+            "longitude": 20.279999999999998,
+            "name": "ESNU",
+            "seconds": -60
+          },
+          {
+            "latitude": 63.258250000000004,
+            "longitude": 20.450611,
+            "name": "DEDIT",
+            "seconds": 60
+          },
+          {
+            "latitude": 62.415,
+            "longitude": 19.824167000000003,
+            "name": "BODRI",
+            "seconds": 480
+          },
+          {
+            "latitude": 61.761944,
+            "longitude": 19.540278,
+            "name": "TOGMI",
+            "seconds": 780
+          },
+          {
+            "latitude": 60.845556,
+            "longitude": 18.751667,
+            "name": "SIPRI",
+            "seconds": 1260
+          },
+          {
+            "latitude": 60.279222000000004,
+            "longitude": 18.391556,
+            "name": "HMR",
+            "seconds": 1620
+          },
+          {
+            "latitude": 59.65194399999999,
+            "longitude": 17.918611,
+            "name": "ESSA",
+            "seconds": 2100
+          }
+        ]
+      },
+      {
+        "callsign": "TEST_FIRST",
+        "aircraft": "A339",
+        "wake": "H",
+        "departure": "ESKN",
+        "arrival": "ESSA",
+        "runway": "",
+        "landingSeconds": 60,
+        "distanceNm": 4.05841337916252,
+        "groundspeed": 115,
+        "altitude": 1059,
+        "dataWarnings": [],
+        "star": "",
+        "routeText": "TRS DCT TEB",
+        "verticalSpeed": -1392,
+        "assignedSpeed": 0,
+        "assignedMach": 0,
+        "finalAltitude": 15000,
+        "clearedAltitude": 1,
+        "heading": 6,
+        "assignedHeading": 0,
+        "direct": "",
+        "routeProblem": "",
+        "latitude": 59.58485999999999,
+        "longitude": 17.93565,
+        "positionAgeSeconds": 4,
+        "calculatedRouteIndex": 3,
+        "topskyMissedApproach": false,
+        "route": [
+          {
+            "latitude": 58.788611,
+            "longitude": 16.903610999999998,
+            "name": "ESKN",
+            "seconds": -60
+          },
+          {
+            "latitude": 58.93791694444444,
+            "longitude": 17.502305833333335,
+            "name": "TRS",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.531693999999995,
+            "longitude": 18.203305999999998,
+            "name": "TEB",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.65194399999999,
+            "longitude": 17.918611,
+            "name": "ESSA",
+            "seconds": 60
+          }
+        ]
+      },
+      {
+        "callsign": "TEST_SECOND",
+        "aircraft": "A320",
+        "wake": "M",
+        "departure": "EFHK",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "landingSeconds": 300,
+        "distanceNm": 20.850844592534315,
+        "groundspeed": 248,
+        "altitude": 4004,
+        "dataWarnings": [],
+        "star": "XILAN5M",
+        "routeText": "ADIVO Y365 POGOK DCT LUPET L77 XILAN",
+        "verticalSpeed": -976,
+        "assignedSpeed": 0,
+        "assignedMach": 0,
+        "finalAltitude": 30000,
+        "clearedAltitude": 0,
+        "heading": 254,
+        "assignedHeading": 0,
+        "direct": "",
+        "routeProblem": "",
+        "latitude": 59.372279999999996,
+        "longitude": 18.028950000000002,
+        "positionAgeSeconds": 2,
+        "calculatedRouteIndex": 8,
+        "topskyMissedApproach": false,
+        "route": [
+          {
+            "latitude": 60.317221999999994,
+            "longitude": 24.963332999999995,
+            "name": "EFHK",
+            "seconds": -60
+          },
+          {
+            "latitude": 60.29750000000001,
+            "longitude": 23.981388999999997,
+            "name": "ADIVO",
+            "seconds": -60
+          },
+          {
+            "latitude": 60.141389,
+            "longitude": 22.599721999999996,
+            "name": "PEPIG",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.991111000000004,
+            "longitude": 21.387778,
+            "name": "POGOK",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.640278,
+            "longitude": 19.876389,
+            "name": "LUPET",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.65944399999999,
+            "longitude": 19.076111,
+            "name": "XILAN",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.60444388888889,
+            "longitude": 18.695082777777777,
+            "name": "SA570",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.53169388888889,
+            "longitude": 18.20330583333333,
+            "name": "TEB",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.398738888888886,
+            "longitude": 17.868710833333335,
+            "name": "CI01R",
+            "seconds": 60
+          },
+          {
+            "latitude": 59.431446944444446,
+            "longitude": 17.88042777777778,
+            "name": "FI01R",
+            "seconds": 120
+          },
+          {
+            "latitude": 59.626396944444444,
+            "longitude": 17.950741666666666,
+            "name": "SA01R",
+            "seconds": 240
+          },
+          {
+            "latitude": 59.65194399999999,
+            "longitude": 17.918611,
+            "name": "ESSA",
+            "seconds": 300
+          }
+        ]
+      },
+      {
+        "callsign": "TEST_ADVANCED",
+        "aircraft": "A320",
+        "wake": "M",
+        "departure": "ENZV",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "landingSeconds": 540,
+        "distanceNm": 39.50250942148579,
+        "groundspeed": 279,
+        "altitude": 7853,
+        "dataWarnings": [],
+        "star": "ELTOK8M",
+        "routeText": "UPLEV DCT ELTOK",
+        "verticalSpeed": -1964,
+        "assignedSpeed": 0,
+        "assignedMach": 0,
+        "finalAltitude": 37000,
+        "clearedAltitude": 0,
+        "heading": 130,
+        "assignedHeading": 0,
+        "direct": "",
+        "routeProblem": "",
+        "latitude": 59.640550000000005,
+        "longitude": 17.37353,
+        "positionAgeSeconds": 0,
+        "calculatedRouteIndex": 5,
+        "topskyMissedApproach": false,
+        "route": [
+          {
+            "latitude": 58.87666699999999,
+            "longitude": 5.637778,
+            "name": "ENZV",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.101611,
+            "longitude": 6.866167,
+            "name": "UPLEV",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.82444399999999,
+            "longitude": 16.989917,
+            "name": "ELTOK",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.79061083333333,
+            "longitude": 17.176471944444447,
+            "name": "SA820",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.696443888888886,
+            "longitude": 17.244805833333334,
+            "name": "SA854",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.53897194444444,
+            "longitude": 17.358360833333336,
+            "name": "OBCIV",
+            "seconds": 60
+          },
+          {
+            "latitude": 59.398738888888886,
+            "longitude": 17.868710833333335,
+            "name": "CI01R",
+            "seconds": 300
+          },
+          {
+            "latitude": 59.431446944444446,
+            "longitude": 17.88042777777778,
+            "name": "FI01R",
+            "seconds": 360
+          },
+          {
+            "latitude": 59.626396944444444,
+            "longitude": 17.950741666666666,
+            "name": "SA01R",
+            "seconds": 480
+          },
+          {
+            "latitude": 59.65194399999999,
+            "longitude": 17.918611,
+            "name": "ESSA",
+            "seconds": 540
+          }
+        ]
+      },
+      {
+        "callsign": "TEST_FOLLOWER",
+        "aircraft": "B736",
+        "wake": "M",
+        "departure": "ESNU",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "landingSeconds": 480,
+        "distanceNm": 38.17548655850706,
+        "groundspeed": 250,
+        "altitude": 8485,
+        "dataWarnings": [],
+        "star": "VACRA1M",
+        "routeText": "DEDIT DCT GALPI DCT BODRI/N0382F280 T31 VACRA",
+        "verticalSpeed": -1528,
+        "assignedSpeed": 0,
+        "assignedMach": 0,
+        "finalAltitude": 36000,
+        "clearedAltitude": 0,
+        "heading": 198,
+        "assignedHeading": 0,
+        "direct": "",
+        "routeProblem": "",
+        "latitude": 59.68183,
+        "longitude": 18.304930000000002,
+        "positionAgeSeconds": 3,
+        "calculatedRouteIndex": 8,
+        "topskyMissedApproach": false,
+        "route": [
+          {
+            "latitude": 63.79305600000001,
+            "longitude": 20.279999999999998,
+            "name": "ESNU",
+            "seconds": -60
+          },
+          {
+            "latitude": 63.258250000000004,
+            "longitude": 20.450611,
+            "name": "DEDIT",
+            "seconds": -60
+          },
+          {
+            "latitude": 62.84694399999999,
+            "longitude": 20.140278000000002,
+            "name": "GALPI",
+            "seconds": -60
+          },
+          {
+            "latitude": 62.415,
+            "longitude": 19.824167000000003,
+            "name": "BODRI",
+            "seconds": -60
+          },
+          {
+            "latitude": 60.845556,
+            "longitude": 18.751667,
+            "name": "SIPRI",
+            "seconds": -60
+          },
+          {
+            "latitude": 60.279222000000004,
+            "longitude": 18.391556,
+            "name": "VACRA",
+            "seconds": -60
+          },
+          {
+            "latitude": 60.01658277777778,
+            "longitude": 18.369749722222224,
+            "name": "SA539",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.74783277777778,
+            "longitude": 18.347860833333332,
+            "name": "SA540",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.53169388888889,
+            "longitude": 18.20330583333333,
+            "name": "TEB",
+            "seconds": 60
+          },
+          {
+            "latitude": 59.398738888888886,
+            "longitude": 17.868710833333335,
+            "name": "CI01R",
+            "seconds": 240
+          },
+          {
+            "latitude": 59.431446944444446,
+            "longitude": 17.88042777777778,
+            "name": "FI01R",
+            "seconds": 300
+          },
+          {
+            "latitude": 59.626396944444444,
+            "longitude": 17.950741666666666,
+            "name": "SA01R",
+            "seconds": 420
+          },
+          {
+            "latitude": 59.65194399999999,
+            "longitude": 17.918611,
+            "name": "ESSA",
+            "seconds": 480
+          }
+        ]
+      },
+      {
+        "callsign": "TEST_PRECEDING",
+        "aircraft": "A21N",
+        "wake": "M",
+        "departure": "EDDM",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "landingSeconds": 600,
+        "distanceNm": 51.78985519494875,
+        "groundspeed": 356,
+        "altitude": 11027,
+        "dataWarnings": [],
+        "star": "NILUG3M",
+        "routeText": "AKINI1N/26R AKINI Y104 MAMOR L132 AGNAV DCT SUPIL DCT KILNU DCT GODUR DCT ADLIR DCT FARCU DCT GOSOT DCT VIBAR Z227 NILUG ",
+        "verticalSpeed": -3932,
+        "assignedSpeed": 0,
+        "assignedMach": 0,
+        "finalAltitude": 37000,
+        "clearedAltitude": 0,
+        "heading": 37,
+        "assignedHeading": 0,
+        "direct": "",
+        "routeProblem": "",
+        "latitude": 59.14797,
+        "longitude": 18.1291,
+        "positionAgeSeconds": 3,
+        "calculatedRouteIndex": 14,
+        "topskyMissedApproach": false,
+        "route": [
+          {
+            "latitude": 48.35378299999999,
+            "longitude": 11.786086000000001,
+            "name": "EDDM",
+            "seconds": -60
+          },
+          {
+            "latitude": 48.749722000000006,
+            "longitude": 12.124166999999998,
+            "name": "AKINI",
+            "seconds": -60
+          },
+          {
+            "latitude": 48.885833,
+            "longitude": 12.222221999999999,
+            "name": "MAMOR",
+            "seconds": -60
+          },
+          {
+            "latitude": 49.335833,
+            "longitude": 12.541396999999998,
+            "name": "RUDNO",
+            "seconds": -60
+          },
+          {
+            "latitude": 49.567917,
+            "longitude": 12.614503,
+            "name": "AGNAV",
+            "seconds": -60
+          },
+          {
+            "latitude": 50.37324699999999,
+            "longitude": 12.813511,
+            "name": "SUPIL",
+            "seconds": -60
+          },
+          {
+            "latitude": 50.476943999999996,
+            "longitude": 12.911667,
+            "name": "KILNU",
+            "seconds": -60
+          },
+          {
+            "latitude": 51.830556,
+            "longitude": 13.279722,
+            "name": "GODUR",
+            "seconds": -60
+          },
+          {
+            "latitude": 52.400278,
+            "longitude": 13.621944,
+            "name": "ADLIR",
+            "seconds": -60
+          },
+          {
+            "latitude": 53.893888999999994,
+            "longitude": 14.212777999999998,
+            "name": "FARCU",
+            "seconds": -60
+          },
+          {
+            "latitude": 54.805556,
+            "longitude": 14.857778,
+            "name": "GOSOT",
+            "seconds": -60
+          },
+          {
+            "latitude": 57.578056000000004,
+            "longitude": 16.390556,
+            "name": "VIBAR",
+            "seconds": -60
+          },
+          {
+            "latitude": 58.815833,
+            "longitude": 17.884721999999996,
+            "name": "NILUG",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.09766694444445,
+            "longitude": 18.152027777777775,
+            "name": "SA630",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.53169388888889,
+            "longitude": 18.20330583333333,
+            "name": "TEB",
+            "seconds": 240
+          },
+          {
+            "latitude": 59.398738888888886,
+            "longitude": 17.868710833333335,
+            "name": "CI01R",
+            "seconds": 360
+          },
+          {
+            "latitude": 59.431446944444446,
+            "longitude": 17.88042777777778,
+            "name": "FI01R",
+            "seconds": 420
+          },
+          {
+            "latitude": 59.626396944444444,
+            "longitude": 17.950741666666666,
+            "name": "SA01R",
+            "seconds": 540
+          },
+          {
+            "latitude": 59.65194399999999,
+            "longitude": 17.918611,
+            "name": "ESSA",
+            "seconds": 600
+          }
+        ]
+      },
+      {
+        "callsign": "TEST_LEADER",
+        "aircraft": "BCS3",
+        "wake": "M",
+        "departure": "EDDM",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "landingSeconds": 780,
+        "distanceNm": 53.702012896274134,
+        "groundspeed": 331,
+        "altitude": 14738,
+        "dataWarnings": [],
+        "star": "NILUG3M",
+        "routeText": "AKINI1N/26R AKINI Y104 MAMOR L132 AGNAV DCT SUPIL DCT KILNU DCT RENKI DCT FARCU DCT GOSOT DCT VIBAR/N0459F270 Z227 NILUG ",
+        "verticalSpeed": -6140,
+        "assignedSpeed": 0,
+        "assignedMach": 0,
+        "finalAltitude": 37000,
+        "clearedAltitude": 0,
+        "heading": 356,
+        "assignedHeading": 0,
+        "direct": "",
+        "routeProblem": "",
+        "latitude": 59.1604,
+        "longitude": 17.829060000000002,
+        "positionAgeSeconds": 0,
+        "calculatedRouteIndex": 13,
+        "topskyMissedApproach": false,
+        "route": [
+          {
+            "latitude": 48.35378299999999,
+            "longitude": 11.786086000000001,
+            "name": "EDDM",
+            "seconds": -60
+          },
+          {
+            "latitude": 48.749722000000006,
+            "longitude": 12.124166999999998,
+            "name": "AKINI",
+            "seconds": -60
+          },
+          {
+            "latitude": 48.885833,
+            "longitude": 12.222221999999999,
+            "name": "MAMOR",
+            "seconds": -60
+          },
+          {
+            "latitude": 49.335833,
+            "longitude": 12.541396999999998,
+            "name": "RUDNO",
+            "seconds": -60
+          },
+          {
+            "latitude": 49.567917,
+            "longitude": 12.614503,
+            "name": "AGNAV",
+            "seconds": -60
+          },
+          {
+            "latitude": 50.37324699999999,
+            "longitude": 12.813511,
+            "name": "SUPIL",
+            "seconds": -60
+          },
+          {
+            "latitude": 50.476943999999996,
+            "longitude": 12.911667,
+            "name": "KILNU",
+            "seconds": -60
+          },
+          {
+            "latitude": 52.91484199999999,
+            "longitude": 13.961678,
+            "name": "RENKI",
+            "seconds": -60
+          },
+          {
+            "latitude": 53.893888999999994,
+            "longitude": 14.212777999999998,
+            "name": "FARCU",
+            "seconds": -60
+          },
+          {
+            "latitude": 54.805556,
+            "longitude": 14.857778,
+            "name": "GOSOT",
+            "seconds": -60
+          },
+          {
+            "latitude": 57.578056000000004,
+            "longitude": 16.390556,
+            "name": "VIBAR",
+            "seconds": -60
+          },
+          {
+            "latitude": 58.815833,
+            "longitude": 17.884721999999996,
+            "name": "NILUG",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.09766694444445,
+            "longitude": 18.152027777777775,
+            "name": "SA630",
+            "seconds": -60
+          },
+          {
+            "latitude": 59.53169388888889,
+            "longitude": 18.20330583333333,
+            "name": "TEB",
+            "seconds": 300
+          },
+          {
+            "latitude": 59.398738888888886,
+            "longitude": 17.868710833333335,
+            "name": "CI01R",
+            "seconds": 480
+          },
+          {
+            "latitude": 59.431446944444446,
+            "longitude": 17.88042777777778,
+            "name": "FI01R",
+            "seconds": 540
+          },
+          {
+            "latitude": 59.626396944444444,
+            "longitude": 17.950741666666666,
+            "name": "SA01R",
+            "seconds": 720
+          },
+          {
+            "latitude": 59.65194399999999,
+            "longitude": 17.918611,
+            "name": "ESSA",
+            "seconds": 780
+          }
+        ]
+      }
+    ],
+    "knownFlights": [
+      {
+        "aircraft": "A20N",
+        "arrival": "ESSA",
+        "callsign": "BAL7VE",
+        "departure": "EVRA",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "BCS3",
+        "arrival": "ESSA",
+        "callsign": "TEST_LEADER",
+        "departure": "EDDM",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A21N",
+        "arrival": "ESSA",
+        "callsign": "TEST_PRECEDING",
+        "departure": "EDDM",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A320",
+        "arrival": "ESSA",
+        "callsign": "DLH4RJ",
+        "departure": "EDDF",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A320",
+        "arrival": "ESSA",
+        "callsign": "DLH806",
+        "departure": "EDDF",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A320",
+        "arrival": "ESSA",
+        "callsign": "TEST_SECOND",
+        "departure": "EFHK",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A320",
+        "arrival": "ESSA",
+        "callsign": "TEST_ADVANCED",
+        "departure": "ENZV",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A339",
+        "arrival": "ESSA",
+        "callsign": "NDF5211",
+        "departure": "LIPZ",
+        "runway": "01R",
+        "wake": "H"
+      },
+      {
+        "aircraft": "B738",
+        "arrival": "ESSA",
+        "callsign": "TEST_LATER",
+        "departure": "ESNU",
+        "runway": "",
+        "wake": "M"
+      },
+      {
+        "aircraft": "B736",
+        "arrival": "ESSA",
+        "callsign": "TEST_FOLLOWER",
+        "departure": "ESNU",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A320",
+        "arrival": "ESSA",
+        "callsign": "SAS2848",
+        "departure": "LPFR",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A20N",
+        "arrival": "ESSA",
+        "callsign": "SAS61A",
+        "departure": "EKCH",
+        "runway": "01R",
+        "wake": "M"
+      },
+      {
+        "aircraft": "A339",
+        "arrival": "ESSA",
+        "callsign": "TEST_FIRST",
+        "departure": "ESKN",
+        "runway": "",
+        "wake": "H"
+      }
+    ]
+  },
+  "config": {
+    "timingModel": "euroscope-buffer",
+    "euroscopeBufferMinutes": 2,
+    "euroscopeSuperstableBufferMinutes": 1,
+    "performanceModel": "euroscope",
+    "predictionMode": "star",
+    "starDistanceMethod": "vectors",
+    "starApproachSpeed": 250,
+    "starBaseSpeed": 180,
+    "starFinalNm": 10,
+    "starBaseNm": 20,
+    "starEntryAltitude": 18000,
+    "starDescentRate": 1800,
+    "starCruiseSpeed": 450,
+    "starClimbRate": 1800,
+    "surfaceWindAuto": true,
+    "stableBufferMinutes": 5,
+    "superStableBufferMinutes": 5,
+    "defaultFeederMinutes": 15,
+    "maxFinalNm": 15,
+    "vectoringMode": 1,
+    "finalLengths": {
+      "ESSA/01L": 10,
+      "ESSA/01R": 14,
+      "ESSA/08": 10,
+      "ESSA/19L": 10,
+      "ESSA/19R": 10,
+      "ESSA/26": 10,
+      "ESSB/12": 10,
+      "ESSB/30": 10
+    },
+    "delayPaths": [],
+    "coordinations": [],
+    "displayPreferences": {
+      "labels": {
+        "currentDelay": true,
+        "feeder": false,
+        "runway": false,
+        "totalDelay": false,
+        "type": true
+      },
+      "panels": {
+        "rates": false,
+        "tracks": true,
+        "winds": false
+      }
+    },
+    "active": [
+      "ESSA/01R"
+    ],
+    "departureRunway": "ESSA/01L",
+    "rates": {
+      "ESSA/01L": 162,
+      "ESSA/01R": 90,
+      "ESSA/08": 166,
+      "ESSA/19L": 85,
+      "ESSA/19R": 115,
+      "ESSA/26": 95,
+      "ESSB/12": 142,
+      "ESSB/30": 142
+    },
+    "slots": [],
+    "manualFlights": [],
+    "landingSpeedKnots": 140,
+    "surfaceWindDirection": 0,
+    "surfaceWindSpeed": 0,
+    "stableMinutes": 15,
+    "superStableMinutes": 4,
+    "frozenMinutes": 5,
+    "unstableSeconds": 60,
+    "minimumNewSeconds": 600
+  },
+  "edits": {
+    "TEST_LEADER": {
+      "changedAt": 1791813569817,
+      "mode": "sequenced",
+      "order": 2,
+      "orderGroup": "1791813569817-3fskl9kp",
+      "recomputeAt": 1791813544619,
+      "target": 1791814087792.818,
+      "targetKind": "time"
+    },
+    "TEST_PRECEDING": {
+      "changedAt": 1791813569817,
+      "mode": "sequenced",
+      "order": 3,
+      "orderGroup": "1791813569817-3fskl9kp",
+      "recomputeAt": 1791813544619,
+      "runway": "ESSA/01R",
+      "targetKind": "time"
+    },
+    "TEST_SECOND": {
+      "changedAt": 1791813569817,
+      "mode": "sequenced",
+      "order": 1,
+      "orderGroup": "1791813569817-3fskl9kp",
+      "recomputeAt": 1791813544619
+    },
+    "TEST_ADVANCED": {
+      "changedAt": 1791813569817,
+      "mode": "sequenced",
+      "order": 4,
+      "orderGroup": "1791813569817-3fskl9kp",
+      "recomputeAt": 1791813544619,
+      "target": 1791814252247.3635,
+      "targetKind": "time"
+    },
+    "TEST_LATER": {
+      "changedAt": 1791813569817,
+      "order": 6,
+      "orderGroup": "1791813569817-3fskl9kp"
+    },
+    "TEST_FOLLOWER": {
+      "changedAt": 1791813569817,
+      "mode": "sequenced",
+      "order": 5,
+      "orderGroup": "1791813569817-3fskl9kp",
+      "recomputeAt": 1791813544619
+    },
+    "TEST_FIRST": {
+      "changedAt": 1791813569817,
+      "mode": "sequenced",
+      "order": 0,
+      "orderGroup": "1791813569817-3fskl9kp",
+      "recomputeAt": 1791812782617
+    }
+  }
+}

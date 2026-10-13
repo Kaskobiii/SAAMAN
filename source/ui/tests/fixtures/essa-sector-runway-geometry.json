@@ -1,0 +1,15 @@
+{
+  "source": "ESAA-Sweden_20261001222554-261001-0003.sct RUNWAY section, including the additional 07/25 entry",
+  "runways": {
+    "ESSA/07": {"latitude":59.660379,"longitude":17.973487,"heading":75},
+    "ESSA/25": {"latitude":59.660428,"longitude":17.973939,"heading":259},
+    "ESSA/08": {"latitude":59.658419,"longitude":17.936133,"heading":70},
+    "ESSA/26": {"latitude":59.663897,"longitude":17.979156,"heading":250},
+    "ESSA/01R": {"latitude":59.626397,"longitude":17.950742,"heading":4},
+    "ESSA/19L": {"latitude":59.648469,"longitude":17.958744,"heading":184},
+    "ESSA/01L": {"latitude":59.637253,"longitude":17.913222,"heading":4},
+    "ESSA/19R": {"latitude":59.6664,"longitude":17.923767,"heading":184},
+    "ESSB/12": {"latitude":59.358669,"longitude":17.929644,"heading":117},
+    "ESSB/30": {"latitude":59.350078,"longitude":17.953658,"heading":297}
+  }
+}

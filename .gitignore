@@ -1,0 +1,35 @@
+# Build outputs and dependencies
+**/node_modules/
+**/dist/
+**/generated/
+**/build/
+**/external/webview2/
+releases/
+*.dll
+*.exe
+*.pdb
+*.obj
+*.res
+*.exp
+*.zip
+
+# Runtime state, profiles and credentials
+SAAMAN-plan.json*
+SAAMAN.json*
+SAAMAN-controller-key*
+**/WebViewProfile/
+**/webview-profile/
+.env*
+!.env.example
+*.key
+*.pem
+*.prf
+*.log
+ESSA-AMAN-recording*.json
+
+# Local editor and temporary files
+.vs/
+*.user
+*.suo
+Thumbs.db
+Desktop.ini

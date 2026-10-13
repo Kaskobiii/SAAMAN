@@ -1,0 +1,392 @@
+{
+  "timestamp": 1791745129825,
+  "flights": [
+    {
+      "callsign": "EARLY",
+      "aircraft": "A320",
+      "wake": "M",
+      "departure": "TEST",
+      "arrival": "ESSA",
+      "runway": "01R",
+      "landingSeconds": 1200,
+      "distanceNm": 80.66461446174495,
+      "groundspeed": 328,
+      "altitude": 20488,
+      "dataWarnings": [],
+      "star": "ELTOK8M",
+      "routeText": "",
+      "verticalSpeed": -4624,
+      "assignedSpeed": 0,
+      "assignedMach": 0,
+      "finalAltitude": 37000,
+      "clearedAltitude": 15000,
+      "heading": 55,
+      "assignedHeading": 0,
+      "direct": "",
+      "routeProblem": "",
+      "latitude": 59.50848,
+      "longitude": 16.452639999999995,
+      "positionAgeSeconds": 2,
+      "calculatedRouteIndex": 13,
+      "topskyMissedApproach": false,
+      "route": [
+        {
+          "latitude": 53.630389,
+          "longitude": 9.988227999999998,
+          "name": "EDDH",
+          "seconds": -60
+        },
+        {
+          "latitude": 54.112778000000006,
+          "longitude": 10.028889,
+          "name": "SOKWO",
+          "seconds": -60
+        },
+        {
+          "latitude": 54.243544,
+          "longitude": 9.780127999999998,
+          "name": "RENSU",
+          "seconds": -60
+        },
+        {
+          "latitude": 54.37416699999999,
+          "longitude": 9.616944,
+          "name": "EXNEL",
+          "seconds": -60
+        },
+        {
+          "latitude": 54.52555600000001,
+          "longitude": 9.666389,
+          "name": "PIZID",
+          "seconds": -60
+        },
+        {
+          "latitude": 54.65,
+          "longitude": 9.705833,
+          "name": "WEZPU",
+          "seconds": -60
+        },
+        {
+          "latitude": 54.82444399999999,
+          "longitude": 9.750556000000001,
+          "name": "AMRAK",
+          "seconds": -60
+        },
+        {
+          "latitude": 54.905414,
+          "longitude": 9.993377999999998,
+          "name": "ALS",
+          "seconds": -60
+        },
+        {
+          "latitude": 56.144722,
+          "longitude": 10.883889000000002,
+          "name": "ADSEN",
+          "seconds": -60
+        },
+        {
+          "latitude": 56.267500000000005,
+          "longitude": 10.975556000000003,
+          "name": "GODOG",
+          "seconds": -60
+        },
+        {
+          "latitude": 58.6,
+          "longitude": 14.264444000000001,
+          "name": "DETSO",
+          "seconds": -60
+        },
+        {
+          "latitude": 59.200556000000006,
+          "longitude": 15.687777999999998,
+          "name": "PELIT",
+          "seconds": -60
+        },
+        {
+          "latitude": 59.4125,
+          "longitude": 16.211944000000003,
+          "name": "TORVA",
+          "seconds": -60
+        },
+        {
+          "latitude": 59.586222,
+          "longitude": 16.650333,
+          "name": "ARS",
+          "seconds": 60
+        },
+        {
+          "latitude": 59.82444399999999,
+          "longitude": 16.989917,
+          "name": "ELTOK",
+          "seconds": 240
+        },
+        {
+          "latitude": 59.79061083333333,
+          "longitude": 17.176471944444447,
+          "name": "SA820",
+          "seconds": 360
+        },
+        {
+          "latitude": 59.696443888888886,
+          "longitude": 17.244805833333334,
+          "name": "SA854",
+          "seconds": 420
+        },
+        {
+          "latitude": 59.53897194444444,
+          "longitude": 17.358360833333336,
+          "name": "OBCIV",
+          "seconds": 600
+        },
+        {
+          "latitude": 59.398738888888886,
+          "longitude": 17.868710833333335,
+          "name": "CI01R",
+          "seconds": 840
+        },
+        {
+          "latitude": 59.431446944444446,
+          "longitude": 17.88042777777778,
+          "name": "FI01R",
+          "seconds": 900
+        },
+        {
+          "latitude": 59.626396944444444,
+          "longitude": 17.950741666666666,
+          "name": "SA01R",
+          "seconds": 1140
+        },
+        {
+          "latitude": 59.65194399999999,
+          "longitude": 17.918611,
+          "name": "ESSA",
+          "seconds": 1200
+        }
+      ]
+    },
+    {
+      "callsign": "LATE",
+      "aircraft": "B738",
+      "wake": "M",
+      "departure": "TEST",
+      "arrival": "ESSA",
+      "runway": "01R",
+      "landingSeconds": 1080,
+      "distanceNm": 87.80276245390148,
+      "groundspeed": 371,
+      "altitude": 18580,
+      "dataWarnings": [],
+      "star": "NILUG3M",
+      "routeText": "",
+      "verticalSpeed": -3324,
+      "assignedSpeed": 0,
+      "assignedMach": 0,
+      "finalAltitude": 38000,
+      "clearedAltitude": 11000,
+      "heading": 13,
+      "assignedHeading": 0,
+      "direct": "",
+      "routeProblem": "",
+      "latitude": 58.584179999999996,
+      "longitude": 17.786529999999996,
+      "positionAgeSeconds": 5,
+      "calculatedRouteIndex": 9,
+      "topskyMissedApproach": false,
+      "route": [
+        {
+          "latitude": 43.824472,
+          "longitude": 18.331778000000003,
+          "name": "LQSA",
+          "seconds": -60
+        },
+        {
+          "latitude": 44.370556,
+          "longitude": 17.759721999999996,
+          "name": "BOSNA",
+          "seconds": -60
+        },
+        {
+          "latitude": 45.135000000000005,
+          "longitude": 17.399444,
+          "name": "LURID",
+          "seconds": -60
+        },
+        {
+          "latitude": 45.991389,
+          "longitude": 17.296667,
+          "name": "VEBAL",
+          "seconds": -60
+        },
+        {
+          "latitude": 48.119443999999994,
+          "longitude": 17.299721999999996,
+          "name": "XENAK",
+          "seconds": -60
+        },
+        {
+          "latitude": 50.27,
+          "longitude": 17.516944000000002,
+          "name": "DESEN",
+          "seconds": -60
+        },
+        {
+          "latitude": 54.387221999999994,
+          "longitude": 17.406667,
+          "name": "BEZMI",
+          "seconds": -60
+        },
+        {
+          "latitude": 55.638611000000004,
+          "longitude": 17.161389,
+          "name": "PENOR",
+          "seconds": -60
+        },
+        {
+          "latitude": 57.500833,
+          "longitude": 17.346111,
+          "name": "ARMOD",
+          "seconds": -60
+        },
+        {
+          "latitude": 58.815833,
+          "longitude": 17.884721999999996,
+          "name": "NILUG",
+          "seconds": 120
+        },
+        {
+          "latitude": 59.09766694444445,
+          "longitude": 18.152027777777775,
+          "name": "SA630",
+          "seconds": 300
+        },
+        {
+          "latitude": 59.53169388888889,
+          "longitude": 18.20330583333333,
+          "name": "TEB",
+          "seconds": 660
+        },
+        {
+          "latitude": 59.398738888888886,
+          "longitude": 17.868710833333335,
+          "name": "CI01R",
+          "seconds": 780
+        },
+        {
+          "latitude": 59.431446944444446,
+          "longitude": 17.88042777777778,
+          "name": "FI01R",
+          "seconds": 840
+        },
+        {
+          "latitude": 59.626396944444444,
+          "longitude": 17.950741666666666,
+          "name": "SA01R",
+          "seconds": 1020
+        },
+        {
+          "latitude": 59.65194399999999,
+          "longitude": 17.918611,
+          "name": "ESSA",
+          "seconds": 1080
+        }
+      ]
+    },
+    {
+      "callsign": "ENTRY",
+      "aircraft": "A319",
+      "wake": "M",
+      "departure": "TEST",
+      "arrival": "ESSA",
+      "runway": "01R",
+      "landingSeconds": 660,
+      "distanceNm": 50.17884928597359,
+      "groundspeed": 294,
+      "altitude": 9836,
+      "dataWarnings": [],
+      "star": "ELTOK8M",
+      "routeText": "",
+      "verticalSpeed": -1212,
+      "assignedSpeed": 0,
+      "assignedMach": 0,
+      "finalAltitude": 31000,
+      "clearedAltitude": 9000,
+      "heading": 117,
+      "assignedHeading": 0,
+      "direct": "",
+      "routeProblem": "",
+      "latitude": 59.794250000000005,
+      "longitude": 17.153930000000003,
+      "positionAgeSeconds": 0,
+      "calculatedRouteIndex": 4,
+      "topskyMissedApproach": false,
+      "route": [
+        {
+          "latitude": 60.20277800000001,
+          "longitude": 11.083889000000001,
+          "name": "ENGM",
+          "seconds": -60
+        },
+        {
+          "latitude": 60.177778,
+          "longitude": 12.534721999999999,
+          "name": "MASEV",
+          "seconds": -60
+        },
+        {
+          "latitude": 60.046111,
+          "longitude": 14.438332999999998,
+          "name": "LEGPO",
+          "seconds": -60
+        },
+        {
+          "latitude": 59.82444399999999,
+          "longitude": 16.989917,
+          "name": "ELTOK",
+          "seconds": -60
+        },
+        {
+          "latitude": 59.79061083333333,
+          "longitude": 17.176471944444447,
+          "name": "SA820",
+          "seconds": 0
+        },
+        {
+          "latitude": 59.696443888888886,
+          "longitude": 17.244805833333334,
+          "name": "SA854",
+          "seconds": 60
+        },
+        {
+          "latitude": 59.53897194444444,
+          "longitude": 17.358360833333336,
+          "name": "OBCIV",
+          "seconds": 180
+        },
+        {
+          "latitude": 59.398738888888886,
+          "longitude": 17.868710833333335,
+          "name": "CI01R",
+          "seconds": 420
+        },
+        {
+          "latitude": 59.431446944444446,
+          "longitude": 17.88042777777778,
+          "name": "FI01R",
+          "seconds": 480
+        },
+        {
+          "latitude": 59.626396944444444,
+          "longitude": 17.950741666666666,
+          "name": "SA01R",
+          "seconds": 600
+        },
+        {
+          "latitude": 59.65194399999999,
+          "longitude": 17.918611,
+          "name": "ESSA",
+          "seconds": 660
+        }
+      ]
+    }
+  ]
+}

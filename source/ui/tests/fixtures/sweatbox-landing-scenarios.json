@@ -1,0 +1,857 @@
+{
+  "archiveSha256": "2bdbf9e33cac5b712e902e1001e50a1c3edb78b45c773b37d374e210d486d226",
+  "scenarios": [
+    {
+      "file": "ESSA_AMAN_1_Basic_19L.txt",
+      "elevation": 137,
+      "runways": {
+        "19L": {
+          "latitude": 59.6484689,
+          "longitude": 17.9587439,
+          "heading": 190.38788697905156
+        },
+        "19R": {
+          "latitude": 59.6664,
+          "longitude": 17.9237669,
+          "heading": 190.36343919590558
+        },
+        "01L": {
+          "latitude": 59.6372528,
+          "longitude": 17.9132219,
+          "heading": 10.354339165937834
+        },
+        "01R": {
+          "latitude": 59.6263969,
+          "longitude": 17.9507419,
+          "heading": 10.380982500505558
+        }
+      },
+      "aircraft": [
+        {
+          "callsign": "SAS1412",
+          "runway": "19L"
+        },
+        {
+          "callsign": "FIN1NX",
+          "runway": "19L"
+        },
+        {
+          "callsign": "NAX41G",
+          "runway": "19L"
+        },
+        {
+          "callsign": "SAS001",
+          "runway": "19L"
+        },
+        {
+          "callsign": "LOT21A",
+          "runway": "19L"
+        },
+        {
+          "callsign": "KLM1112",
+          "runway": "19L"
+        },
+        {
+          "callsign": "NAX8GH",
+          "runway": "19L"
+        },
+        {
+          "callsign": "SAS2472",
+          "runway": "19L"
+        },
+        {
+          "callsign": "BTI8KM",
+          "runway": "19L"
+        },
+        {
+          "callsign": "EZY21MB",
+          "runway": "19L"
+        },
+        {
+          "callsign": "DLH8VK",
+          "runway": "19L"
+        },
+        {
+          "callsign": "SAS903",
+          "runway": "19L"
+        },
+        {
+          "callsign": "FIN7XU",
+          "runway": "19L"
+        },
+        {
+          "callsign": "NAX26T",
+          "runway": "19L"
+        },
+        {
+          "callsign": "BAW786",
+          "runway": "19L"
+        },
+        {
+          "callsign": "SAS1130",
+          "runway": "19L"
+        },
+        {
+          "callsign": "AFR4LP",
+          "runway": "19L"
+        },
+        {
+          "callsign": "SAS46M",
+          "runway": "19L"
+        }
+      ]
+    },
+    {
+      "file": "ESSA_AMAN_2_Peak_19L.txt",
+      "elevation": 137,
+      "runways": {
+        "19L": {
+          "latitude": 59.6484689,
+          "longitude": 17.9587439,
+          "heading": 190.38788697905156
+        },
+        "19R": {
+          "latitude": 59.6664,
+          "longitude": 17.9237669,
+          "heading": 190.36343919590558
+        },
+        "01L": {
+          "latitude": 59.6372528,
+          "longitude": 17.9132219,
+          "heading": 10.354339165937834
+        },
+        "01R": {
+          "latitude": 59.6263969,
+          "longitude": 17.9507419,
+          "heading": 10.380982500505558
+        }
+      },
+      "aircraft": [
+        {
+          "callsign": "SAS28",
+          "runway": "19L"
+        },
+        {
+          "callsign": "FIN1NX",
+          "runway": "19L"
+        },
+        {
+          "callsign": "SAS1412",
+          "runway": "19L"
+        },
+        {
+          "callsign": "NAX41G",
+          "runway": "19L"
+        },
+        {
+          "callsign": "LOT21A",
+          "runway": "19L"
+        },
+        {
+          "callsign": "SAS001",
+          "runway": "19L"
+        },
+        {
+          "callsign": "UAE143",
+          "runway": "19L"
+        },
+        {
+          "callsign": "SAS2472",
+          "runway": "19L"
+        },
+        {
+          "callsign": "KLM1112",
+          "runway": "19L"
+        },
+        {
+          "callsign": "BTI8KM",
+          "runway": "19L"
+        },
+        {
+          "callsign": "NAX8GH",
+          "runway": "19L"
+        },
+        {
+          "callsign": "DLH8VK",
+          "runway": "19L"
+        },
+        {
+          "callsign": "FIN7XU",
+          "runway": "19L"
+        },
+        {
+          "callsign": "EZY21MB",
+          "runway": "19L"
+        },
+        {
+          "callsign": "SAS903",
+          "runway": "19L"
+        },
+        {
+          "callsign": "THY1797",
+          "runway": "19L"
+        },
+        {
+          "callsign": "NAX26T",
+          "runway": "19L"
+        },
+        {
+          "callsign": "BAW786",
+          "runway": "19L"
+        },
+        {
+          "callsign": "SAS1130",
+          "runway": "19L"
+        },
+        {
+          "callsign": "QTR169",
+          "runway": "19L"
+        },
+        {
+          "callsign": "AFR4LP",
+          "runway": "19L"
+        },
+        {
+          "callsign": "SAS46M",
+          "runway": "19L"
+        },
+        {
+          "callsign": "RYR2GK",
+          "runway": "19L"
+        },
+        {
+          "callsign": "ELY361",
+          "runway": "19L"
+        },
+        {
+          "callsign": "NOZ3SK",
+          "runway": "19L"
+        },
+        {
+          "callsign": "SWR1248",
+          "runway": "19L"
+        },
+        {
+          "callsign": "ICE306",
+          "runway": "19L"
+        },
+        {
+          "callsign": "SAS1418",
+          "runway": "19L"
+        },
+        {
+          "callsign": "AEE754",
+          "runway": "19L"
+        },
+        {
+          "callsign": "NAX4AB",
+          "runway": "19L"
+        }
+      ]
+    },
+    {
+      "file": "ESSA_AMAN_3_Events_01L.txt",
+      "elevation": 137,
+      "runways": {
+        "19L": {
+          "latitude": 59.6484689,
+          "longitude": 17.9587439,
+          "heading": 190.38788697905156
+        },
+        "19R": {
+          "latitude": 59.6664,
+          "longitude": 17.9237669,
+          "heading": 190.36343919590558
+        },
+        "01L": {
+          "latitude": 59.6372528,
+          "longitude": 17.9132219,
+          "heading": 10.354339165937834
+        },
+        "01R": {
+          "latitude": 59.6263969,
+          "longitude": 17.9507419,
+          "heading": 10.380982500505558
+        }
+      },
+      "aircraft": [
+        {
+          "callsign": "SAS1412",
+          "runway": "01L"
+        },
+        {
+          "callsign": "NAX41G",
+          "runway": "01L"
+        },
+        {
+          "callsign": "FIN1NX",
+          "runway": "01L"
+        },
+        {
+          "callsign": "SAS001",
+          "runway": "01L"
+        },
+        {
+          "callsign": "KLM1112",
+          "runway": "01L"
+        },
+        {
+          "callsign": "SAS176",
+          "runway": "01L"
+        },
+        {
+          "callsign": "UAE143",
+          "runway": "01L"
+        },
+        {
+          "callsign": "SAS2472",
+          "runway": "01L"
+        },
+        {
+          "callsign": "DLH8VK",
+          "runway": "01L"
+        },
+        {
+          "callsign": "NAX5RT",
+          "runway": "01L"
+        },
+        {
+          "callsign": "BTI8KM",
+          "runway": "01L"
+        },
+        {
+          "callsign": "NAX8GH",
+          "runway": "01L"
+        },
+        {
+          "callsign": "FIN9EM",
+          "runway": "01L"
+        },
+        {
+          "callsign": "EZY21MB",
+          "runway": "01L"
+        },
+        {
+          "callsign": "SAS903",
+          "runway": "01L"
+        },
+        {
+          "callsign": "SAS18K",
+          "runway": "01L"
+        },
+        {
+          "callsign": "FIN7XU",
+          "runway": "01L"
+        },
+        {
+          "callsign": "BAW786",
+          "runway": "01L"
+        },
+        {
+          "callsign": "SAS1130",
+          "runway": "01L"
+        },
+        {
+          "callsign": "AFR4LP",
+          "runway": "01L"
+        }
+      ]
+    },
+    {
+      "file": "ESSA_AMAN_4_Mixed_19R.txt",
+      "elevation": 137,
+      "runways": {
+        "19L": {
+          "latitude": 59.6484689,
+          "longitude": 17.9587439,
+          "heading": 190.38788697905156
+        },
+        "19R": {
+          "latitude": 59.6664,
+          "longitude": 17.9237669,
+          "heading": 190.36343919590558
+        },
+        "01L": {
+          "latitude": 59.6372528,
+          "longitude": 17.9132219,
+          "heading": 10.354339165937834
+        },
+        "01R": {
+          "latitude": 59.6263969,
+          "longitude": 17.9507419,
+          "heading": 10.380982500505558
+        },
+        "26": {
+          "latitude": 59.6638969,
+          "longitude": 17.9791558,
+          "heading": 255.87038315916158
+        }
+      },
+      "aircraft": [
+        {
+          "callsign": "SAS1412",
+          "runway": "19R"
+        },
+        {
+          "callsign": "FIN1NX",
+          "runway": "19R"
+        },
+        {
+          "callsign": "NAX5RT",
+          "runway": "19R"
+        },
+        {
+          "callsign": "SAS903",
+          "runway": "19R"
+        },
+        {
+          "callsign": "NAX41G",
+          "runway": "19R"
+        },
+        {
+          "callsign": "SAS001",
+          "runway": "19R"
+        },
+        {
+          "callsign": "FIN9EM",
+          "runway": "19R"
+        },
+        {
+          "callsign": "BTI8KM",
+          "runway": "19R"
+        },
+        {
+          "callsign": "KLM1112",
+          "runway": "19R"
+        },
+        {
+          "callsign": "UAE143",
+          "runway": "19R"
+        },
+        {
+          "callsign": "DLH8VK",
+          "runway": "19R"
+        },
+        {
+          "callsign": "NAX8GH",
+          "runway": "19R"
+        },
+        {
+          "callsign": "SAS2472",
+          "runway": "19R"
+        },
+        {
+          "callsign": "EZY21MB",
+          "runway": "19R"
+        },
+        {
+          "callsign": "FIN7XU",
+          "runway": "19R"
+        },
+        {
+          "callsign": "LOT21A",
+          "runway": "19R"
+        },
+        {
+          "callsign": "BAW786",
+          "runway": "19R"
+        },
+        {
+          "callsign": "SAS1130",
+          "runway": "19R"
+        },
+        {
+          "callsign": "AFR4LP",
+          "runway": "19R"
+        },
+        {
+          "callsign": "SAS46M",
+          "runway": "19R"
+        }
+      ]
+    },
+    {
+      "file": "ESSA_AMAN_5_Peak_01L_01R.txt",
+      "elevation": 137,
+      "runways": {
+        "19L": {
+          "latitude": 59.6484689,
+          "longitude": 17.9587439,
+          "heading": 190.38788697905156
+        },
+        "19R": {
+          "latitude": 59.6664,
+          "longitude": 17.9237669,
+          "heading": 190.36343919590558
+        },
+        "01L": {
+          "latitude": 59.6372528,
+          "longitude": 17.9132219,
+          "heading": 10.354339165937834
+        },
+        "01R": {
+          "latitude": 59.6263969,
+          "longitude": 17.9507419,
+          "heading": 10.380982500505558
+        },
+        "26": {
+          "latitude": 59.6638969,
+          "longitude": 17.9791558,
+          "heading": 255.87038315916158
+        }
+      },
+      "aircraft": [
+        {
+          "callsign": "SAS28",
+          "runway": "01L"
+        },
+        {
+          "callsign": "FIN1NX",
+          "runway": "01L"
+        },
+        {
+          "callsign": "SAS1412",
+          "runway": "01L"
+        },
+        {
+          "callsign": "LOT21A",
+          "runway": "01L"
+        },
+        {
+          "callsign": "NAX41G",
+          "runway": "01L"
+        },
+        {
+          "callsign": "SAS001",
+          "runway": "01L"
+        },
+        {
+          "callsign": "KLM1112",
+          "runway": "01L"
+        },
+        {
+          "callsign": "SAS2472",
+          "runway": "01L"
+        },
+        {
+          "callsign": "BTI8KM",
+          "runway": "01R"
+        },
+        {
+          "callsign": "NAX8GH",
+          "runway": "01R"
+        },
+        {
+          "callsign": "THY1797",
+          "runway": "01R"
+        },
+        {
+          "callsign": "UAE143",
+          "runway": "01L"
+        },
+        {
+          "callsign": "EZY21MB",
+          "runway": "01L"
+        },
+        {
+          "callsign": "SAS903",
+          "runway": "01L"
+        },
+        {
+          "callsign": "FIN7XU",
+          "runway": "01R"
+        },
+        {
+          "callsign": "DLH8VK",
+          "runway": "01R"
+        },
+        {
+          "callsign": "NAX26T",
+          "runway": "01L"
+        },
+        {
+          "callsign": "QTR169",
+          "runway": "01R"
+        },
+        {
+          "callsign": "SAS46M",
+          "runway": "01R"
+        },
+        {
+          "callsign": "BAW786",
+          "runway": "01L"
+        },
+        {
+          "callsign": "SAS1130",
+          "runway": "01L"
+        },
+        {
+          "callsign": "ELY361",
+          "runway": "01R"
+        },
+        {
+          "callsign": "AFR4LP",
+          "runway": "01L"
+        },
+        {
+          "callsign": "SAS1520",
+          "runway": "01R"
+        },
+        {
+          "callsign": "NOZ3SK",
+          "runway": "01L"
+        },
+        {
+          "callsign": "AEE754",
+          "runway": "01R"
+        },
+        {
+          "callsign": "RYR2GK",
+          "runway": "01L"
+        },
+        {
+          "callsign": "FIN3KA",
+          "runway": "01R"
+        },
+        {
+          "callsign": "ICE306",
+          "runway": "01L"
+        },
+        {
+          "callsign": "SWR1248",
+          "runway": "01L"
+        },
+        {
+          "callsign": "NAX4AB",
+          "runway": "01L"
+        },
+        {
+          "callsign": "KLM1116",
+          "runway": "01L"
+        },
+        {
+          "callsign": "TAP760",
+          "runway": "01L"
+        },
+        {
+          "callsign": "DLH2420",
+          "runway": "01L"
+        }
+      ]
+    },
+    {
+      "file": "ESSA_AMAN_6_Peak_26.txt",
+      "elevation": 137,
+      "runways": {
+        "19L": {
+          "latitude": 59.6484689,
+          "longitude": 17.9587439,
+          "heading": 190.38788697905156
+        },
+        "19R": {
+          "latitude": 59.6664,
+          "longitude": 17.9237669,
+          "heading": 190.36343919590558
+        },
+        "01L": {
+          "latitude": 59.6372528,
+          "longitude": 17.9132219,
+          "heading": 10.354339165937834
+        },
+        "01R": {
+          "latitude": 59.6263969,
+          "longitude": 17.9507419,
+          "heading": 10.380982500505558
+        },
+        "26": {
+          "latitude": 59.6638969,
+          "longitude": 17.9791558,
+          "heading": 255.87038315916158
+        }
+      },
+      "aircraft": [
+        {
+          "callsign": "SAS1412",
+          "runway": "26"
+        },
+        {
+          "callsign": "FIN1NX",
+          "runway": "26"
+        },
+        {
+          "callsign": "NAX41G",
+          "runway": "26"
+        },
+        {
+          "callsign": "SAS001",
+          "runway": "26"
+        },
+        {
+          "callsign": "KLM1112",
+          "runway": "26"
+        },
+        {
+          "callsign": "BTI8KM",
+          "runway": "26"
+        },
+        {
+          "callsign": "UAE143",
+          "runway": "26"
+        },
+        {
+          "callsign": "SAS2472",
+          "runway": "26"
+        },
+        {
+          "callsign": "NAX8GH",
+          "runway": "26"
+        },
+        {
+          "callsign": "DLH8VK",
+          "runway": "26"
+        },
+        {
+          "callsign": "FIN7XU",
+          "runway": "26"
+        },
+        {
+          "callsign": "EZY21MB",
+          "runway": "26"
+        },
+        {
+          "callsign": "SAS903",
+          "runway": "26"
+        },
+        {
+          "callsign": "THY1797",
+          "runway": "26"
+        },
+        {
+          "callsign": "NAX26T",
+          "runway": "26"
+        },
+        {
+          "callsign": "BAW786",
+          "runway": "26"
+        },
+        {
+          "callsign": "SAS46M",
+          "runway": "26"
+        },
+        {
+          "callsign": "QTR169",
+          "runway": "26"
+        },
+        {
+          "callsign": "SAS1130",
+          "runway": "26"
+        },
+        {
+          "callsign": "AFR4LP",
+          "runway": "26"
+        },
+        {
+          "callsign": "ELY361",
+          "runway": "26"
+        },
+        {
+          "callsign": "NOZ3SK",
+          "runway": "26"
+        },
+        {
+          "callsign": "SWR1248",
+          "runway": "26"
+        },
+        {
+          "callsign": "NAX4AB",
+          "runway": "26"
+        }
+      ]
+    },
+    {
+      "file": "ESSA_AMAN_7_Night_01R.txt",
+      "elevation": 137,
+      "runways": {
+        "19L": {
+          "latitude": 59.6484689,
+          "longitude": 17.9587439,
+          "heading": 190.38788697905156
+        },
+        "19R": {
+          "latitude": 59.6664,
+          "longitude": 17.9237669,
+          "heading": 190.36343919590558
+        },
+        "01L": {
+          "latitude": 59.6372528,
+          "longitude": 17.9132219,
+          "heading": 10.354339165937834
+        },
+        "01R": {
+          "latitude": 59.6263969,
+          "longitude": 17.9507419,
+          "heading": 10.380982500505558
+        },
+        "26": {
+          "latitude": 59.6638969,
+          "longitude": 17.9791558,
+          "heading": 255.87038315916158
+        }
+      },
+      "aircraft": [
+        {
+          "callsign": "SAS28",
+          "runway": "01R"
+        },
+        {
+          "callsign": "FIN1NX",
+          "runway": "01R"
+        },
+        {
+          "callsign": "QTR169",
+          "runway": "01R"
+        },
+        {
+          "callsign": "NAX41G",
+          "runway": "01R"
+        },
+        {
+          "callsign": "UAE143",
+          "runway": "01R"
+        },
+        {
+          "callsign": "KLM1112",
+          "runway": "01R"
+        },
+        {
+          "callsign": "SAS001",
+          "runway": "01R"
+        },
+        {
+          "callsign": "DHK35",
+          "runway": "01R"
+        },
+        {
+          "callsign": "FIN7XU",
+          "runway": "01R"
+        },
+        {
+          "callsign": "SAS1130",
+          "runway": "01R"
+        },
+        {
+          "callsign": "NAX8GH",
+          "runway": "01R"
+        },
+        {
+          "callsign": "TAY3TB",
+          "runway": "01R"
+        },
+        {
+          "callsign": "SAS1418",
+          "runway": "01R"
+        }
+      ]
+    }
+  ]
+}

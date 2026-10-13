@@ -1,4 +1,4 @@
-# SAAMAN native plugin, 1.3.6
+# SAAMAN native plugin, 1.3.7
 
 SAAMAN.dll is an x86 EuroScope plugin with Win32 child panels hosting the AMAN UI
 through Microsoft WebView2. The calculation engine is editable TypeScript.
@@ -39,7 +39,8 @@ for compatibility and is absent from the connection menu/default flow.
 
 The timing model, STAR workbook data and labels run in the embedded engine.
 Live aircraft use a captured EuroScope estimate with the configured 2/1-minute
-normal/near buffer on feeder and runway times. Direct clearances do not recapture
+normal/near base on feeder and runway times. Higher captured groundspeed adds
+compensation to the landing estimate only. Direct clearances do not recapture
 the accepted time; Recompute does. State schema remains saaman-1.1.9.
 Hidden AMAN panels continue calculating/sharing on native pulses.
 
@@ -103,3 +104,7 @@ unavailable sender rather than a guessed callsign. No room schema change is requ
 Context defaults to shared vatIRIS callsign mode on VATSIM live. Loading options
 without a shared field keeps that default; explicit saved local mode is retained.
 Native context checks cover fresh defaults, older partial options and local reload.
+
+## Captured-speed landing buffer
+
+The high-speed supervisory setting defaults to six minutes at 450 kt. Above 300 kt, the landing buffer adds `(groundspeed - 300) / 150 * max(0, highSpeedBuffer - normalBuffer)` to the current phase base, rounded to seconds and capped at 15 minutes. The groundspeed is stored in `euroscopeBaseline`; retained estimates use that captured speed rather than each radar update. Older baselines without it retain their prior speed-independent behavior until Recompute. `feederBufferMinutes` records the separate phase buffer, so speed compensation cannot lengthen feeder ETA or create an initial instruction by being added twice.

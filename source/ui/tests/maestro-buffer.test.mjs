@@ -1,13 +1,15 @@
 import {test} from 'node:test'
 import assert from 'node:assert/strict'
-import {DEFAULT_CONFIG,validateConfig,runEngine} from '../src/maestro-engine.ts'
+import {DEFAULT_CONFIG,validateConfig,runEngine,euroscopeBufferMinutes,euroscopeFeederBufferMinutes,euroscopeInstruction,toJuhaSequence} from '../src/maestro-engine.ts'
 import {sharedSettings,mergeSharedSettings} from '../src/maestro-settings.ts'
 import {informationRoute} from '../src/maestro-operations.ts'
 import directFixture from './fixtures/skipped-feeder-direct.json' with {type:'json'}
 import advanceFixture from './fixtures/entered-manual-advance.json' with {type:'json'}
+import speedFixture from './fixtures/high-speed-recompute.json' with {type:'json'}
+import cutoffFixture from './fixtures/recording-7-feeder-cutoff.json' with {type:'json'}
 const now=Date.UTC(2026,9,12,12)
 const config=()=>({...structuredClone(DEFAULT_CONFIG),unstableSeconds:0,minimumNewSeconds:600})
-const flight=(extra={})=>({callsign:'BUFFER',aircraft:'A320',wake:'M',departure:'EKCH',arrival:'ESSA',runway:'19R',route:[{name:'ELTOK',seconds:900}],landingSeconds:1500,distanceNm:100,groundspeed:450,altitude:25000,positionAgeSeconds:1,...extra})
+const flight=(extra={})=>({callsign:'BUFFER',aircraft:'A320',wake:'M',departure:'EKCH',arrival:'ESSA',runway:'19R',route:[{name:'ELTOK',seconds:900}],landingSeconds:1500,distanceNm:100,groundspeed:300,altitude:25000,positionAgeSeconds:1,...extra})
 const packet=(p,t=now)=>({source:'LIVE',timestamp:t,flights:p})
 test('buffer defaults to two minutes and is a shared supervisory setting with validated bounds',()=>{
  assert.equal(DEFAULT_CONFIG.timingModel,'euroscope-buffer');assert.equal(DEFAULT_CONFIG.euroscopeBufferMinutes,2)
@@ -147,4 +149,71 @@ test('advancing an entered aircraft updates its lose instruction instead of reta
  const later=repeated.flights.find(p=>p.callsign==='TEST_ADVANCED')
  assert.equal(later.sta,f.sta)
  assert.equal(later.delay,f.delay,'accepted Superstable instruction stays fixed on ordinary updates')
+})
+
+
+test('speed buffer defaults, settings migration and bounds are shared and validated',()=>{
+ assert.equal(DEFAULT_CONFIG.euroscopeHighSpeedBufferMinutes,6)
+ const legacy=config();delete legacy.euroscopeHighSpeedBufferMinutes
+ assert.equal(validateConfig(legacy).euroscopeHighSpeedBufferMinutes,6)
+ for(const n of [0,4,6,15])assert.equal(mergeSharedSettings(config(),{euroscopeHighSpeedBufferMinutes:n}).euroscopeHighSpeedBufferMinutes,n)
+ for(const n of [-1,16,NaN,Infinity])assert.throws(()=>validateConfig({...config(),euroscopeHighSpeedBufferMinutes:n}))
+ assert.equal(sharedSettings(config()).euroscopeHighSpeedBufferMinutes,6)
+})
+
+test('fast-flight buffer grows from 300 kt, interpolates through 450 kt and is capped',()=>{
+ const c=config()
+ for(const [groundspeed,seconds] of [[250,120],[300,120],[375,240],[450,360],[500,440],[1000,900]]){
+  assert.equal(Math.round(euroscopeBufferMinutes(flight({groundspeed}),c)*60),seconds)
+ }
+ assert.equal(euroscopeBufferMinutes(flight({groundspeed:500}),{...c,euroscopeHighSpeedBufferMinutes:2}),2)
+ assert.equal(euroscopeBufferMinutes(flight({groundspeed:500}),{...c,euroscopeHighSpeedBufferMinutes:1}),2)
+ assert.equal(euroscopeBufferMinutes(flight({groundspeed:500}),{...c,euroscopeBufferMinutes:15}),15)
+})
+
+test('slower Superstable/Frozen capture keeps one minute, while fast near-feeder traffic gets the speed addition',()=>{
+ const c=config(),near=flight({groundspeed:250,route:[{name:'ELTOK',seconds:100}]})
+ assert.equal(euroscopeBufferMinutes(near,c),1)
+ assert.equal(euroscopeBufferMinutes({...near,groundspeed:450},c),5);assert.equal(euroscopeFeederBufferMinutes({...near,groundspeed:450},c),1)
+ assert.equal(euroscopeBufferMinutes(flight({groundspeed:250,landingSeconds:180}),c),1)
+})
+
+test('speed selection is captured once for landing while feeder keeps its base buffer until Recompute',()=>{
+ const c=config(),first=runEngine(packet([flight({groundspeed:450})]),c,{}),a=first.flights[0]
+ assert.equal(a.euroscopeBaseline.groundspeed,450);assert.equal(a.euroscopeBaseline.bufferMinutes,6)
+ assert.equal(a.eta,now+1860000);assert.equal(a.etaFf,now+1020000);assert.equal(a.delay,0);assert.equal(a.euroscopeBaseline.feederBufferMinutes,2)
+ const input=packet([flight({groundspeed:250,landingSeconds:1000,direct:'OTHER'})],now+2000)
+ const next=runEngine(input,c,{},first),b=next.flights[0]
+ assert.equal(b.sta,a.sta);assert.equal(b.staFf,a.staFf);assert.deepEqual(b.euroscopeBaseline,a.euroscopeBaseline)
+ assert.equal(b.liveBufferedEta,input.timestamp+1360000)
+ const refreshed=runEngine({...input,timestamp:now+3000},c,{BUFFER:{recomputeAt:now+3000,changedAt:now+3000}},next).flights[0]
+ assert.equal(refreshed.euroscopeBaseline.groundspeed,250);assert.equal(refreshed.euroscopeBaseline.bufferMinutes,2)
+ assert.equal(refreshed.eta,now+1123000)
+})
+
+test('recorded SAS1AB at 499 kt gains the selected buffer on Recompute without changing the entered order',()=>{
+ const {input,config:c,edits,previous}=speedFixture
+ const next=runEngine(input,c,edits,previous),sas=next.flights.find(f=>f.callsign==='SAS1AB'),ryr=next.flights.find(f=>f.callsign==='RYR5W')
+ assert.equal(sas.euroscopeBaseline.groundspeed,499);assert.equal(Math.round(sas.euroscopeBaseline.bufferMinutes*60),438)
+ assert.equal(new Date(sas.eta).toISOString().slice(11,19),'21:04:26');assert.equal(new Date(sas.euroscopeBaseline.etaFf).toISOString().slice(11,19),'20:51:08');assert.equal(sas.euroscopeBaseline.feederBufferMinutes,2)
+ assert.ok(sas.order>ryr.order);assert.ok(sas.sta>ryr.sta)
+ const hold=runEngine({...input,timestamp:input.timestamp+2000,flights:input.flights.map(f=>f.callsign==='SAS1AB'?{...f,groundspeed:250,landingSeconds:500}:f)},c,edits,next)
+ assert.equal(hold.flights.find(f=>f.callsign==='SAS1AB').sta,sas.sta)
+ assert.equal(hold.flights.find(f=>f.callsign==='SAS1AB').euroscopeBaseline.bufferMinutes,sas.euroscopeBaseline.bufferMinutes)
+})
+
+test('existing recorded high-speed baseline stays fixed until an explicit new Recompute',()=>{
+ const {input,config:c,previous}=speedFixture
+ const held=runEngine(input,c,{},previous),sas=held.flights.find(f=>f.callsign==='SAS1AB'),old=previous.flights.find(f=>f.callsign==='SAS1AB')
+ assert.deepEqual(sas.euroscopeBaseline,old.euroscopeBaseline)
+ assert.equal(sas.eta,old.eta)
+})
+
+test('recording 7 clears line 0 just beyond twelve miles after ELTOK and retains its information delay',()=>{
+ const {input,afterInput,config:c,edits,previous}=cutoffFixture
+ const before=runEngine(input,c,edits,previous),a=before.flights.find(f=>f.callsign==='SAS1AB')
+ assert.equal(a.passedFeeder,true);assert.ok(a.feederDistanceNm<12);assert.equal(euroscopeInstruction(a),102)
+ const after=runEngine(afterInput,c,edits,before),b=after.flights.find(f=>f.callsign==='SAS1AB')
+ assert.ok(b.feederDistanceNm>=12);assert.equal(b.line0Suppressed,true);assert.equal(euroscopeInstruction(b),0);assert.equal(b.delay,102)
+ assert.equal(toJuhaSequence(after,c,edits).sequence.find(f=>f.callsign==='SAS1AB').ttlttg_ff,0)
 })

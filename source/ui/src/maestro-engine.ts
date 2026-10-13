@@ -24,6 +24,7 @@ export interface EngineConfig {
     timingModel?:'euroscope-buffer'|'performance'
     euroscopeSuperstableBufferMinutes?:number
     euroscopeBufferMinutes?:number
+    euroscopeHighSpeedBufferMinutes?:number
     coordinations?:CoordinationMessage[]
     performanceModel?:'euroscope'|'openap'
     displayPreferences?:{labels:{type:boolean;feeder:boolean;totalDelay:boolean;currentDelay:boolean;runway:boolean};panels:{winds:boolean;rates:boolean;tracks:boolean}}
@@ -55,7 +56,7 @@ export interface EngineConfig {
     manualFlights?: { callsign:string; runway:string; aircraft:string; wake:string; feeder:string; eta:number;departure?:string;feederEta?:number }[]
 }
 export const DEFAULT_CONFIG: EngineConfig = {
-    timingModel:'euroscope-buffer',euroscopeBufferMinutes:2,euroscopeSuperstableBufferMinutes:1,
+    timingModel:'euroscope-buffer',euroscopeBufferMinutes:2,euroscopeSuperstableBufferMinutes:1,euroscopeHighSpeedBufferMinutes:6,
     performanceModel:'euroscope',
     predictionMode:'star',starDistanceMethod:'vectors',starApproachSpeed:250,starBaseSpeed:180,starFinalNm:10,starBaseNm:20,starEntryAltitude:18000,starDescentRate:1800,starCruiseSpeed:450,starClimbRate:1800,
     active: ['ESSA/19R'], departureRunway:'ESSA/26',
@@ -98,7 +99,7 @@ export interface FlightEdit {
 }
 export interface EngineFlight extends TelemetryFlight {
     amanRoute?:RoutePrediction[];amanRoutePassed?:number;bufferedFeederVerified?:boolean
-    euroscopeBaseline?:{at:number;eta:number;etaFf:number;rawEta:number;rawEtaFf?:number;feederBuffered?:boolean;bufferMinutes:number}
+    euroscopeBaseline?:{at:number;eta:number;etaFf:number;rawEta:number;rawEtaFf?:number;feederBuffered?:boolean;bufferMinutes:number;feederBufferMinutes?:number;groundspeed?:number}
     liveEuroscopeEta?:number;liveBufferedEta?:number;liveEuroscopeEtaFf?:number;liveBufferedEtaFf?:number
     secondaryRunwayAccepted?:boolean
     runwayAvailableFrom?:number
@@ -209,10 +210,11 @@ export function validateConfig(value: any): EngineConfig {
     if(!Array.isArray(manualFlights)||manualFlights.length>500||manualFlights.some((f:any)=>
         !f || !/^[A-Z0-9_-]{2,16}$/.test(f.callsign)||!RUNWAYS.includes(f.runway)||typeof f.aircraft!=='string'||f.aircraft.length>12||
         !['L','M','H','J','?'].includes(f.wake)||typeof f.feeder!=='string'||f.feeder.length>40||!Number.isFinite(f.eta)||f.eta<0||(f.feederEta!==undefined&&(!Number.isFinite(f.feederEta)||f.feederEta<0||f.feederEta>f.eta))||(f.departure!==undefined&&(typeof f.departure!=='string'||!/^[A-Z0-9-]{4}$/.test(f.departure)))))throw new Error('Invalid manual flight')
-    const extras={timingModel:value.timingModel??'euroscope-buffer',euroscopeBufferMinutes:value.euroscopeBufferMinutes??2,euroscopeSuperstableBufferMinutes:value.euroscopeSuperstableBufferMinutes??1,performanceModel:value.performanceModel??'euroscope',predictionMode:value.predictionMode??'star',starDistanceMethod:value.starDistanceMethod??'vectors',starApproachSpeed:value.starApproachSpeed??250,starBaseSpeed:value.starBaseSpeed??180,starFinalNm:value.starFinalNm??10,starBaseNm:value.starBaseNm??20,starEntryAltitude:value.starEntryAltitude??18000,starDescentRate:value.starDescentRate??1800,starCruiseSpeed:value.starCruiseSpeed??450,starClimbRate:value.starClimbRate??1800,surfaceWindAuto:value.surfaceWindAuto!==false,stableBufferMinutes:value.stableBufferMinutes??5,superStableBufferMinutes:value.superStableBufferMinutes??5,
+    const extras={timingModel:value.timingModel??'euroscope-buffer',euroscopeBufferMinutes:value.euroscopeBufferMinutes??2,euroscopeSuperstableBufferMinutes:value.euroscopeSuperstableBufferMinutes??1,euroscopeHighSpeedBufferMinutes:value.euroscopeHighSpeedBufferMinutes??6,performanceModel:value.performanceModel??'euroscope',predictionMode:value.predictionMode??'star',starDistanceMethod:value.starDistanceMethod??'vectors',starApproachSpeed:value.starApproachSpeed??250,starBaseSpeed:value.starBaseSpeed??180,starFinalNm:value.starFinalNm??10,starBaseNm:value.starBaseNm??20,starEntryAltitude:value.starEntryAltitude??18000,starDescentRate:value.starDescentRate??1800,starCruiseSpeed:value.starCruiseSpeed??450,starClimbRate:value.starClimbRate??1800,surfaceWindAuto:value.surfaceWindAuto!==false,stableBufferMinutes:value.stableBufferMinutes??5,superStableBufferMinutes:value.superStableBufferMinutes??5,
         defaultFeederMinutes:value.defaultFeederMinutes??15,maxFinalNm:value.maxFinalNm??15,vectoringMode:value.vectoringMode??1,finalLengths:value.finalLengths??DEFAULT_CONFIG.finalLengths!,delayPaths:value.delayPaths??[]}
     if(!['euroscope','openap'].includes(extras.performanceModel))throw new Error('Invalid performance model')
     if(!['euroscope-buffer','performance'].includes(extras.timingModel)||!Number.isFinite(extras.euroscopeBufferMinutes)||extras.euroscopeBufferMinutes<0||extras.euroscopeBufferMinutes>15)throw new Error('EuroScope ETA buffer must be between 0 and 15 minutes')
+    if(!Number.isFinite(extras.euroscopeHighSpeedBufferMinutes)||extras.euroscopeHighSpeedBufferMinutes<0||extras.euroscopeHighSpeedBufferMinutes>15)throw new Error('High-speed ETA buffer must be between 0 and 15 minutes')
     if(!Number.isFinite(extras.euroscopeSuperstableBufferMinutes)||extras.euroscopeSuperstableBufferMinutes<0||extras.euroscopeSuperstableBufferMinutes>15)throw new Error('Superstable ETA buffer must be between 0 and 15 minutes')
     if(!['star','euroscope'].includes(extras.predictionMode)||!['vectors','ese','shortest'].includes(extras.starDistanceMethod))throw new Error('Invalid STAR model')
     for(const [key,min,max] of [['starApproachSpeed',100,350],['starBaseSpeed',80,250],['starFinalNm',1,20],['starBaseNm',2,40],['starEntryAltitude',3000,25000],['starDescentRate',500,5000],['starCruiseSpeed',250,600],['starClimbRate',500,5000]] as const)if(!Number.isFinite(extras[key])||extras[key]<min||extras[key]>max)throw new Error('Invalid STAR speed profile')
@@ -417,11 +419,18 @@ export function routeRunwayGeometry(p:TelemetryFlight):RunwayGeometry|undefined 
     if(distance<1||distance>25||headingDifference(heading,nominal)>20)return undefined
     return {...b,heading}
 }
-export function euroscopeBufferMinutes(p:TelemetryFlight,config:EngineConfig,old?:EngineFlight){
+export function euroscopeFeederBufferMinutes(p:TelemetryFlight,config:EngineConfig,old?:EngineFlight){
     const feeder=p.route.find(point=>FEEDERS.some(g=>g.airport===p.arrival&&(g.fixes as readonly string[]).includes(point.name)))
     const near=!!old&&old.state>=2&&old.state<=3||!!feeder&&feeder.seconds+Math.min(config.euroscopeBufferMinutes??2,config.euroscopeSuperstableBufferMinutes??1)*60<=SUPERSTABLE_MINUTES*60||p.landingSeconds>0&&p.landingSeconds<=config.frozenMinutes*60
     const normal=config.euroscopeBufferMinutes??2
     return near?Math.min(normal,config.euroscopeSuperstableBufferMinutes??1):normal
+}
+export function euroscopeBufferMinutes(p:TelemetryFlight,config:EngineConfig,old?:EngineFlight){
+    const normal=config.euroscopeBufferMinutes??2
+    const base=euroscopeFeederBufferMinutes(p,config,old)
+    const high=Math.max(normal,config.euroscopeHighSpeedBufferMinutes??6)
+    const increment=Math.max(0,(p.groundspeed-300)/150)*(high-normal)
+    return Math.min(15,Math.round((base+increment)*60)/60)
 }
 export function correctedPrediction(p:TelemetryFlight,config:EngineConfig,old?:EngineFlight,timestamp=Date.now()) {
     if(config.timingModel==='euroscope-buffer')return {seconds:Math.max(0,p.landingSeconds)+euroscopeBufferMinutes(p,config,old)*60,source:'route' as const,trajectory:undefined,vectorDetection:undefined,vectorCandidateSince:undefined,distanceProfile:undefined,feederSeconds:undefined,feeder:undefined,passedFeeder:undefined,error:undefined}
@@ -651,12 +660,17 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         const manualFeederShift=e.etaFfOverride!==undefined&&!prediction.passedFeeder&&!old?.passedFeeder?e.etaFfOverride-(now+ms(modelFeederSeconds)):0
         const usableEuroScope=p.groundspeed>=60&&p.altitude>=350&&(p.positionAgeSeconds??0)<=15&&p.landingSeconds>0&&p.route.length>0
         const liveEuroscopeEta=bufferMode&&usableEuroScope?now+ms(p.landingSeconds):undefined
-        const selectedBufferMinutes=euroscopeBufferMinutes(feederObservation?{...p,route:feederObservation.feeder?[{name:feederObservation.feeder,seconds:feederObservation.seconds}]:[]}:p,config,resumed||requeued?undefined:old)
-        const liveEuroscopeEtaFf=bufferMode?e.etaFfOverride??now+ms(modelFeederSeconds):undefined
-        const liveBufferedEtaFf=liveEuroscopeEtaFf===undefined?undefined:liveEuroscopeEtaFf+ms(selectedBufferMinutes*60)
-        const liveBufferedEta=liveEuroscopeEta===undefined?undefined:liveEuroscopeEta+ms(selectedBufferMinutes*60)
         const captureBaseline=bufferMode&&usableEuroScope&&(!old?.euroscopeBaseline||recompute||resumed)
-        const euroscopeBaseline=bufferMode?(captureBaseline?{at:now,eta:liveBufferedEta!+manualFeederShift,rawEta:liveEuroscopeEta!,etaFf:liveBufferedEtaFf!,rawEtaFf:liveEuroscopeEtaFf,feederBuffered:true,bufferMinutes:selectedBufferMinutes}:old?.euroscopeBaseline&&!old.euroscopeBaseline.feederBuffered?{...old.euroscopeBaseline,etaFf:old.euroscopeBaseline.etaFf+ms(old.euroscopeBaseline.bufferMinutes*60),rawEtaFf:old.euroscopeBaseline.etaFf,feederBuffered:true}:old?.euroscopeBaseline):undefined
+        // Speed scaling uses the accepted capture, never a fluctuating live GS.
+        // Existing baselines keep the old speed-independent buffer until Recompute.
+        const bufferGroundspeed=captureBaseline?p.groundspeed:old?.euroscopeBaseline?.groundspeed??Math.min(p.groundspeed,300)
+        const bufferFlight={...p,groundspeed:bufferGroundspeed,...(feederObservation?{route:feederObservation.feeder?[{name:feederObservation.feeder,seconds:feederObservation.seconds}]:[]}: {})}
+        const selectedBufferMinutes=euroscopeBufferMinutes(bufferFlight,config,resumed||requeued?undefined:old)
+        const feederBufferMinutes=euroscopeFeederBufferMinutes(bufferFlight,config,resumed||requeued?undefined:old)
+        const liveEuroscopeEtaFf=bufferMode?e.etaFfOverride??now+ms(modelFeederSeconds):undefined
+        const liveBufferedEtaFf=liveEuroscopeEtaFf===undefined?undefined:liveEuroscopeEtaFf+ms(feederBufferMinutes*60)
+        const liveBufferedEta=liveEuroscopeEta===undefined?undefined:liveEuroscopeEta+ms(selectedBufferMinutes*60)
+        const euroscopeBaseline=bufferMode?(captureBaseline?{at:now,eta:liveBufferedEta!+manualFeederShift,rawEta:liveEuroscopeEta!,etaFf:liveBufferedEtaFf!,rawEtaFf:liveEuroscopeEtaFf,feederBuffered:true,bufferMinutes:selectedBufferMinutes,feederBufferMinutes,groundspeed:p.groundspeed}:old?.euroscopeBaseline&&!old.euroscopeBaseline.feederBuffered?{...old.euroscopeBaseline,etaFf:old.euroscopeBaseline.etaFf+ms((old.euroscopeBaseline.feederBufferMinutes??old.euroscopeBaseline.bufferMinutes)*60),rawEtaFf:old.euroscopeBaseline.etaFf,feederBuffered:true}:old?.euroscopeBaseline):undefined
         const eta = euroscopeBaseline?.eta??now + ms(prediction.seconds)+manualFeederShift
         const resumedMissed=resumed&&old?.mode==='missed'
         const airborneAgain=previous?.grounded?.[p.callsign]!==undefined&&e.landedAt===undefined&&p.altitude>=500&&p.groundspeed>=60&&(p.verticalSpeed??0)>300&&(p.positionAgeSeconds??0)<=15
@@ -975,7 +989,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             f.closureDelayMs=f.sta-wakeSta
             f.spacingConflict=!!last && f.sta<last.sta+gap-1
             f.staFf = f.passedFeeder ? old?.staFf ?? f.etaFf : f.distanceProfile ? f.sta-transfer : old && old.state>=1 && f.state>=1 && !recomputed && !nonClosurePlanChanged ? old.staFf+(f.sta-old.sta) : f.sta - transfer
-            if(holdTma&&old&&!f.passedFeeder)f.staFf=old.staFf+(f.sta-old.sta)+(!old.euroscopeBaseline?.feederBuffered&&f.euroscopeBaseline?.feederBuffered?ms(f.euroscopeBaseline.bufferMinutes*60):0)
+            if(holdTma&&old&&!f.passedFeeder)f.staFf=old.staFf+(f.sta-old.sta)+(!old.euroscopeBaseline?.feederBuffered&&f.euroscopeBaseline?.feederBuffered?ms((f.euroscopeBaseline.feederBufferMinutes??f.euroscopeBaseline.bufferMinutes)*60):0)
             if(f.distanceProfile&&!f.passedFeeder)feederLeaders.set(f.ff,f)
             if(old?.automaticGainSeconds&&f.sta<f.eta&&f.state<=1&&!f.passedFeeder)f.automaticGainSeconds=(f.eta-f.sta)/1000
             f.runwayDelay = Math.round((f.sta - f.eta) / 1000)

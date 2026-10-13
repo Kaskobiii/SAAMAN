@@ -24,11 +24,15 @@ int RunTests(int argc,wchar_t** argv){
     bool denied=false;try{context.Request("plan:settings",{{"revision",0}},false);}catch(const saaman::RequestError& e){denied=e.status==403;}CHECK(denied);
     CHECK(context.plan["config"]["stableMinutes"]==15);CHECK(context.plan["config"]["superStableMinutes"]==4);
     CHECK(context.plan["config"]["timingModel"]=="euroscope-buffer");CHECK(context.plan["config"]["euroscopeBufferMinutes"]==2);
-    auto changed=context.plan["config"];changed["surfaceWindSpeed"]=12;
+    CHECK(context.plan["config"]["euroscopeHighSpeedBufferMinutes"]==6);
+    auto changed=context.plan["config"];changed["surfaceWindSpeed"]=12;changed["euroscopeHighSpeedBufferMinutes"]=4;
+    for(const double value:{-1.0,16.0}){auto invalidBuffer=changed;invalidBuffer["euroscopeHighSpeedBufferMinutes"]=value;
+        denied=false;try{context.Request("plan:settings",{{"revision",0},{"config",invalidBuffer},{"edits",saaman::Json::object()},{"snapshot",nullptr}},true);}catch(const saaman::RequestError& e){denied=e.status==400;}CHECK(denied);}
     auto invalidRate=changed;invalidRate["rates"]={{"ESSA/19R",30}};
     denied=false;try{context.Request("plan:settings",{{"revision",0},{"config",invalidRate},{"edits",saaman::Json::object()},{"snapshot",nullptr}},true);}catch(const saaman::RequestError& e){denied=e.status==400;}CHECK(denied);
     context.Request("plan:settings",{{"revision",0},{"config",changed},{"edits",saaman::Json::object()},{"snapshot",nullptr}},true);
     CHECK(context.plan["masterCid"]==0);CHECK(context.plan["revision"]==1);CHECK(context.plan["config"]["surfaceWindSpeed"]==12);
+    CHECK(context.plan["config"]["euroscopeHighSpeedBufferMinutes"]==4);
     auto forbidden=changed;forbidden["stableMinutes"]=20;
     denied=false;try{context.Request("plan:settings",{{"revision",1},{"config",forbidden},{"edits",saaman::Json::object()},{"snapshot",nullptr}},true);}catch(const saaman::RequestError& e){denied=e.status==400;}CHECK(denied);
     denied=false;try{context.Request("plan:update",{{"revision",1},{"config",config}},false);}catch(const saaman::RequestError& e){denied=e.status==403;}CHECK(denied);

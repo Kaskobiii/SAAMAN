@@ -1,0 +1,41 @@
+name: Backend compatibility
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [pinned, upstream-main]
+    defaults:
+      run:
+        working-directory: source/ui
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: source/ui/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Model and adapter tests
+        if: matrix.target == 'pinned'
+        run: npm test
+      - name: Pinned vatIRIS compatibility
+        if: matrix.target == 'pinned'
+        run: npm run test:backend
+      - name: Current upstream compatibility
+        if: matrix.target == 'upstream-main'
+        run: npm run test:backend:upstream
+      - name: Check guide exports
+        if: matrix.target == 'pinned'
+        run: python3 ../scripts/build-user-guide.py --check

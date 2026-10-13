@@ -2,8 +2,19 @@
 
 An embedded EuroScope arrival manager for Stockholm Arlanda (ESSA), with shared
 sequencing and controller coordination through the existing vatIRIS backend.
-The working baseline is **1.3.4**. Syncing between two EuroScope controllers has
+The current version is **1.3.5**. Syncing between two EuroScope controllers has
 been confirmed in use.
+
+**Shared mode requires the vatIRIS AMAN backend**, normally at
+`https://backend.vatiris.se`. Controllers do not need to install the vatIRIS app
+or log in to it separately. Local EuroScope mode works without that backend and
+does not share changes with other controllers.
+Fresh settings default to shared vatIRIS mode on VATSIM live. Explicitly saved
+local mode or a training network is remembered.
+
+Read the [controller user guide](docs/user-guide.md). An [offline HTML version](docs/user-guide.html)
+and [wiki-ready HTML](docs/user-guide-wiki.html) are included, with
+[publication instructions](docs/WIKI-UPLOAD.md) for the Scandinavia wiki.
 
 ## Download and install
 
@@ -36,6 +47,10 @@ or controller key is required in vatIRIS callsign mode.
 Editable TypeScript/Vue UI and calculation code are in `source/ui`; the x86
 Win32/WebView2 plugin is in `source/native`. Build scripts, model/adapter tests
 and native test harnesses are included. See [BUILDING.md](BUILDING.md).
+
+[Backend compatibility tests](docs/BACKEND-COMPATIBILITY.md) use the actual public
+vatIRIS router on an isolated loopback server. GitHub Actions checks both a pinned
+backend commit and current upstream main when a pull request or main update runs.
 
 The 1.3.4 baseline passed 272 model/adapter tests, UI type checks, the Win32 build,
 native state checks and real renderer/popup checks. The native fixtures cover

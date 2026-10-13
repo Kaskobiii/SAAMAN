@@ -50,3 +50,14 @@ check SDK integration and a real shared connection.
 
 Keep runtime history, recordings, saved profiles and credentials out of Git.
 Compiled DLLs belong in GitHub Releases; build folders and dependencies are ignored.
+
+## Backend compatibility and user guide
+
+From `source/ui`, run `npm run test:backend` for the pinned vatIRIS router,
+or `npm run test:backend:upstream` to check current upstream main. These checks
+download public source and require Internet access, but run all AMAN requests
+against an isolated local server. No VATSIM login, database or controller key is needed.
+See [BACKEND-COMPATIBILITY.md](docs/BACKEND-COMPATIBILITY.md).
+
+Run `python source/scripts/build-user-guide.py` from the repository root after
+editing `docs/user-guide.md`. Add `--check` to verify its HTML exports.

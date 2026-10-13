@@ -1,0 +1,8 @@
+{
+  "repository": "minsulander/vatiris",
+  "commit": "f9af707c4d9c2f1d88d8ed7f2d61a37087c90b37",
+  "router": "backend/src/routes/aman.ts",
+  "sha256": "8fc56f91f007e97cd7c6795b7b26f949bdd72236851eeff12ea7d0857efa7758",
+  "protocol": "/aman/{live|sweatbox1|sweatbox2}/ESSA",
+  "express": "4.22.3"
+}

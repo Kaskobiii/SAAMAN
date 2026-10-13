@@ -17,10 +17,10 @@ struct Context {
     long long captureAttemptAt=0,captureSuccessAt=0;
     std::string captureError;
     unsigned receivers=0;
-    bool shared=false,test=false,runwayConfigInitialized=false;
+    bool shared=true,test=false,runwayConfigInitialized=false;
     std::string backend="https://backend.vatiris.se",authProvider="vatiris-callsign";
     long long controllerCid=0;
-    Json relay={{"network","sweatbox1"},{"session","essa-test-01"},{"channel","saaman"}};
+    Json relay={{"network","live"},{"session","essa-test-01"},{"channel","saaman"}};
     std::string instanceId;
     explicit Context(std::filesystem::path folder,std::filesystem::path stateFolder={});
     Json Request(const std::string& method,const Json& data,bool supervisor);

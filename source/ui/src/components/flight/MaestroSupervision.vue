@@ -46,8 +46,7 @@ function exportData(){
     <header><strong>{{stale?'STALE DATA':'LIVE'}} · {{snapshot?.source||'Waiting for data'}}</strong><span>Snapshot {{utc(snapshot?.timestamp)}} UTC · age {{snapshot?seconds((now-snapshot.timestamp)/1000):'—'}} · revision {{revision}} · MASTER {{masterCid??'none'}}</span></header>
     <p v-if="error" class="warning">{{error}}</p>
     <nav><input v-model="search" aria-label="Filter supervision callsigns" placeholder="Search callsign"><button @click="exportData">Export snapshot + history</button><button @click="selected=''">All aircraft history</button><button @click="toggleRecording" :disabled="!snapshot">{{recording?'Stop recording':'Start session recording'}}</button><button @click="exportRecording" :disabled="!recordCount">Export recording</button><span v-if="recordStatus">{{recordStatus}} · {{recordCount}} frames</span></nav>
-    <p class="note">Read-only · updates with the AMAN snapshot (normally every 2 seconds). History records changes observed while this supervision page is open; latest 1,000 events. Positive instruction = lose, negative = gain.</p>
-    <p class="note">Session recording is optional and kept in memory until you export it. Export before closing this window. It stores positions, routes, clearances, settings and edits for replay; stops at its size/frame limit or when the source changes.</p>
+    <p class="note" v-if="recordCount">Export recording before closing this window.</p>
     <div class="table-scroll"><table><thead><tr><th>Aircraft</th><th>State / mode</th><th>Feeder</th><th>ETA feeder</th><th>STA feeder</th><th>ETA landing</th><th>STA landing</th><th>Instruction</th><th>Prediction</th></tr></thead><tbody>
     <tr v-for="f in flights" :key="f.callsign" :class="{selected:selected===f.callsign}" @click="selected=f.callsign"><td><button @click.stop="selected=f.callsign" :style="{color:STATE_COLORS[f.state]}">{{f.callsign}} {{f.wake}}</button></td><td :style="{color:STATE_COLORS[f.state]}">{{STATE_NAMES[f.state]}}<small>{{f.mode}}{{f.lost?' · stale track':''}}</small></td><td>{{f.ff}}{{f.passedFeeder?' · passed':''}}</td><td>{{utc(f.etaFf)}}</td><td>{{utc(f.staFf)}}</td><td>{{utc(f.eta)}}</td><td>{{utc(f.sta)}}</td><td>{{seconds(f.delay)}}</td><td>{{f.predictionSource}}<small>{{f.issue}}</small></td></tr>
     <tr v-if="!flights.length"><td colspan="9">No matching aircraft in this snapshot.</td></tr></tbody></table></div>
@@ -72,7 +71,7 @@ function exportData(){
         <dt>EuroScope line 0</dt><dd>{{seconds(euroscopeInstruction(current))}} · {{current.line0Suppressed?'suppressed after feeder cutoff / landing':'available to TopSky'}}</dd>
         <dt>Controller edit</dt><dd><pre>{{JSON.stringify(edits[current.callsign]??{},null,2)}}</pre></dd>
         <dt>Issue</dt><dd>{{current.issue||'None'}}{{current.spacingConflict?' · spacing conflict':''}}</dd>
-    </dl></article><article v-else><h3>Select an aircraft above</h3><p>Its live inputs, timing model and spacing constraints appear here.</p><p>Active arrival {{active.active.join(', ')}} · EuroScope ETA buffer {{active.euroscopeBufferMinutes}} min</p></article>
+    </dl></article><article v-else><h3>Select an aircraft</h3><p>Active arrival {{active.active.join(', ')}} · EuroScope ETA buffer {{active.euroscopeBufferMinutes}} min</p></article>
     <article><h3>{{selected||'All aircraft'}} · observed changes</h3><p v-if="!history.length">No observed changes yet.</p><ol><li v-for="(e,i) in history" :key="i"><time>{{utc(e.time)}}</time> <strong>{{e.callsign}} · {{e.kind}}</strong><br>{{e.detail}}</li></ol></article></div>
 </section>
 </template>

@@ -38,21 +38,21 @@ struct Host::Impl {
         void Reply(int id,const Json& result,bool ok=true,int status=200,const std::string& error=""){
             if(!browser)return;const auto message=Wide(Json({{"id",id},{"ok",ok},{"result",result},{"status",status},{"error",error}}).dump());browser->PostWebMessageAsJson(message.c_str());
         }
-        void Create(){
+        void Create(bool show=true){
             if(!auth){
                 if(!IsWindow(host.parent)){destroying=true;return;}
                 const auto area=host.radar;const int width=std::min(supervisor?1050:780,static_cast<int>(area.right-area.left-90)),height=std::min(760,static_cast<int>(area.bottom-area.top-30));
                 const int panelWidth=std::min(std::max(360,width),static_cast<int>(area.right-area.left)),panelHeight=std::min(std::max(380,height),static_cast<int>(area.bottom-area.top));
                 const int x=area.left+std::min(85,std::max(0,static_cast<int>(area.right-area.left)-panelWidth)),y=area.top+std::min(25,std::max(0,static_cast<int>(area.bottom-area.top)-panelHeight));
                 hwnd=CreateWindowExW(WS_EX_NOPARENTNOTIFY,WindowClass,supervisor?L"SAAMAN SUPERVISION":L"AMAN",WS_CHILD|WS_CLIPCHILDREN|WS_CLIPSIBLINGS,x,y,panelWidth,panelHeight,host.parent,nullptr,host.module,this);
-                host.panels[supervisor?1:0].store(hwnd);host.visible[supervisor?1:0].store(hwnd!=nullptr);
+                host.panels[supervisor?1:0].store(hwnd);host.visible[supervisor?1:0].store(hwnd!=nullptr&&show);
             }else{
             HWND owner=GetForegroundWindow();DWORD pid=0;GetWindowThreadProcessId(owner,&pid);if(pid!=GetCurrentProcessId())owner=nullptr;
             else owner=GetAncestor(owner,GA_ROOTOWNER);
             hwnd=CreateWindowExW(0,WindowClass,auth?L"SAAMAN · VATSIM sign in":supervisor?L"SAAMAN · ESSA supervision":L"SAAMAN · ESSA arrivals",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,supervisor?1100:820,auth?780:820,owner,nullptr,host.module,this);
             }
             if(!hwnd)return;
-            ShowWindow(hwnd,host.context->test?SW_HIDE:SW_SHOW);
+            ShowWindow(hwnd,host.context->test||!show?SW_HIDE:SW_SHOW);
             std::weak_ptr<Window> weak=shared_from_this();
             auto options=Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>();
             options->put_AdditionalBrowserArguments(L"--disable-gpu --disable-gpu-compositing");
@@ -233,6 +233,8 @@ struct Host::Impl {
                     result.coordinationExternal=separate.topLevel&&separate.owned&&Math.abs(separate.x+separate.width/2-(separate.ownerX+separate.ownerWidth/2))<=1&&Math.abs(separate.y+separate.height/2-(separate.ownerY+separate.ownerHeight/2))<=1;
                     result.coordinationMetadata=separate.sender==='ESOS_1__CTR'&&separate.sent.includes('12:34:56 UTC')&&separate.message.at===notification.at;
                     if(!result.coordinationExternal||!result.coordinationMetadata)throw Error('Coordination popup position or sender/time incorrect');
+                    result.coordinationLayout=separate.status===''&&Math.abs(separate.buttonCenterX-separate.clientCenterX)<=1;
+                    if(!result.coordinationLayout)throw Error('Coordination button must be centered without receipt instructions');
                     await rpc('host:test-coordination',{click:true});await wait(50);await rpc('host:test-coordination',{click:true});await wait(50);
                     const awaiting=await rpc('host:test-coordination');result.coordinationAck=receivedAcks.length===1&&receivedAcks[0]===notification.id&&!awaiting.enabled&&awaiting.busy;
                     if(!result.coordinationAck)throw Error('Coordination acknowledgement did not forward exactly once');
@@ -323,6 +325,13 @@ struct Host::Impl {
     std::unique_ptr<CoordinationPopup> coordination;
     HWND parent=nullptr,testParent=nullptr,requestedParent=nullptr;RECT radar{},requestedRadar{};std::mutex binding;std::atomic<bool> visible[2]{};std::atomic<HWND> panels[2]{};std::atomic<bool> radarDirty{false};std::atomic<HWND> redrawTarget{nullptr};std::atomic<UINT> redrawMessage{0};
     void MarkRadarDirty(){const bool pending=radarDirty.exchange(true);const auto target=redrawTarget.load();if(target&&!pending)PostMessageW(target,redrawMessage.load(),0,0);}
+    void EnsureBackground(){
+        if(!IsWindow(parent)||stopping)return;
+        for(const auto& window:windows)if(!window->auth&&!window->supervisor&&!window->destroying)return;
+        // One hidden main renderer owns the connection and calculation worker.
+        // Its identity watcher joins when EuroScope logs in; Show reuses it.
+        auto window=std::make_shared<Window>(*this,false);windows.push_back(window);window->Create(false);
+    }
     Impl(HINSTANCE image,std::shared_ptr<Context> data):module(image),context(std::move(data)){
         ready=CreateEventW(nullptr,TRUE,FALSE,nullptr);testDone=CreateEventW(nullptr,TRUE,FALSE,nullptr);
         GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,reinterpret_cast<LPCWSTR>(&ThreadProc),&retained);
@@ -342,12 +351,12 @@ struct Host::Impl {
 
         MSG msg{};PeekMessageW(&msg,nullptr,WM_USER,WM_USER,PM_NOREMOVE);SetEvent(self.ready);
         while(GetMessageW(&msg,nullptr,0,0)>0){
-            if(!msg.hwnd&&msg.message==AttachMessage){std::unique_ptr<Attachment> data(reinterpret_cast<Attachment*>(msg.lParam));self.parent=data->parent;self.radar=data->radar;for(const auto& window:self.windows)if(!window->auth&&window->hwnd&&GetParent(window->hwnd)!=self.parent)SetParent(window->hwnd,self.parent);}
+            if(!msg.hwnd&&msg.message==AttachMessage){std::unique_ptr<Attachment> data(reinterpret_cast<Attachment*>(msg.lParam));self.parent=data->parent;self.radar=data->radar;for(const auto& window:self.windows)if(!window->auth&&window->hwnd&&GetParent(window->hwnd)!=self.parent)SetParent(window->hwnd,self.parent);self.EnsureBackground();}
             else if(!msg.hwnd&&(msg.message==ShowMessage||msg.message==ToggleMessage)){const bool supervisor=msg.wParam!=0;std::shared_ptr<Window> existing;
                 for(const auto& window:self.windows)if(!window->auth&&window->supervisor==supervisor&&!window->destroying){existing=window;break;}
                 if(existing){const bool show=msg.message!=ToggleMessage||!self.visible[supervisor?1:0].load();self.visible[supervisor?1:0].store(show);if(show&&existing->supervisor&&existing->browser)existing->browser->Reload();existing->Present(show);}
                 else{auto window=std::make_shared<Window>(self,supervisor);self.windows.push_back(window);window->Create();}
-            }else if(!msg.hwnd&&msg.message==PulseMessage){for(const auto& window:self.windows)if(!window->auth&&window->browser)window->browser->PostWebMessageAsJson(L"{\"event\":\"pulse\"}");}
+            }else if(!msg.hwnd&&msg.message==PulseMessage){self.EnsureBackground();for(const auto& window:self.windows)if(!window->auth&&window->browser)window->browser->PostWebMessageAsJson(L"{\"event\":\"pulse\"}");}
             else if(!msg.hwnd&&msg.message==HideMessage){for(const auto& window:self.windows)if(!window->auth&&window->hwnd){self.visible[window->supervisor?1:0].store(false);window->Present(false);}}
             else if(!msg.hwnd&&msg.message==StopMessage){self.stopping=true;self.coordination.reset();for(const auto& window:self.windows)if(window->hwnd)DestroyWindow(window->hwnd);self.windows.clear();break;}
             else{if(self.coordination&&self.coordination->Route(msg))continue;TranslateMessage(&msg);DispatchMessageW(&msg);}

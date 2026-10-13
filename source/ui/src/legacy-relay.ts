@@ -1,5 +1,6 @@
 import {DEFAULT_CONFIG} from './maestro-engine'
 import {mergeSharedSettings} from './maestro-settings'
+import {isTowerCallsign} from './callsign-identity'
 type Send=(method:string,path:string,body?:any)=>Promise<any>
 type Receipt={digest:string;ok:boolean;message:string}
 type Envelope={protocol:'saaman-legacy-1';epoch:string;revision:number;owner:string;instanceId:string;lease:string;settingsRevision:number;settings:Record<string,unknown>;checkpoint:any;receipts:Record<string,Receipt>;publication:string;publishedAt:number}
@@ -52,6 +53,9 @@ export class LegacyRelay {
         for(const item of input){
             const wrapped=item.cmd
             if(!Number.isSafeInteger(item.id)||typeof item.from!=='string')fail('Invalid shared command',502)
+            if(isTowerCallsign(item.from)){
+                const requestId=`tower-${item.id}`;this.pending.set(item.id,{from:item.from,requestId,digest:'',primary:item.id});this.remember(requestId,{digest:'',ok:false,message:'Tower positions are observers only'});continue
+            }
             if(wrapped?.op!=='saaman-command'||typeof wrapped.requestId!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(wrapped.requestId)){
                 this.pending.set(item.id,{from:item.from,requestId:`unsupported-${item.id}`,digest:'',primary:item.id})
                 this.remember(`unsupported-${item.id}`,{digest:'',ok:false,message:'Command belongs to another AMAN plugin'});continue
@@ -142,6 +146,11 @@ export class LegacyRelay {
         fail('Settings submitted; waiting for the sequencer. Check current settings before retrying.',202)
     }
     async send(method:string,path:string,body:any={}){
+        if(isTowerCallsign(this.deps.callsign())){
+            if(path.endsWith('/poll'))return this.poll({...body,observer:true})
+            if(path.endsWith('/leave'))return {left:true}
+            fail('Tower positions are observers only',403)
+        }
         if(path.endsWith('/poll'))return this.poll(body)
         if(path.endsWith('/command'))return this.command(body)
         if(path.endsWith('/supervision'))return this.supervision()

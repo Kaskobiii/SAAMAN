@@ -40,3 +40,19 @@ test('ESSA_FMP is accepted as an online center planner without a CTR suffix',asy
 test('handover identity keeps the exact callsign used by VATSIM',async()=>{
  const f=setup();f.raw.source='ESOS_1__CTR';await f.identity.refresh();assert.equal(f.identity.identity.callsign,'ESOS_1__CTR');assert.equal(f.identity.identity.cid,2345678)
 })
+
+test('background identity waiting before login recovers on login and reconnect without a manual login action',async()=>{
+ const f=setup();f.raw.connected=false;f.raw.source='OFFLINE'
+ await assert.rejects(f.identity.refresh(),/connected EuroScope/);assert.equal(f.identity.identity,undefined);assert.equal(f.requests(),0)
+ f.raw.connected=true;f.raw.source='ESOS_1__CTR';f.advance(8000);await f.identity.refresh()
+ assert.equal(f.identity.identity.callsign,'ESOS_1__CTR')
+ f.raw.connected=false;await assert.rejects(f.identity.refresh(),/connected EuroScope/);assert.equal(f.identity.identity,undefined)
+ f.raw.connected=true;f.raw.source='ESSA_FMP';f.advance(8000);await f.identity.refresh()
+ assert.equal(f.identity.identity.callsign,'ESSA_FMP');assert.equal(f.identity.identity.cid,1396125)
+})
+
+
+test('tower login cannot gain supervision from its controller CID',async()=>{
+ const f=setup('sweatbox1',1396125);f.raw.source='ESSA_1__TWR';await f.identity.refresh()
+ assert.equal(await f.identity.isSupervisor('ESSA_1__TWR',1396125),false)
+})

@@ -1,4 +1,5 @@
 export interface ControllerIdentity { cid:number|null; callsign:string; supervisor:boolean }
+export function isTowerCallsign(callsign:string){return callsign.toUpperCase().includes('TWR')}
 /** EuroScope callsign identity; the existing vatIRIS API checks live writers. */
 export class CallsignIdentity {
     identity:ControllerIdentity|undefined
@@ -16,6 +17,7 @@ export class CallsignIdentity {
         return this.controllers
     }
     async isSupervisor(callsign:string,claimedCid?:number){
+        if(isTowerCallsign(callsign))return false
         if(this.deps.network!=='live')return claimedCid===1396125
         return (await this.feed()).some(c=>c.callsign===callsign&&c.cid===1396125)
     }

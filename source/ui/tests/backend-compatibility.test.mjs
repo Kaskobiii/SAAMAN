@@ -109,3 +109,27 @@ test('actual router still enforces an optional training key',async()=>{
   assert.equal((await f.raw('POST','/aman/sweatbox1/ESSA/poll',{callsign:'ESSA_FMP',key:'test-only-training-key',wait:false})).status,200)
  }finally{await f.close()}
 })
+
+
+test('actual router stays unchanged by tower observers, including handover callsigns',async()=>{
+ const f=await fixture();try{
+  const tower=f.client('tower','ESSA_1__TWR',1396125)
+  assert.equal((await tower.tick()).relayRole,'observer')
+  assert.deepEqual((await f.raw('GET','/aman')).data,{})
+  const owner=f.client('owner','ESOS_1__CTR');await owner.tick()
+  const before=(await f.raw('GET','/aman/sweatbox1/ESSA')).data
+  const observed=await tower.setObserver(false);assert.equal(observed.relayRole,'observer');assert.deepEqual(observed.snapshot,JSON.parse(JSON.stringify(owner.view().snapshot)))
+  await assert.rejects(tower.edit(observed.revision,observed.edits,observed.config),/Tower positions are observers only/)
+  await assert.rejects(tower.coordinate('Update finished'),/Tower positions are observers only/)
+  await assert.rejects(tower.saveSettings(observed.revision,{}),/Tower positions are observers only/)
+  await tower.leave()
+  assert.deepEqual((await f.raw('GET','/aman/sweatbox1/ESSA')).data,before)
+  assert.ok(f.requests.filter(r=>r.body?.callsign?.includes('TWR')).length===0)
+  // A current SAAMAN sequencer also refuses tower commands from older clients.
+  const sent=await f.raw('POST','/aman/sweatbox1/ESSA/command',{callsign:'ESSA_TWR',cmd:{op:'saaman-command',requestId:'tower-foreign-edit',epoch:before.saamanRelay.epoch,cmd:{op:'coordination',action:'send',message:{id:'foreign',message:'Update finished',sender:'tower',senderCallsign:'ESSA_TWR',at:Date.now(),acknowledgedBy:['tower']}}}})
+  assert.equal(sent.status,200);await owner.tick();assert.equal(owner.view().config.coordinations.length,0)
+  const receipt=await f.raw('POST','/aman/sweatbox1/ESSA/poll',{callsign:'ESSA_TWR',wait:false,version:0})
+  assert.ok(receipt.data.results.some(r=>r.id===sent.data.id&&r.ok===false&&r.message==='Tower positions are observers only'))
+
+ }finally{await f.close()}
+})

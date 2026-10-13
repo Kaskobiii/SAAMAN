@@ -2,7 +2,7 @@
 
 An embedded EuroScope arrival manager for Stockholm Arlanda (ESSA), with shared
 sequencing and controller coordination through the existing vatIRIS backend.
-The current version is **1.3.5**. Syncing between two EuroScope controllers has
+The current version is **1.3.6**. Syncing between two EuroScope controllers has
 been confirmed in use.
 
 **Shared mode requires the vatIRIS AMAN backend**, normally at
@@ -10,7 +10,9 @@ been confirmed in use.
 or log in to it separately. Local EuroScope mode works without that backend and
 does not share changes with other controllers.
 Fresh settings default to shared vatIRIS mode on VATSIM live. Explicitly saved
-local mode or a training network is remembered.
+local mode or a training network is remembered. SAAMAN connects in the background
+as soon as the plugin is loaded on a radar screen and EuroScope has logged in;
+the pane can stay closed.
 
 Read the [controller user guide](docs/user-guide.md). An [offline HTML version](docs/user-guide.html)
 and [wiki-ready HTML](docs/user-guide-wiki.html) are included, with
@@ -22,7 +24,8 @@ Download the ZIP from [Releases](https://github.com/Kaskobiii/SAAMAN/releases).
 Unload the previous plugin before replacing and loading `SAAMAN.dll`. Microsoft
 Edge WebView2 Runtime is required. No EuroScope profile changes are needed.
 
-Use `.saaman` to open AMAN and `.saaman supervisor` for supervision. Select
+Use `.saaman` to open AMAN and `.saaman supervisor` for supervision. To change
+the saved connection, select
 **MAESTRO > Operation mode > Shared backend > vatIRIS EuroScope callsign**,
 use `https://backend.vatiris.se`, and choose VATSIM live, SweatBox 1 or SweatBox 2.
 Controllers on the same network share one ESSA sequence. No separate AMAN login
@@ -60,7 +63,7 @@ also been confirmed in EuroScope.
 See [architecture](source/ARCHITECTURE.md),
 [backend integration](source/BACKEND-INTEGRATION.md),
 [operating requirements](source/OPERATING-REQUIREMENTS.md) and
-[1.3.4 release notes](docs/RELEASE-NOTES-1.3.4.md).
+[latest release notes](docs/RELEASE-NOTES-1.3.6.md).
 
 ## License and credits
 

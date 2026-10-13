@@ -37,7 +37,7 @@ function setup(){
         const options={network:'sweatbox1',session:'ignored-exercise',channel:'ignored-channel',instanceId}
         const legacy=new LegacyRelay({network:'sweatbox1',instanceId,send,callsign:()=>call,cid:()=>cid,supervisor:async(cs,claimed)=>claimed===1396125,now:()=>now,requestId:()=>`relay-${++serial}`})
         const relay=new SharedRelay(options,{send:(method,path,body)=>legacy.send(method,path,body),cid:()=>cid,now:()=>now,requestId:()=>`request-${++serial}`,telemetry:async()=>({source:call,connected:true,simulation:true,timestamp:now,activeRunways,runways,flights:[{callsign:'SAS123',aircraft:'A320',wake:'M',departure:'EKCH',arrival:'ESSA',runway:'01R',route:[{name:'ELTOK',seconds:800}],landingSeconds:1400,distanceNm:100,groundspeed:250,altitude:15000}]})})
-        return {relay,legacy,options,setRunways:value=>activeRunways=value}
+        return {relay,legacy,options,setRunways:value=>activeRunways=value,setCallsign:value=>call=value}
     }
     return {client,requests,advance:ms=>now+=ms,failure:value=>failure=value,reset:()=>{sequence=null;owner='';version=0;commands=[];results.clear()},state:()=>copy({sequence,commands,version,owner}),foreign:()=>{sequence={data:{icao:'ESSA'},sequence:[]};version=1}}
 }
@@ -151,4 +151,37 @@ test('FMP connects and publishes 01R/01L with the installed sector file addition
     assert.equal(first.snapshot.runways['ESSA/07'],undefined);assert.equal(first.snapshot.runways['ESSA/25'],undefined)
     assert.deepEqual(first.snapshot.runways['ESSA/01R'],sectorGeometry.runways['ESSA/01R'])
     assert.ok(f.requests.some(r=>r.method==='PUT'))
+})
+
+
+test('TWR and handover callsigns observe without claiming a room or making writes',async()=>{
+ const f=setup()
+ for(const call of ['ESSA_TWR','ESSA_1__TWR','essa_2_twr']){
+  const tower=f.client('tower-'+call,call,1396125)
+  assert.equal((await tower.relay.tick()).relayRole,'observer');assert.equal(f.state().owner,'')
+  assert.equal((await tower.relay.setObserver(false)).relayRole,'observer')
+  const plan=tower.relay.view()
+  await assert.rejects(tower.relay.edit(plan.revision,plan.edits,plan.config),/Tower positions are observers only/)
+  await assert.rejects(tower.relay.coordinate('Update finished'),/Tower positions are observers only/)
+  await assert.rejects(tower.relay.coordinate(undefined,'incoming'),/Tower positions are observers only/)
+  await assert.rejects(tower.relay.saveSettings(plan.revision,{}),/Tower positions are observers only/)
+  await assert.rejects(tower.relay.supervision(),/Tower positions are observers only/)
+  await assert.rejects(tower.legacy.send('PUT','/settings',{}),/Tower positions are observers only/)
+  await assert.rejects(tower.legacy.send('POST','/command',{}),/Tower positions are observers only/)
+  await tower.relay.leave()
+ }
+ assert.ok(f.requests.every(r=>r.method==='GET'))
+ const editor=f.client('editor','ESOS_1_CTR',1234567);await editor.relay.tick()
+ const tower=f.client('tower','ESSA__TWR',1396125),observed=await tower.relay.tick()
+ assert.equal(observed.relayRole,'observer');assert.deepEqual(observed.snapshot,JSON.parse(JSON.stringify(editor.relay.view().snapshot)));assert.equal(f.state().owner,'ESOS_1_CTR')
+})
+
+
+test('changing from a center to tower login removes edit rights and stops publication',async()=>{
+ const f=setup(),client=f.client('changed','ESOS_1_CTR',1396125);await client.relay.tick();const sent=f.requests.length
+ client.setCallsign('ESSA_TWR');const plan=await client.relay.tick();assert.equal(plan.relayRole,'observer')
+ await client.relay.setObserver(false)
+ await assert.rejects(client.relay.edit(plan.revision,plan.edits,plan.config),/Tower positions are observers only/)
+ await assert.rejects(client.relay.coordinate('Update finished'),/Tower positions are observers only/)
+ assert.ok(f.requests.slice(sent).every(r=>r.method==='GET'))
 })

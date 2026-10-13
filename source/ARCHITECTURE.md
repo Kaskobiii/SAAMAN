@@ -1,4 +1,4 @@
-# SAAMAN native plugin, 1.3.5
+# SAAMAN native plugin, 1.3.6
 
 SAAMAN.dll is an x86 EuroScope plugin with Win32 child panels hosting the AMAN UI
 through Microsoft WebView2. The calculation engine is editable TypeScript.

@@ -3,6 +3,7 @@ import {OPERATIONAL_KEYS,mergeSharedSettings,settingsUnchanged} from './maestro-
 import {APPLICATION_BUILD} from './build'
 import {mergeCoordinationChanges} from './maestro-coordination'
 import {COORDINATION_MESSAGES,validateCoordinations} from './maestro-coordination'
+import {isTowerCallsign} from './callsign-identity'
 
 export interface RelayOptions { network:'live'|'sweatbox1'|'sweatbox2';session:string;channel:string;instanceId:string }
 type Plan = {epoch:string;revision:number;config:EngineConfig;edits:Record<string,FlightEdit>;snapshot:EngineSnapshot|null;masterCid:number|null;relayRole:string;stale:boolean}
@@ -43,7 +44,7 @@ export class SharedRelay {
         this.room=`/aman/rooms/${options.network}/ESSA/${options.session}/${options.channel}`
         this.now=deps.now||Date.now;this.id=deps.requestId||(()=>crypto.randomUUID())
     }
-    private identity(){return {instanceId:this.options.instanceId,callsign:this.callsign,engine:{name:'saaman',version:APPLICATION_BUILD.replace(/^SAAMAN /,''),schema:'saaman-1.1.9'},observer:this.observer}}
+    private identity(){return {instanceId:this.options.instanceId,callsign:this.callsign,engine:{name:'saaman',version:APPLICATION_BUILD.replace(/^SAAMAN /,''),schema:'saaman-1.1.9'},observer:this.observer||isTowerCallsign(this.callsign)}}
     private remember(){this.history.set(this.plan.revision,copy(this.plan));while(this.history.size>24)this.history.delete(this.history.keys().next().value!)}
     view(){return {...copy(this.plan),snapshot:this.plan.stale||this.now()-this.lastUpdated>=30000?null:copy(this.plan.snapshot)}}
     private serial<T>(action:()=>Promise<T>):Promise<T>{
@@ -87,6 +88,7 @@ export class SharedRelay {
         const callsign=String(t.source).toUpperCase()
         if(!/^[A-Z0-9_-]{1,20}$/.test(callsign)||callsign==='OFFLINE'||callsign==='DEMO')fail('Connect EuroScope before joining a shared room',503)
         this.callsign=callsign
+        if(isTowerCallsign(callsign)){this.pendingCommand=null;this.pendingPublish=null}
         return t
     }
     private applyCommand(command:any){
@@ -159,7 +161,7 @@ export class SharedRelay {
         try{
             const telemetry=await this.telemetry()
             await this.pollRoom()
-            if(!this.observer&&this.plan.relayRole==='sequencer')await this.publish(telemetry)
+            if(!this.observer&&!isTowerCallsign(this.callsign)&&this.plan.relayRole==='sequencer')await this.publish(telemetry)
             if(this.pendingCommand){
                 let response:any
                 try{response=await this.deps.send('POST',this.room+'/command',this.pendingCommand)}catch(e:any){if((e.status||e.response?.status)===409)this.pendingCommand=null;throw e}
@@ -175,6 +177,7 @@ export class SharedRelay {
         if(this.pendingCommand)fail('A previous command is awaiting delivery; check the room before retrying')
         if((message===undefined)===(acknowledge===undefined)||message!==undefined&&!(COORDINATION_MESSAGES as readonly string[]).includes(message))fail('Select a valid coordination message',400)
         await this.telemetry();await this.pollRoom()
+        if(isTowerCallsign(this.callsign))fail('Tower positions are observers only',403)
         const command=message!==undefined?{op:'coordination',action:'send',message:{id:this.id(),message,sender:this.options.instanceId,senderCallsign:this.callsign,at:this.now(),acknowledgedBy:[this.options.instanceId]}}:{op:'coordination',action:'ack',id:acknowledge,operator:this.options.instanceId}
         this.pendingCommand={...this.identity(),epoch:this.plan.epoch,revision:this.plan.revision,requestId:this.id(),cmd:command}
         let response:any
@@ -194,6 +197,7 @@ export class SharedRelay {
     edit(revision:number,nextEdits:any,nextConfig:any){return this.serial(async()=>{
         if(this.pendingCommand)fail('A previous change is awaiting delivery; check the sequence before editing again')
         if(this.observer)fail('Observer cannot edit',403)
+        await this.telemetry();if(isTowerCallsign(this.callsign))fail('Tower positions are observers only',403)
         const base=this.history.get(revision)
         if(!base)fail('Sequence changed; reload and retry')
         const config=validateConfig(nextConfig),edits=validateEdits(nextEdits)
@@ -201,7 +205,7 @@ export class SharedRelay {
         validateLockedEdits(base.snapshot,base.edits,edits,config)
         const difference=(before:any,after:any,keys:string[])=>keys.filter(k=>canonical(before[k])!==canonical(after[k])).map(key=>({key,before:before[key]??null,after:after[key]??null}))
         const changes={op:'plan',edits:difference(base.edits,edits,[...new Set([...Object.keys(base.edits),...Object.keys(edits)])]),operational:difference(base.config,config,[...OPERATIONAL_KEYS])}
-        await this.telemetry();await this.pollRoom()
+        await this.pollRoom()
         this.pendingCommand={...this.identity(),epoch:this.plan.epoch,revision:this.plan.revision,requestId:this.id(),cmd:changes}
         let response:any
         try{response=await this.deps.send('POST',this.room+'/command',this.pendingCommand);this.pendingCommand=null}
@@ -226,6 +230,7 @@ export class SharedRelay {
         return this.view()
     }
     async saveSettings(revision:number,settings:Record<string,unknown>){
+        await this.telemetry();if(isTowerCallsign(this.callsign))fail('Tower positions are observers only',403)
         if(this.plan.revision!==revision)fail('Shared settings changed; reload and retry')
         mergeSharedSettings(this.plan.config,settings)
         const expectedEpoch=this.plan.epoch,expectedSettingsRevision=this.settingsRevision

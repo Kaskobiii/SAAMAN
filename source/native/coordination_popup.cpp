@@ -26,17 +26,17 @@ void CoordinationPopup::Update(HWND owner,const Json& data,std::function<void(co
     const time_t seconds=static_cast<time_t>(milliseconds/1000);tm utc{};wchar_t clock[80]{};
     if(gmtime_s(&utc,&seconds)==0){wcsftime(clock,80,L"Sent %H:%M:%S UTC  \u00b7  %d %b %Y",&utc);sent=clock;}else sent=L"Send time unavailable";
     enabled=data.value("enabled",false);busy=data.value("busy",false);status=Text(detail);
-    if(status.empty())status=busy?L"Waiting for confirmation\u2026":enabled?L"Acknowledge when received.":L"Waiting for a fresh shared connection\u2026";
+    if(status.empty())status=busy?L"Waiting for confirmation\u2026":enabled?L"":L"Waiting for a fresh shared connection\u2026";
     current=incoming;acknowledge=std::move(callback);
     if(!hwnd){
         WNDCLASSW type{};type.hInstance=module;type.lpfnWndProc=Procedure;type.lpszClassName=PopupClass;type.hCursor=LoadCursorW(nullptr,IDC_ARROW);RegisterClassW(&type);
         dpi=owner?static_cast<int>(GetDpiForWindow(owner)):96;if(!dpi)dpi=96;
         const auto font=[&](int size,int weight){return CreateFontW(-Px(size),0,0,0,weight,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");};
         messageFont=font(23,FW_SEMIBOLD);headingFont=font(16,FW_SEMIBOLD);bodyFont=font(14,FW_NORMAL);
-        RECT rect{0,0,Px(540),Px(308)};AdjustWindowRectEx(&rect,WS_POPUP|WS_CAPTION,FALSE,WS_EX_CONTROLPARENT);
+        RECT rect{0,0,Px(540),Px(340)};AdjustWindowRectEx(&rect,WS_POPUP|WS_CAPTION,FALSE,WS_EX_CONTROLPARENT);
         hwnd=CreateWindowExW(WS_EX_CONTROLPARENT,PopupClass,L"AMAN coordination",WS_POPUP|WS_CAPTION|WS_CLIPCHILDREN,0,0,rect.right-rect.left,rect.bottom-rect.top,owner,nullptr,module,this);
         if(!hwnd)throw RequestError(500,"Could not open coordination window");
-        button=CreateWindowExW(0,L"BUTTON",L"Acknowledge",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,Px(356),Px(246),Px(160),Px(40),hwnd,reinterpret_cast<HMENU>(1),module,nullptr);
+        button=CreateWindowExW(0,L"BUTTON",L"Acknowledge",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,Px(190),Px(240),Px(160),Px(40),hwnd,reinterpret_cast<HMENU>(1),module,nullptr);
     }
     if(owner&&GetWindow(hwnd,GW_OWNER)!=owner)SetWindowLongPtrW(hwnd,GWLP_HWNDPARENT,reinterpret_cast<LONG_PTR>(owner));
     SetWindowTextW(button,busy?L"Acknowledging\u2026":L"Acknowledge");EnableWindow(button,enabled&&!busy);InvalidateRect(hwnd,nullptr,FALSE);InvalidateRect(button,nullptr,FALSE);
@@ -63,7 +63,7 @@ void CoordinationPopup::Paint(HDC dc){
     Label(dc,bodyFont,RGB(169,185,197),{Px(24),Px(83),Px(516),Px(106)},sent);
     Fill(dc,{Px(24),Px(124),Px(516),Px(220)},RGB(61,76,86));
     Label(dc,messageFont,RGB(249,250,251),{Px(40),Px(137),Px(500),Px(207)},message);
-    Label(dc,bodyFont,RGB(192,207,217),{Px(24),Px(247),Px(338),Px(297)},status);
+    Label(dc,bodyFont,RGB(192,207,217),{Px(24),Px(291),Px(516),Px(332)},status,DT_CENTER|DT_WORDBREAK);
 }
 LRESULT CALLBACK CoordinationPopup::Procedure(HWND window,UINT msg,WPARAM w,LPARAM l){
     auto* self=reinterpret_cast<CoordinationPopup*>(GetWindowLongPtrW(window,GWLP_USERDATA));
@@ -81,8 +81,8 @@ LRESULT CALLBACK CoordinationPopup::Procedure(HWND window,UINT msg,WPARAM w,LPAR
 }
 Json CoordinationPopup::Inspect(bool click){
     if(click&&button)SendMessageW(button,BM_CLICK,0,0);
-    RECT rect{},area{};if(hwnd){GetWindowRect(hwnd,&rect);GetWindowRect(GetWindow(hwnd,GW_OWNER),&area);}
-    return {{"message",current},{"sender",Utf8(sender)},{"sent",Utf8(sent)},{"busy",busy},{"enabled",button&&IsWindowEnabled(button)},{"visible",hwnd&&IsWindowVisible(hwnd)},{"topLevel",hwnd&&(GetWindowLongPtrW(hwnd,GWL_STYLE)&WS_CHILD)==0},{"owned",hwnd&&GetWindow(hwnd,GW_OWNER)!=nullptr},{"x",rect.left},{"y",rect.top},{"width",rect.right-rect.left},{"height",rect.bottom-rect.top},{"ownerX",area.left},{"ownerY",area.top},{"ownerWidth",area.right-area.left},{"ownerHeight",area.bottom-area.top}};
+    RECT rect{},area{},buttonRect{},client{};if(hwnd){GetWindowRect(hwnd,&rect);GetWindowRect(GetWindow(hwnd,GW_OWNER),&area);GetClientRect(hwnd,&client);}if(button){GetWindowRect(button,&buttonRect);MapWindowPoints(HWND_DESKTOP,hwnd,reinterpret_cast<POINT*>(&buttonRect),2);}
+    return {{"message",current},{"sender",Utf8(sender)},{"sent",Utf8(sent)},{"status",Utf8(status)},{"buttonCenterX",(buttonRect.left+buttonRect.right)/2},{"clientCenterX",client.right/2},{"busy",busy},{"enabled",button&&IsWindowEnabled(button)},{"visible",hwnd&&IsWindowVisible(hwnd)},{"topLevel",hwnd&&(GetWindowLongPtrW(hwnd,GWL_STYLE)&WS_CHILD)==0},{"owned",hwnd&&GetWindow(hwnd,GW_OWNER)!=nullptr},{"x",rect.left},{"y",rect.top},{"width",rect.right-rect.left},{"height",rect.bottom-rect.top},{"ownerX",area.left},{"ownerY",area.top},{"ownerWidth",area.right-area.left},{"ownerHeight",area.bottom-area.top}};
 }
 void CoordinationPopup::Capture(const std::filesystem::path& file){
     if(!hwnd)return;RECT rect{};GetClientRect(hwnd,&rect);const int width=rect.right,height=rect.bottom;

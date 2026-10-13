@@ -1,4 +1,4 @@
-# SAAMAN native plugin, 1.3.4
+# SAAMAN native plugin, 1.3.5
 
 SAAMAN.dll is an x86 EuroScope plugin with Win32 child panels hosting the AMAN UI
 through Microsoft WebView2. The calculation engine is editable TypeScript.
@@ -99,3 +99,7 @@ senderCallsign is optional, immutable display metadata captured from local SDK
 source at send time. sender retains instance identity for self/ack filtering.
 The existing at timestamp is rendered in UTC. Older messages have an explicit
 unavailable sender rather than a guessed callsign. No room schema change is required.
+
+Context defaults to shared vatIRIS callsign mode on VATSIM live. Loading options
+without a shared field keeps that default; explicit saved local mode is retained.
+Native context checks cover fresh defaults, older partial options and local reload.

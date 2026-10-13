@@ -16,7 +16,7 @@ import { DEFAULT_CONFIG, RUNWAYS, STATE_NAMES, STATE_COLORS, delayLabel, runEngi
     reconcileRunwayAssignments, type EngineConfig, type EngineSnapshot, type EngineFlight, type FlightEdit, type Telemetry } from '@/maestro-engine'
 const auth = useAuthStore()
 const nativeInfo=(window as any).__SAAMAN_HOST__
-const connectionDraft=reactive({shared:!!nativeInfo.shared,authProvider:nativeInfo.authProvider||'vatiris-callsign',backendBaseUrl:nativeInfo.backendBaseUrl||'https://backend.vatiris.se',controllerKey:'',controllerCid:nativeInfo.controllerCid?String(nativeInfo.controllerCid):'',network:nativeInfo.relay?.network||'sweatbox1',session:nativeInfo.relay?.session||'essa-test-01',channel:nativeInfo.relay?.channel||'saaman'})
+const connectionDraft=reactive({shared:nativeInfo.shared!==false,authProvider:nativeInfo.authProvider||'vatiris-callsign',backendBaseUrl:nativeInfo.backendBaseUrl||'https://backend.vatiris.se',controllerKey:'',controllerCid:nativeInfo.controllerCid?String(nativeInfo.controllerCid):'',network:nativeInfo.relay?.network||'live',session:nativeInfo.relay?.session||'essa-test-01',channel:nativeInfo.relay?.channel||'saaman'})
 const connectionSaving=ref(false)
 async function saveConnection(){if(connectionSaving.value)return;connectionSaving.value=true;try{
     for(const value of [connectionDraft.session,connectionDraft.channel])if(!/^[a-z0-9][a-z0-9_-]{0,47}$/.test(value))throw new Error('Use letters, numbers, hyphens or underscores for the exercise and room')
@@ -857,14 +857,14 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
             <div class="dialog-title" @pointerdown="startDialogDrag">{{dialog==='configuration'?'RUNWAY CONFIGURATION':dialog==='information'?current?.callsign:dialog==='relative-side'?`INSERT ${relativeOperation.toUpperCase()}`:dialog==='insert'?'MANUALLY ADD FLIGHT':dialog.replaceAll('-',' ').toUpperCase()}}<button @click="dialog=''">×</button></div>
             <template v-if="dialog==='setup'">
                 <p>Airport <strong>ESSA</strong></p>
-                <label>Connection <select aria-label="Connection mode" v-model="connectionDraft.shared"><option :value="false">Local EuroScope</option><option :value="true">Shared backend</option></select></label>
+                <label>Connection <select aria-label="Connection mode" v-model="connectionDraft.shared"><option :value="true">Shared backend</option><option :value="false">Local EuroScope</option></select></label>
                 <template v-if="connectionDraft.shared">
                     <label>Server <select aria-label="Backend authentication" v-model="connectionDraft.authProvider"><option value="vatiris-callsign">vatIRIS · EuroScope callsign</option><option value="keys">Controller key</option></select></label>
                     <label>Backend address <input aria-label="Backend address" v-model="connectionDraft.backendBaseUrl" maxlength="300" spellcheck="false"></label>
                     <label v-if="connectionDraft.authProvider==='keys'">Controller key <input aria-label="Controller key" type="password" autocomplete="off" v-model="connectionDraft.controllerKey" maxlength="50" placeholder="Enter key, or leave blank to keep saved key"></label>
                     <p v-if="connectionDraft.authProvider==='keys'">Your key is saved securely for this Windows user and server.</p>
                     <p v-if="auth.loginError">{{auth.loginError}}</p>
-                    <label>Network <select aria-label="Shared network" v-model="connectionDraft.network"><option value="sweatbox1">SweatBox 1</option><option value="sweatbox2">SweatBox 2</option><option value="live">VATSIM live</option></select></label>
+                    <label>Network <select aria-label="Shared network" v-model="connectionDraft.network"><option value="live">VATSIM live</option><option value="sweatbox1">SweatBox 1</option><option value="sweatbox2">SweatBox 2</option></select></label>
                     <template v-if="connectionDraft.authProvider==='vatiris-callsign'"><p>One shared ESSA sequence per network. Uses your connected EuroScope callsign.</p><label v-if="connectionDraft.network!=='live'">Supervisor CID (optional) <input aria-label="Controller CID" v-model="connectionDraft.controllerCid" inputmode="numeric" maxlength="10" placeholder="Only needed for supervision in training"></label></template>
                     <template v-else><label>Exercise <input aria-label="Shared exercise" v-model="connectionDraft.session" maxlength="48"></label><label>Room <input aria-label="AMAN room" v-model="connectionDraft.channel" maxlength="48"></label></template>
                 </template>

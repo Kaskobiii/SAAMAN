@@ -1,6 +1,9 @@
-# SAAMAN 1.3.4 existing vatIRIS API adapter
+# SAAMAN 1.3.5 existing vatIRIS API adapter
 
 The default shared connection uses the existing callsign-based vatIRIS AMAN API.
+Fresh settings select shared mode and VATSIM live. Saved explicit local or
+training choices are respected. Shared operation requires the backend service;
+local EuroScope mode does not.
 No new backend endpoint, backend code change, account-database lookup, OAuth
 application, controller key or AMAN login window is needed.
 
@@ -93,3 +96,10 @@ and acknowledgement identities remain unchanged. LegacyRelay carries the field
 with the checkpoint and command through the unchanged API. Send time remains the
 original at timestamp, retained across polling, retries and ownership handover.
 The separate native notification window does not connect to the backend itself.
+
+The automated compatibility suite downloads the real upstream AMAN router and
+checks its recorded commit/checksum before testing SAAMAN over local HTTP. Six
+checks cover sync/edit/acknowledgement/settings/ownership, retry, network isolation,
+observation and existing backend authorization. The external controller feed is
+controlled test data; no production backend write or database is involved.
+See [compatibility testing](../docs/BACKEND-COMPATIBILITY.md).

@@ -54,7 +54,7 @@ Context::Context(std::filesystem::path folder,std::filesystem::path stateFolder)
     profile=std::filesystem::path(local)/L"SAAMAN"/L"WebViewProfile-software";
     const auto legacy=LegacyFolders(directory);
     try{
-        const auto options=LoadSaved(storage,legacy,L"SAAMAN.json");if(options.is_object()){shared=options.value("shared",false);backend=options.value("backendBaseUrl",backend);authProvider=options.value("authProvider",backend=="https://backend.vatiris.se"?std::string("vatiris-callsign"):std::string("keys"));
+        const auto options=LoadSaved(storage,legacy,L"SAAMAN.json");if(options.is_object()){shared=options.value("shared",shared);backend=options.value("backendBaseUrl",backend);authProvider=options.value("authProvider",backend=="https://backend.vatiris.se"?std::string("vatiris-callsign"):std::string("keys"));
             if(options.contains("relay")&&options["relay"].is_object())relay=options["relay"];
             if(!ValidBackend(backend))backend="https://backend.vatiris.se";
             if(authProvider!="keys"&&authProvider!="vatiris"&&authProvider!="registered-cid"&&authProvider!="vatiris-callsign")authProvider="vatiris-callsign";

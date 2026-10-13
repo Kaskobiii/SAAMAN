@@ -36,6 +36,16 @@ int RunTests(int argc,wchar_t** argv){
     context.Request("timing:set",{{"airport","ESSA"},{"generatedAt",saaman::Now()},{"flights",saaman::Json::array({{{"callsign","SAS1015"},{"deltaSeconds",0},{"sta",5000},{"eta",0}}})}},false);
     CHECK(context.timing["SAS1015"]==0);
     const auto reloadRoot=std::filesystem::path(argv[1])/(L"reload-regression-"+std::to_wstring(saaman::Now()));
+    // Fresh settings start in shared vatIRIS/live mode. An explicit saved
+    // local choice remains local on reload, including an older profile.
+    const auto defaultsFolder=reloadRoot/L"startup-defaults";
+    saaman::Context defaults(defaultsFolder);const auto defaultsInfo=defaults.Request("host:info",saaman::Json::object(),false);
+    CHECK(defaultsInfo["shared"]==true);CHECK(defaultsInfo["authProvider"]=="vatiris-callsign");CHECK(defaultsInfo["backendBaseUrl"]=="https://backend.vatiris.se");CHECK(defaultsInfo["relay"]["network"]=="live");
+    defaults.Request("mode:set",{{"shared",false}},false);
+    saaman::Context explicitLocal(defaultsFolder);CHECK(!explicitLocal.shared);CHECK(explicitLocal.relay["network"]=="live");
+    const auto partialFolder=reloadRoot/L"older-options";std::filesystem::create_directories(partialFolder);
+    {std::ofstream file(partialFolder/L"SAAMAN.json");file<<saaman::Json({{"backendBaseUrl","https://backend.vatiris.se"}}).dump();}
+    saaman::Context olderOptions(partialFolder);CHECK(olderOptions.shared);CHECK(olderOptions.relay["network"]=="live");
     const auto oldDLL=reloadRoot/L"releases"/L"old",newDLL=reloadRoot/L"releases"/L"new",sharedState=reloadRoot/L"state";
     std::filesystem::create_directories(oldDLL);std::filesystem::create_directories(newDLL);
     saaman::Context before(oldDLL);before.shared=false;before.plan=context.plan;
@@ -49,11 +59,11 @@ int RunTests(int argc,wchar_t** argv){
     // Loading a pre-1.0.17 config must not make a normal Resume look like an
     // unauthorized change to the newly introduced supervised setting.
     const auto resumeFolder=reloadRoot/L"legacy-resume";std::filesystem::create_directories(resumeFolder);
-    saaman::Context legacyResume(resumeFolder);legacyResume.plan=context.plan;
+    saaman::Context legacyResume(resumeFolder);legacyResume.shared=false;legacyResume.plan=context.plan;
     legacyResume.plan["config"].erase("performanceModel");
     legacyResume.plan["snapshot"]={{"timestamp",saaman::Now()},{"flights",saaman::Json::array({{{"callsign","FIN1NX"},{"mode","missed"},{"state",2}}})}};
     legacyResume.plan["edits"]={{"FIN1NX",{{"mode","missed"}}}};legacyResume.SavePlan();
-    saaman::Context restoredResume(resumeFolder);CHECK(restoredResume.plan["config"]["performanceModel"]=="euroscope");
+    saaman::Context restoredResume(resumeFolder);restoredResume.shared=false;CHECK(restoredResume.plan["config"]["performanceModel"]=="euroscope");
     CHECK(restoredResume.plan["edits"]["FIN1NX"]["mode"]=="missed");
     restoredResume.Request("plan:claim",saaman::Json::object(),false);
     auto resumedEdits=restoredResume.plan["edits"];resumedEdits["FIN1NX"]["mode"]="sequenced";
@@ -62,12 +72,12 @@ int RunTests(int argc,wchar_t** argv){
     auto unauthorizedModel=restoredResume.plan["config"];unauthorizedModel["performanceModel"]="openap";
     denied=false;try{restoredResume.Request("plan:update",{{"revision",restoredResume.plan["revision"]},{"config",unauthorizedModel}},false);}catch(const saaman::RequestError& e){denied=e.status==403;}CHECK(denied);
     const auto seedFolder=reloadRoot/L"seed";std::filesystem::create_directories(seedFolder);
-    saaman::Context seeded(seedFolder);seeded.telemetry={{"source","SDK"},{"activeRunways",{{"arrivals",saaman::Json::array({"ESSA/01L"})},{"departures",saaman::Json::array({"ESSA/01R"})}}}};
+    saaman::Context seeded(seedFolder);seeded.shared=false;seeded.telemetry={{"source","SDK"},{"activeRunways",{{"arrivals",saaman::Json::array({"ESSA/01L"})},{"departures",saaman::Json::array({"ESSA/01R"})}}}};
     seeded.Request("plan:init",{{"config",config}},false);
     CHECK(seeded.plan["config"]["active"][0]=="ESSA/01L");CHECK(seeded.plan["config"]["departureRunway"]=="ESSA/01R");
     seeded.telemetry["activeRunways"]["arrivals"]=saaman::Json::array({"ESSA/26"});seeded.SeedRunwayConfig();CHECK(seeded.plan["config"]["active"][0]=="ESSA/01L");
     seeded.plan["snapshot"]=snapshot;seeded.SavePlan();
-    saaman::Context seededAgain(seedFolder);CHECK(!seededAgain.runwayConfigInitialized);CHECK(seededAgain.plan["config"]["active"][0]=="ESSA/01L");
+    saaman::Context seededAgain(seedFolder);seededAgain.shared=false;CHECK(!seededAgain.runwayConfigInitialized);CHECK(seededAgain.plan["config"]["active"][0]=="ESSA/01L");
     seededAgain.telemetry={{"source","SDK"},{"activeRunways",{{"arrivals",saaman::Json::array({"ESSA/26"})},{"departures",saaman::Json::array({"ESSA/19L"})}}}};seededAgain.SeedRunwayConfig();
     CHECK(seededAgain.plan["config"]["active"][0]=="ESSA/26");CHECK(seededAgain.plan["config"]["departureRunway"]=="ESSA/19L");CHECK(seededAgain.plan["snapshot"]==snapshot);
     denied=false;try{saaman::ReadVatsimUser({{"url","https://example.com/api/user"},{"token","test-token"}});}catch(const saaman::RequestError& e){denied=e.status==400;}CHECK(denied);

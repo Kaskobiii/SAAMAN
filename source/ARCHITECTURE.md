@@ -1,4 +1,4 @@
-# SAAMAN native plugin, 1.3.7
+# SAAMAN native plugin, 1.3.8
 
 SAAMAN.dll is an x86 EuroScope plugin with Win32 child panels hosting the AMAN UI
 through Microsoft WebView2. The calculation engine is editable TypeScript.
@@ -105,6 +105,10 @@ Context defaults to shared vatIRIS callsign mode on VATSIM live. Loading options
 without a shared field keeps that default; explicit saved local mode is retained.
 Native context checks cover fresh defaults, older partial options and local reload.
 
-## Captured-speed landing buffer
+## Live ETA and accepted landing buffer
 
-The high-speed supervisory setting defaults to six minutes at 450 kt. Above 300 kt, the landing buffer adds `(groundspeed - 300) / 150 * max(0, highSpeedBuffer - normalBuffer)` to the current phase base, rounded to seconds and capped at 15 minutes. The groundspeed is stored in `euroscopeBaseline`; retained estimates use that captured speed rather than each radar update. Older baselines without it retain their prior speed-independent behavior until Recompute. `feederBufferMinutes` records the separate phase buffer, so speed compensation cannot lengthen feeder ETA or create an initial instruction by being added twice.
+The high-speed supervisory setting defaults to six minutes at 450 kt. Above 300 kt, the landing buffer adds `(groundspeed - 300) / 150 * max(0, highSpeedBuffer - normalBuffer)` to the current phase base, rounded to seconds and capped at 15 minutes. Every valid update uses current groundspeed and EuroScope landing EET for public `eta` / `liveBufferedEta`. Stale or invalid observations retain the last valid public ETA; a zero-minute airborne EET remains usable for the forecast.
+
+Initial capture and explicit Recompute store the accepted ETA, raw estimate, groundspeed and buffers in `euroscopeBaseline`. Allocation uses that baseline rather than the public ETA: `runEngine` copies previous checkpoint flights with their accepted ETA for scheduling, then exposes the live ETA after allocation. The caller's checkpoint is never mutated. Upgrades preserve older accepted baselines. Normal timeline labels continue using STA or STA-FF. `runwayDelay` shows the live STA-minus-ETA comparison while accepted instruction policy remains unchanged.
+
+`feederBufferMinutes` records the separate phase buffer, so speed compensation cannot lengthen feeder ETA or create an initial instruction by being added twice. Feeder ETA continues following observed feeder timing until passage. Accepted routes advance on observed passage rather than rerouting.

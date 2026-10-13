@@ -601,6 +601,11 @@ export function retimeEdits(snapshot:EngineSnapshot,edits:Record<string,FlightEd
 export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<string, FlightEdit>, previous?: EngineSnapshot): EngineSnapshot {
     if (previous && input.timestamp <= previous.timestamp) return previous
     const now = input.timestamp
+    const previousEtas=new Map(previous?.flights.map(f=>[f.callsign,f.eta])||[])
+    // Public ETA is a live forecast. Schedule against the accepted capture,
+    // including when loading an older checkpoint, without mutating that checkpoint.
+    if(config.timingModel==='euroscope-buffer'&&input.source!=='DEMO'&&previous)
+        previous={...previous,flights:previous.flights.map(f=>f.euroscopeBaseline?{...f,eta:f.euroscopeBaseline.eta}:f)}
     const originalEdits=edits
     edits=migrateSequenceEdits(edits,previous)
     const retiredTargets=new Set(Object.keys(originalEdits).filter(name=>originalEdits[name].target!==undefined&&edits[name]?.target===undefined))
@@ -658,13 +663,10 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         if(feederObservation)prediction={...prediction,feeder:feederObservation.feeder,feederSeconds:feederObservation.seconds,passedFeeder:feederObservation.passed}
         const modelFeederSeconds=prediction.feederSeconds??p.route.find(r=>r.seconds>=0&&FEEDERS.some(g=>g.airport===p.arrival&&(g.fixes as readonly string[]).includes(r.name)))?.seconds??prediction.seconds-(config.defaultFeederMinutes??15)*60
         const manualFeederShift=e.etaFfOverride!==undefined&&!prediction.passedFeeder&&!old?.passedFeeder?e.etaFfOverride-(now+ms(modelFeederSeconds)):0
-        const usableEuroScope=p.groundspeed>=60&&p.altitude>=350&&(p.positionAgeSeconds??0)<=15&&p.landingSeconds>0&&p.route.length>0
+        const usableEuroScope=p.groundspeed>=60&&p.altitude>=350&&(p.positionAgeSeconds??0)<=15&&Number.isFinite(p.landingSeconds)&&p.landingSeconds>=0&&p.route.length>0
         const liveEuroscopeEta=bufferMode&&usableEuroScope?now+ms(p.landingSeconds):undefined
-        const captureBaseline=bufferMode&&usableEuroScope&&(!old?.euroscopeBaseline||recompute||resumed)
-        // Speed scaling uses the accepted capture, never a fluctuating live GS.
-        // Existing baselines keep the old speed-independent buffer until Recompute.
-        const bufferGroundspeed=captureBaseline?p.groundspeed:old?.euroscopeBaseline?.groundspeed??Math.min(p.groundspeed,300)
-        const bufferFlight={...p,groundspeed:bufferGroundspeed,...(feederObservation?{route:feederObservation.feeder?[{name:feederObservation.feeder,seconds:feederObservation.seconds}]:[]}: {})}
+        const captureBaseline=bufferMode&&usableEuroScope&&p.landingSeconds>0&&(!old?.euroscopeBaseline||recompute||resumed)
+        const bufferFlight={...p,...(feederObservation?{route:feederObservation.feeder?[{name:feederObservation.feeder,seconds:feederObservation.seconds}]:[]}: {})}
         const selectedBufferMinutes=euroscopeBufferMinutes(bufferFlight,config,resumed||requeued?undefined:old)
         const feederBufferMinutes=euroscopeFeederBufferMinutes(bufferFlight,config,resumed||requeued?undefined:old)
         const liveEuroscopeEtaFf=bufferMode?e.etaFfOverride??now+ms(modelFeederSeconds):undefined
@@ -1120,6 +1122,13 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         landings.push({callsign:f.callsign,runway:f.landingRunway??edits[f.callsign]?.runway??`${f.arrival}/${f.runway}`,time:Math.min(now,f.sta)})
     const wind=windConfig(currentConfig,'ESSA',winds,now)
     const visibleFlights=flights.filter(f=>f.state!==4||now-f.sta<300000),visibleCalls=new Set(visibleFlights.map(f=>f.callsign))
+    // Expose the latest valid estimate only after allocation. STA, STA-FF,
+    // captured history and accepted instructions retain their scheduling anchors.
+    if(config.timingModel==='euroscope-buffer'&&input.source!=='DEMO')for(const f of visibleFlights)
+        if(f.euroscopeBaseline&&!manualCalls.has(f.callsign)){
+            f.eta=f.state!==4&&f.liveBufferedEta!==undefined?f.liveBufferedEta:previousEtas.get(f.callsign)??f.eta
+            if(f.state!==4)f.runwayDelay=Math.round((f.sta-f.eta)/1000)
+        }
     const unlisted=input.flights.filter(f=>!visibleCalls.has(f.callsign))
     return { timestamp: now, source: input.source,simulation:input.simulation, flights:visibleFlights,terminatedCallsigns:input.terminatedCallsigns,knownFlights:input.knownFlights, diagnostics, slotsKey, winds,grounded,observedCallsigns:input.flights.map(f=>f.callsign),runways:input.runways,activeRunways:input.activeRunways,unlistedTelemetry:unlisted.length?unlisted:undefined,
         wind:{direction:wind.surfaceWindDirection,speed:wind.surfaceWindSpeed,auto:config.surfaceWindAuto!==false},landings }

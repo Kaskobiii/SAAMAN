@@ -33,7 +33,7 @@ public:
         host=std::make_unique<Host>(reinterpret_cast<HINSTANCE>(&__ImageBase),context);
         WNDCLASSW relay{};relay.hInstance=reinterpret_cast<HINSTANCE>(&__ImageBase);relay.lpfnWndProc=RedrawProcedure;relay.lpszClassName=L"SAAMANRadarRefreshRelay";RegisterClassW(&relay);
         redrawWindow=CreateWindowExW(0,relay.lpszClassName,L"SAAMAN repaint relay",0,0,0,0,0,HWND_MESSAGE,nullptr,relay.hInstance,this);host->SetRadarRefreshTarget(redrawWindow,RedrawMessage);
-        Report(std::string("Loaded ")+SAAMAN_VERSION+". Click the COTS/AMAN launcher on the radar. .saaman supervisor opens the supervisory panel.");
+        Report(std::string("Loaded ")+SAAMAN_VERSION+". .saaman · .saaman supervisor");
     }
     ~Plugin() override {
         for(auto* screen:screens)screen->Deactivate();

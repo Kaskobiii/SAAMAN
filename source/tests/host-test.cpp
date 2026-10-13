@@ -14,17 +14,23 @@ int wmain(int argc,wchar_t** argv){
     // Optional isolated fixtures for the real renderer's controller/interval UI.
     {std::ifstream fixtureFile(folder/L"host-test-fixture.json");if(fixtureFile){saaman::Json fixture;fixtureFile>>fixture;
         for(const auto field:{"source","controllerPositionId","controllers","runways"})if(fixture.contains(field))context->telemetry[field]=fixture[field];}}
-    saaman::Host host(GetModuleHandleW(nullptr),context);host.Show();
+    saaman::Host host(GetModuleHandleW(nullptr),context);host.Pulse();
     for(int i=0;i<60;i++){
         Sleep(500);
         if(std::filesystem::exists(folder/L"host-test-failure.txt")&&std::filesystem::last_write_time(folder/L"host-test-failure.txt")>=started){std::cerr<<"Native host initialization failed\n";return 1;}
         if(std::filesystem::exists(folder/L"host-capture-status.txt")&&std::filesystem::last_write_time(folder/L"host-capture-status.txt")>=started){
             std::ifstream textFile(folder/L"host-ui.txt");const std::string text((std::istreambuf_iterator<char>(textFile)),{});
             if(text.find("SAAMAN_TEST")==std::string::npos||text.find("SAAMAN") == std::string::npos){std::cerr<<"Native UI did not render telemetry\n"<<text;return 1;}
+            std::ifstream ready(folder/L"aman-first-open.txt");int controllerVisible=-1;ready>>controllerVisible;if(controllerVisible!=0||host.IsVisible()){std::cerr<<"Background startup opened the AMAN pane\n";return 1;}
+            const auto backgroundPanel=host.PanelHandle();
+            {std::lock_guard lock(context->mutex);if(context->plan["snapshot"].is_null()){std::cerr<<"Background startup did not calculate before first open\n";return 1;}}
+            // Repeated timer/attachment events must not create a second worker.
+            RECT backgroundArea{};GetClientRect(GetParent(backgroundPanel),&backgroundArea);host.Attach(GetParent(backgroundPanel),backgroundArea);host.Pulse();host.Show();
+            for(int wait=0;wait<20&&!host.IsVisible();wait++)Sleep(50);
+            if(!host.IsVisible()||host.PanelHandle()!=backgroundPanel){std::cerr<<"Opening AMAN did not reuse its background connection\n";return 1;}
             saaman::Json operations;
-            for(int wait=0;wait<50;wait++){std::ifstream file(folder/L"operations-ui.json");if(file){try{file>>operations;if(operations.contains("ok"))break;}catch(...){}}Sleep(100);}
+            for(int wait=0;wait<100;wait++){std::ifstream file(folder/L"operations-ui.json");if(file){try{file>>operations;if(operations.contains("ok"))break;}catch(...){}}Sleep(100);}
             if(!operations.value("ok",false)){std::cerr<<"AMAN operations UI failed: "<<operations.dump()<<"\n";return 1;}
-            std::ifstream ready(folder/L"aman-first-open.txt");int controllerVisible=0;ready>>controllerVisible;if(controllerVisible!=1){std::cerr<<"AMAN controller was not visible on first open\n";return 1;}
             host.Show(true);bool supervisorReady=false;for(int wait=0;wait<100;wait++){Sleep(100);std::ifstream supervisory(folder/L"supervisor-first-open.txt");int visible=0;if(supervisory>>visible&&visible==1){supervisorReady=true;break;}}if(!supervisorReady){std::cerr<<"Supervision was not visible on first open\n";return 1;}
             const HWND panel=host.PanelHandle();if(!panel||!GetParent(panel)||(GetWindowLongPtrW(panel,GWL_STYLE)&WS_CHILD)==0||(GetWindowLongPtrW(panel,GWL_STYLE)&(WS_POPUP|WS_CAPTION))!=0){std::cerr<<"AMAN is not an embedded child panel\n";return 1;}
             // Simulate fresh radar backbuffers, without resizing or WM_PAINT.

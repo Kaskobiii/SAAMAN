@@ -9,6 +9,7 @@ import {configureRelayAuth,leaveSharedRoom,suspendSharedRoom} from '@/native-tra
 import {sharedSettings} from '@/maestro-settings'
 import {feederCoverage,type ControllerPresence} from '@/maestro-feeder-coverage'
 import {saveConnectionSettings} from '@/maestro-connection'
+import {isTowerCallsign} from '@/callsign-identity'
 
 import {STAR_PROFILES,STAR_SOURCE} from '@/maestro-star-prediction'
 import { useAuthStore, backendBaseUrl } from '@/stores/auth'
@@ -179,7 +180,8 @@ let pollingTimer: ReturnType<typeof setInterval>
 let demoEpoch = Date.now()
 const isMaster = computed(() => demo.value || (localPreview && masterCid.value === 0) || masterCid.value === Number(auth.user?.cid))
 const stale = computed(() => !sequence.value || now.value - sequence.value.timestamp > 30000)
-const editable = computed(() => (demo.value||localPreview?isMaster.value:auth.ready&&['sequencer','editor'].includes(sharedRole.value)) && !busy.value && !stale.value)
+const towerController=computed(()=>isTowerCallsign(auth.user?.callsign||localCoverage.value.own.callsign||''))
+const editable = computed(() => !towerController.value&&(demo.value||localPreview?isMaster.value:auth.ready&&['sequencer','editor'].includes(sharedRole.value)) && !busy.value && !stale.value)
 const all = computed(() => (sequence.value?.flights || []).filter(f=>f.arrival==='ESSA'))
 const diagnosticFlights=computed(()=>all.value.filter(f=>f.state!==4&&(f.issue||f.dataWarnings?.length||f.trajectory?.feasible===false||f.maximumDelayExceeded)))
 const sequenced = computed(() => all.value.filter(f => f.mode === 'sequenced' && !f.issue && !f.lost && f.state !== 4))
@@ -217,8 +219,8 @@ const relativeAnchor=ref('')
 const arrivalOptions=computed(()=>{const visible=all.value.filter(f=>f.state!==4&&!f.lost&&!f.issue&&f.callsign!==relativeAnchor.value);return [...visible,...(sequence.value?.knownFlights??[]).filter(f=>f.callsign!==relativeAnchor.value&&!all.value.some(p=>p.callsign===f.callsign))]})
 const operatorId=String(nativeInfo.instanceId||auth.user?.cid||'local')
 const coordinationBaseline=ref<Set<string>|null>(null)
-const canCoordinate=computed(()=>!localPreview&&!demo.value&&auth.ready&&!busy.value&&!stale.value&&sharedRole.value!=='disconnected')
-const pendingCoordination=computed(()=>config.value.coordinations?.find(m=>m.sender!==operatorId&&!coordinationBaseline.value?.has(m.id)&&!m.acknowledgedBy.includes(operatorId)))
+const canCoordinate=computed(()=>!towerController.value&&!localPreview&&!demo.value&&auth.ready&&!busy.value&&!stale.value&&sharedRole.value!=='disconnected')
+const pendingCoordination=computed(()=>towerController.value?undefined:config.value.coordinations?.find(m=>m.sender!==operatorId&&!coordinationBaseline.value?.has(m.id)&&!m.acknowledgedBy.includes(operatorId)))
 const coordinationError=ref('')
 const coordinationAcknowledging=ref(false)
 // Only the existing AMAN worker owns the relay. The separate native popup
@@ -848,7 +850,6 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
         <button :disabled="!editable" @click="showEtaFf">Change ETA-FF</button><button :disabled="!editable" @click="showMaximumDelay">Maximum delay ▸</button>
         <button :disabled="!editable" @click="showRelativeMenu('arrival')">Insert arrival ▸</button>
         <template v-if="view==='Runway'"><button :disabled="!editable" @click="showRelativeMenu('closure')">Insert closure ▸</button><button :disabled="!editable" @click="showRelativeMenu('gap')">Insert gap ▸</button></template>
-        <small v-if="current.missedRecovery">Resumed missed approach · use Insert arrival to select its position</small><small v-else-if="current.state===3">Frozen · drag to gain or restore time</small><small v-else-if="locked(current)">Super Stable · drag to gain or restore time</small>
     </div>
     <div v-if="menu==='timeline'" class="popup timeline-menu" ref="popupElement"  :style="{left:`${popupPosition.x}px`,top:`${popupPosition.y}px`}"><div class="menu-title" @pointerdown="startPopupDrag">{{slotDraft.runway}} · {{slotDraft.start}} UTC<button @click="menu=''">×</button></div><button data-menu="add-flight" @click="insertCallsign='';openDialog('insert')">Manually add flight</button><template v-if="view==='Runway'"><button data-menu="closure" @click="insertInterval('closure')">Insert closure</button><button data-menu="gap" @click="insertInterval('gap')">Insert gap</button></template></div>
     <div v-if="menu==='coordination'" class="popup coordination-menu" ref="popupElement" :style="{left:`${popupPosition.x}px`,top:`${popupPosition.y}px`}"><div class="menu-title" @pointerdown="startPopupDrag">Coordinations<button @click="menu=''">×</button></div><small v-if="localPreview||demo">Join a shared vatIRIS room to coordinate with other operators.</small><button v-for="message in COORDINATION_MESSAGES" :key="message" :disabled="!canCoordinate" @click="sendCoordination(message)">{{message}}</button></div>
@@ -862,13 +863,12 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
                     <label>Server <select aria-label="Backend authentication" v-model="connectionDraft.authProvider"><option value="vatiris-callsign">vatIRIS · EuroScope callsign</option><option value="keys">Controller key</option></select></label>
                     <label>Backend address <input aria-label="Backend address" v-model="connectionDraft.backendBaseUrl" maxlength="300" spellcheck="false"></label>
                     <label v-if="connectionDraft.authProvider==='keys'">Controller key <input aria-label="Controller key" type="password" autocomplete="off" v-model="connectionDraft.controllerKey" maxlength="50" placeholder="Enter key, or leave blank to keep saved key"></label>
-                    <p v-if="connectionDraft.authProvider==='keys'">Your key is saved securely for this Windows user and server.</p>
                     <p v-if="auth.loginError">{{auth.loginError}}</p>
                     <label>Network <select aria-label="Shared network" v-model="connectionDraft.network"><option value="live">VATSIM live</option><option value="sweatbox1">SweatBox 1</option><option value="sweatbox2">SweatBox 2</option></select></label>
-                    <template v-if="connectionDraft.authProvider==='vatiris-callsign'"><p>One shared ESSA sequence per network. Uses your connected EuroScope callsign.</p><label v-if="connectionDraft.network!=='live'">Supervisor CID (optional) <input aria-label="Controller CID" v-model="connectionDraft.controllerCid" inputmode="numeric" maxlength="10" placeholder="Only needed for supervision in training"></label></template>
+                    <template v-if="connectionDraft.authProvider==='vatiris-callsign'"><label v-if="connectionDraft.network!=='live'">Supervisor CID (optional) <input aria-label="Controller CID" v-model="connectionDraft.controllerCid" inputmode="numeric" maxlength="10"></label></template>
                     <template v-else><label>Exercise <input aria-label="Shared exercise" v-model="connectionDraft.session" maxlength="48"></label><label>Room <input aria-label="AMAN room" v-model="connectionDraft.channel" maxlength="48"></label></template>
                 </template>
-                <button :disabled="connectionSaving" @click="saveConnection">Save connection</button><button @click="chooseMode('DEMO')">Demo</button><button @click="chooseMode('MASTER')">{{localPreview?'Live · EuroScope':'Join shared room'}}</button><button v-if="!localPreview" @click="chooseMode('SLAVE')">Observe only</button>
+                <button :disabled="connectionSaving" @click="saveConnection">Save connection</button><button @click="chooseMode('DEMO')">Demo</button><button :disabled="towerController" @click="chooseMode('MASTER')">{{localPreview?'Live · EuroScope':'Join shared room'}}</button><button v-if="!localPreview" @click="chooseMode('SLAVE')">Observe only</button>
                 <p>{{localPreview?'Local sequence on this computer.':nativeInfo.authProvider==='vatiris-callsign'?`${sharedRole} · ${nativeInfo.relay.network} / ESSA`:`${sharedRole} · ${nativeInfo.relay.network} / ${nativeInfo.relay.session} / ${nativeInfo.relay.channel}`}}</p>
             </template>
             <template v-else-if="dialog==='configuration'||dialog==='rates'">

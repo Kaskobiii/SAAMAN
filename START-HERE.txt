@@ -1,7 +1,8 @@
-SAAMAN 1.3.5
+SAAMAN 1.3.6
 Unload the previous DLL before loading SAAMAN.dll.
 
 Fresh settings default to shared vatIRIS mode and VATSIM live.
+The connection starts automatically on load/login, even with the pane closed.
 Saved local/training choices remain available. Read docs/user-guide.html for
 the short controller guide; docs/user-guide-wiki.html is ready for wiki editing.
 

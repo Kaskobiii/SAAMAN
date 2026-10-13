@@ -13,13 +13,17 @@ SAAMAN is the arrival manager for ESSA in EuroScope. Use it to view the shared a
 
 Select the active ESSA runways in EuroScope for **both ARR and DEP**, then connect with your normal controller callsign.
 
-Open **MAESTRO → Operation mode**. Choose **Shared backend**, select **vatIRIS · EuroScope callsign**, and use `https://backend.vatiris.se`. Select **VATSIM live**, **SweatBox 1** or **SweatBox 2**, matching your session, then press **Save connection**.
+SAAMAN connects automatically in the background when the plugin is loaded and EuroScope has a connected controller callsign. Opening the AMAN pane is not required. It waits for login if you load it while disconnected, and keeps syncing when the pane is hidden.
+
+To change connection settings, open **MAESTRO → Operation mode**. Choose **Shared backend**, select **vatIRIS · EuroScope callsign**, and use `https://backend.vatiris.se`. Select **VATSIM live**, **SweatBox 1** or **SweatBox 2**, matching your session, then press **Save connection**.
 
 A fresh installation starts in shared vatIRIS mode with VATSIM live selected. A mode you explicitly save is remembered; choose a SweatBox network for training.
 
 Shared operation requires the vatIRIS AMAN backend to be available. You do not need the vatIRIS desktop application, a separate vatIRIS login or an ordinary controller key. Controllers on the same network share one ESSA sequence; exercise/channel names do not create separate rooms in this mode.
 
 The sequencer is selected automatically. Other connected controllers can edit the same sequence. **Observe only** receives the shared sequence without enabling aircraft edits. **Local EuroScope** is available for individual use and does not share changes or coordination messages.
+
+TWR callsigns, including handover callsigns, automatically use observer mode. They can view the sequence but cannot edit it, change settings or send coordinations.
 
 When joining a fresh shared session as sequencer, SAAMAN reads the selected EuroScope arrival and departure runways. Check the configuration shown at the top before using the sequence. Shared mode should show current data before you start editing.
 

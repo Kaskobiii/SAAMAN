@@ -213,14 +213,33 @@ test('buffer-mode route point ETA uses current GS and accepted route distance, i
  assert.equal(informationRoute(f,now+2000)[0].time,points[0].time,'clock tick alone cannot move an estimate from the same position sample')
 })
 
-test('route point ETA retains passed-point filtering and follows accepted legs after rerouting',()=>{
+test('Information retains accepted route names after rerouting but does not forecast a return to omitted points',()=>{
  const c={...config(),timingModel:'euroscope-buffer'},route=[{name:'ELTOK',latitude:59,longitude:18,seconds:300},{name:'SA630',latitude:59.1,longitude:18,seconds:500},{name:'TEB',latitude:59.2,longitude:18,seconds:700}]
  const f=runEngine(packet([p('TEST',1200,{route,latitude:59.05,longitude:18,groundspeed:300})]),c,{}).flights[0]
  const passed={...f,passedFeeder:true,amanRoute:route,amanRoutePassed:1,route:[{name:'DIRECT_OTHER',latitude:59.3,longitude:18,seconds:100}]}
  const points=informationRoute(passed,now)
  assert.deepEqual(points.map(p=>p.name),['SA630','TEB','ESSA'])
- assert.equal(points[1].time,now+(distanceNm(passed,route[1])+distanceNm(route[1],route[2]))/300*3600000)
+ assert.ok(points.slice(0,-1).every(p=>Number.isNaN(p.time)))
+ assert.equal(points.at(-1).time,passed.eta)
  assert.ok(Number.isNaN(informationRoute({...passed,positionAgeSeconds:16},now)[0].time))
+})
+
+test('Information skips negative EET and direct-bypassed points without adding their distances to the next estimate',()=>{
+ const c={...config(),timingModel:'euroscope-buffer'},route=[{name:'ELTOK',latitude:59,longitude:18,seconds:300},{name:'TEB',latitude:59.1,longitude:18,seconds:600},{name:'SA19R',latitude:59.2,longitude:18,seconds:900}]
+ const f=runEngine(packet([p('TEST',1200,{route,latitude:58.9,longitude:18,groundspeed:300})]),c,{}).flights[0]
+ for(const extra of [{route:route.map((p,i)=>({...p,seconds:i===0?-1:p.seconds}))},{direct:'TEB'}]){
+  const points=informationRoute({...f,...extra,amanRoute:route,amanRoutePassed:0},now)
+  assert.ok(Number.isNaN(points[0].time));assert.equal(points[1].time,now+distanceNm(f,route[1])/300*3600000)
+  assert.equal(f.amanRoutePassed,0,'an unavailable prediction is not an observed passage')
+ }
+})
+
+test('heading vectors and route times after airport ETA display unavailable, retaining the independent airport ETA',()=>{
+ const c={...config(),timingModel:'euroscope-buffer'},route=[{name:'ELTOK',latitude:59,longitude:18,seconds:100},{name:'TEB',latitude:60,longitude:18,seconds:1200}]
+ const f=runEngine(packet([p('TEST',300,{route,latitude:58.9,longitude:18,groundspeed:300})]),c,{}).flights[0]
+ const vectors=informationRoute({...f,assignedHeading:180},now)
+ assert.ok(vectors.slice(0,-1).every(p=>Number.isNaN(p.time)));assert.equal(vectors.at(-1).time,f.eta)
+ const normal=informationRoute(f,now);assert.ok(Number.isFinite(normal[0].time));assert.ok(Number.isNaN(normal[1].time))
 })
 
 test('route-point fallback uses live EuroScope EET when coordinates are unavailable, never the landing buffer',()=>{

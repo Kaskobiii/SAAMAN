@@ -7,10 +7,84 @@ import directFixture from './fixtures/skipped-feeder-direct.json' with {type:'js
 import advanceFixture from './fixtures/entered-manual-advance.json' with {type:'json'}
 import speedFixture from './fixtures/high-speed-recompute.json' with {type:'json'}
 import cutoffFixture from './fixtures/recording-7-feeder-cutoff.json' with {type:'json'}
+import runwayFixture from './fixtures/recording-8-runway-transition.json' with {type:'json'}
 const now=Date.UTC(2026,9,12,12)
 const config=()=>({...structuredClone(DEFAULT_CONFIG),unstableSeconds:0,minimumNewSeconds:600})
 const flight=(extra={})=>({callsign:'BUFFER',aircraft:'A320',wake:'M',departure:'EKCH',arrival:'ESSA',runway:'19R',route:[{name:'ELTOK',seconds:900}],landingSeconds:1500,distanceNm:100,groundspeed:300,altitude:25000,positionAgeSeconds:1,...extra})
 const packet=(p,t=now)=>({source:'LIVE',timestamp:t,flights:p})
+
+test('recording 8 keeps LGL Superstable and ahead of the existing slot while SDK and shared runway updates disagree',()=>{
+ const {previous,frames}=runwayFixture,[mismatch,confirmed,repeated]=frames,original=structuredClone(previous)
+ const old=previous.flights.find(f=>f.callsign==='LGL5781')
+ const waiting=runEngine(mismatch.input,mismatch.config,mismatch.edits,previous),held=waiting.flights.find(f=>f.callsign==='LGL5781')
+ assert.equal(held.state,2);assert.equal(held.order,old.order);assert.equal(held.sta,old.sta);assert.equal(held.staFf,old.staFf)
+ assert.equal(held.runway,'19L');assert.equal(held.issue,'');assert.equal(held.runwayTransition.pending,true)
+ const next=runEngine(confirmed.input,confirmed.config,confirmed.edits,waiting),f=next.flights.find(f=>f.callsign==='LGL5781')
+ assert.equal(f.runway,'01R');assert.equal(f.state,2);assert.equal(f.order,0);assert.equal(f.issue,'')
+ assert.equal(f.euroscopeBaseline.at,confirmed.input.timestamp);assert.equal(f.sta,f.liveBufferedEta)
+ assert.equal(f.staFf,old.staFf,'a feeder already crossed retains its assigned time')
+ assert.ok(f.amanRoute.some(p=>p.name==='SA01R'));assert.ok(!f.amanRoute.some(p=>/19L$/.test(p.name)))
+ assert.ok(f.amanRoutePassed>=1);assert.equal(f.passedFeeder,true)
+ const again=runEngine(repeated.input,repeated.config,repeated.edits,next).flights.find(f=>f.callsign==='LGL5781')
+ assert.equal(again.euroscopeBaseline.at,f.euroscopeBaseline.at);assert.equal(again.sta,f.sta);assert.equal(again.order,0)
+ assert.deepEqual(previous,original,'checkpoint is immutable')
+})
+
+test('configuration-first changes preserve cohort order when a follower confirms before its leader',()=>{
+ const c=config(),a=flight({callsign:'LEADER',landingSeconds:840,route:[{name:'ELTOK',seconds:180},{name:'SA19R',seconds:840}]}),b=flight({callsign:'FOLLOWER',landingSeconds:1500,route:[{name:'ELTOK',seconds:780},{name:'SA19R',seconds:1500}]})
+ const first=runEngine(packet([a,b]),c,{}),changed={...c,active:['ESSA/01R'],departureRunway:'ESSA/01L'}
+ const newB={...b,runway:'01R',route:[{name:'ELTOK',seconds:700},{name:'SA01R',seconds:1100}],landingSeconds:1100}
+ const partial=runEngine(packet([a,newB],now+2000),changed,{},first),leader=partial.flights.find(f=>f.callsign==='LEADER')
+ assert.equal(leader.state,first.flights[0].state);assert.equal(leader.issue,'');assert.equal(leader.sta,first.flights[0].sta)
+ const newA={...a,runway:'01R',route:[{name:'ELTOK',seconds:100},{name:'SA01R',seconds:1200}],landingSeconds:1200}
+ const next=runEngine(packet([newA,newB],now+4000),changed,{},JSON.parse(JSON.stringify(partial))),la=next.flights.find(f=>f.callsign==='LEADER'),fb=next.flights.find(f=>f.callsign==='FOLLOWER')
+ assert.equal(la.order,0);assert.equal(fb.order,1);assert.ok(fb.sta-la.sta>=changed.rates['ESSA/01R']*1000)
+ assert.equal(la.state,first.flights[0].state);assert.equal(fb.state,first.flights[1].state)
+})
+
+test('a stale new-runway observation waits for usable data before accepting its timing',()=>{
+ const c=config(),first=runEngine(packet([flight()]),c,{}),changed={...c,active:['ESSA/01R'],departureRunway:'ESSA/01L'},p=flight({runway:'01R',landingSeconds:600,route:[{name:'ELTOK',seconds:300}]})
+ const waiting=runEngine(packet([{...p,positionAgeSeconds:16}],now+2000),changed,{},first),f=waiting.flights[0]
+ assert.equal(f.runway,'19R');assert.equal(f.euroscopeBaseline.at,first.flights[0].euroscopeBaseline.at)
+ const confirmed=runEngine(packet([p],now+4000),changed,{},waiting).flights[0]
+ assert.equal(confirmed.runway,'01R');assert.equal(confirmed.euroscopeBaseline.at,now+4000)
+})
+
+test('an older checkpoint with a stale approach repairs it once when the confirmed assigned runway is current',()=>{
+ const {previous,frames}=runwayFixture,c=frames[1].config,input=frames[1].input
+ const old=structuredClone(previous),f=old.flights.find(f=>f.callsign==='LGL5781')
+ f.runway='01R';f.euroscopeRunway='01R';delete f.euroscopeBaseline.runway
+ const next=runEngine(input,c,frames[1].edits,old).flights.find(f=>f.callsign==='LGL5781')
+ assert.equal(next.euroscopeBaseline.at,f.euroscopeBaseline.at,'repairing old display geometry does not recapture accepted timing')
+ assert.ok(next.amanRoute.some(p=>p.name==='SA01R'));assert.ok(!next.amanRoute.some(p=>/19L$/.test(p.name)))
+})
+
+test('a withdrawn runway assignment cancels the wait without recapturing timing or approach',()=>{
+ const c=config(),p=flight(),first=runEngine(packet([p]),c,{}),waiting=runEngine(packet([{...p,runway:'01R'}],now+2000),c,{},first)
+ const restored=runEngine(packet([p],now+4000),c,{},waiting).flights[0]
+ assert.equal(restored.runwayTransition,undefined);assert.equal(restored.euroscopeBaseline.at,first.flights[0].euroscopeBaseline.at)
+ assert.equal(restored.sta,first.flights[0].sta);assert.deepEqual(restored.amanRoute,first.flights[0].amanRoute)
+})
+
+test('initial inactive assignments still report an error rather than creating a protected transition',()=>{
+ const f=runEngine(packet([flight({runway:'01R'})]),config(),{}).flights[0]
+ assert.match(f.issue,/not active/);assert.equal(f.runwayTransition,undefined)
+})
+
+test('Recompute during a runway mismatch is deferred until confirmation without losing its protected phase or slot',()=>{
+ const {previous,frames}=runwayFixture,[mismatch,confirmed]=frames,old=previous.flights.find(f=>f.callsign==='LGL5781')
+ const edits={...mismatch.edits,LGL5781:{...mismatch.edits.LGL5781,recomputeAt:mismatch.input.timestamp}}
+ const waiting=runEngine(mismatch.input,mismatch.config,edits,previous),f=waiting.flights.find(f=>f.callsign==='LGL5781')
+ assert.equal(f.sta,old.sta);assert.equal(f.order,old.order);assert.equal(f.state,old.state);assert.equal(f.recomputedAt,old.recomputedAt)
+ const next=runEngine(confirmed.input,confirmed.config,edits,waiting).flights.find(f=>f.callsign==='LGL5781')
+ assert.equal(next.euroscopeBaseline.at,confirmed.input.timestamp);assert.equal(next.order,old.order);assert.equal(next.state,old.state)
+})
+
+test('initial accepted routes remain available when neither feeder nor threshold is present',()=>{
+ const route=[{name:'SA630',seconds:100},{name:'TEB',seconds:300}]
+ const f=runEngine(packet([flight({route})]),config(),{}).flights[0]
+ assert.deepEqual(f.amanRoute,route)
+})
 test('buffer defaults to two minutes and is a shared supervisory setting with validated bounds',()=>{
  assert.equal(DEFAULT_CONFIG.timingModel,'euroscope-buffer');assert.equal(DEFAULT_CONFIG.euroscopeBufferMinutes,2)
  for(const n of [0,0.5,2,15])assert.equal(mergeSharedSettings(config(),{euroscopeBufferMinutes:n}).euroscopeBufferMinutes,n)

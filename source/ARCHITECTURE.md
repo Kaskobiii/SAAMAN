@@ -1,4 +1,4 @@
-# SAAMAN native plugin, 1.3.9
+# SAAMAN native plugin, 1.3.10
 
 SAAMAN.dll is an x86 EuroScope plugin with Win32 child panels hosting the AMAN UI
 through Microsoft WebView2. The calculation engine is editable TypeScript.
@@ -41,7 +41,12 @@ The timing model, STAR workbook data and labels run in the embedded engine.
 Live aircraft use a captured EuroScope estimate with the configured 2/1-minute
 normal/near base on feeder and runway times. Higher captured groundspeed adds
 compensation to the landing estimate only. Direct clearances do not recapture
-the accepted time; Recompute does. State schema remains saaman-1.1.9.
+the accepted time; Recompute does. A confirmed runway change captures fresh
+timing and replaces the accepted approach once. While SDK assignment and shared
+runway plan disagree, the accepted runway, phase and relative order stay intact.
+Transition cohort ranks survive checkpoint handover and staggered confirmation;
+a withdrawn assignment cancels the wait. An already-crossed feeder keeps STA-FF.
+State schema remains saaman-1.1.9.
 Hidden AMAN panels continue calculating/sharing on native pulses.
 
 Guidance goes directly from the UI to the DLL, then to TopSky using MAESTRO

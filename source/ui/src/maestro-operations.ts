@@ -83,15 +83,22 @@ export function informationRoute(f:EngineFlight,now:number){
   // buffered landing forecast and the protected feeder allocation.
   const at=Number.isFinite(f.lastSeen)?f.lastSeen:now,fresh=now-at<=15000&&(f.positionAgeSeconds??0)<=15
   let prior={latitude:f.latitude,longitude:f.longitude},distance=0,known=fresh&&f.groundspeed>=60&&Number.isFinite(prior.latitude)&&Number.isFinite(prior.longitude)
+  const directIndex=f.direct?f.route.findIndex(point=>point.name===f.direct):-1
+  const vectoring=(f.assignedHeading??0)>0||f.vectorDetection==='heading'||f.vectorDetection==='off-route'
   return points.map(p=>{
    if(p.name===f.arrival)return {name:p.name,time:f.eta}
+   const routeIndex=f.route.findIndex(point=>point.name===p.name),observed=f.route[routeIndex]
+   // Retain accepted route names, but do not forecast a return to skipped points.
+   // A heading clearance has no known path back to the STAR.
+   if(vectoring||!observed||observed.seconds<0||directIndex>=0&&routeIndex<directIndex)return {name:p.name,time:NaN}
    if(known&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)){
     distance+=distanceNm(prior as any,p as any);prior={latitude:p.latitude,longitude:p.longitude}
-    return {name:p.name,time:at+distance/f.groundspeed*3600000}
+    const time=at+distance/f.groundspeed*3600000
+    return {name:p.name,time:time<=f.eta?time:NaN}
    }
    known=false
-   const observed=f.route.find(point=>point.name===p.name&&point.seconds>=0&&Number.isFinite(point.seconds))
-   return {name:p.name,time:fresh&&observed?at+observed.seconds*1000:NaN}
+   const time=fresh&&Number.isFinite(observed.seconds)?at+observed.seconds*1000:NaN
+   return {name:p.name,time:time<=f.eta?time:NaN}
   })
  }
  const first=points[0],initialLeg=f.passedFeeder&&first&&Number.isFinite(f.latitude)&&Number.isFinite(first.latitude)?distanceNm(f as any,first as any):0

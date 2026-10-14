@@ -207,7 +207,8 @@ const current = computed(() => all.value.find(f => f.callsign === selected.value
 const unsequenced = computed(() => all.value.filter(f => f.mode === 'desequenced' || f.mode === 'missed').sort((a,b)=>(edits.value[a.callsign]?.changedAt||0)-(edits.value[b.callsign]?.changedAt||0)))
 const currentConfig = computed(() => windConfig(effectiveConfig(config.value,now.value),'ESSA',sequence.value?.winds,now.value))
 const entryPoints=['NILUG','ELTOK','VACRA','XILAN']
-const displayRunways=computed(()=>[...new Set([...currentConfig.value.active,currentConfig.value.departureRunway,...(nextConfiguration.value?.active??[]),nextConfiguration.value?.departureRunway].filter((r):r is string=>!!r))])
+const displayRunways=computed(()=>[...new Set([...currentConfig.value.active,currentConfig.value.departureRunway,...(nextConfiguration.value?.active??[]),nextConfiguration.value?.departureRunway,
+    ...all.value.filter(f=>f.runwayTransition?.pending&&f.mode==='sequenced'&&f.state!==4&&!f.issue&&!f.lost).map(f=>`${f.arrival}/${f.runway}`)].filter((r):r is string=>!!r))])
 const changeRunwayAvailable=computed(()=>new Set(displayRunways.value).size>1||!!nextConfiguration.value)
 const feederSelection=ref<string[]>(entryPoints.slice())
 const localCoverage=ref<{own:ControllerPresence;controllers:ControllerPresence[]}>({own:{callsign:''},controllers:[]})

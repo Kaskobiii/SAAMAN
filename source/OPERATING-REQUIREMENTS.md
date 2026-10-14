@@ -1,3 +1,5 @@
+> Current release 1.3.10: a confirmed runway change refreshes accepted timing and approach once, preserving phase and relative order. A temporary disagreement between SDK assignment and the shared active runway plan retains the previous accepted slot. Information keeps accepted route names but shows unavailable crossing times as a dash for vectors, skipped/obsolete points or estimates beyond the airport ETA. Landing and feeder buffer defaults are unchanged.
+
 > Current release 1.3.9: Sync EuroScope applies fresh supported ESSA ARR/DEP selections. Submenus and dialogs use separate radar-owned windows; supervisor chrome remains accessible. Information route-point times follow current GS along the retained route, independently of the unchanged landing buffer and assigned slots.
 
 > Current release 1.3.8: ETA follows current EuroScope landing EET and groundspeed on every valid update. Accepted STA/STA-FF and captured history remain separate and are preserved until Recompute or a sequence edit. Stale observations retain the last valid ETA. Timeline labels use assigned times.

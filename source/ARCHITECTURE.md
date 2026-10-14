@@ -1,4 +1,4 @@
-# SAAMAN native plugin, 1.3.8
+# SAAMAN native plugin, 1.3.9
 
 SAAMAN.dll is an x86 EuroScope plugin with Win32 child panels hosting the AMAN UI
 through Microsoft WebView2. The calculation engine is editable TypeScript.
@@ -112,3 +112,11 @@ The high-speed supervisory setting defaults to six minutes at 450 kt. Above 300 
 Initial capture and explicit Recompute store the accepted ETA, raw estimate, groundspeed and buffers in `euroscopeBaseline`. Allocation uses that baseline rather than the public ETA: `runEngine` copies previous checkpoint flights with their accepted ETA for scheduling, then exposes the live ETA after allocation. The caller's checkpoint is never mutated. Upgrades preserve older accepted baselines. Normal timeline labels continue using STA or STA-FF. `runwayDelay` shows the live STA-minus-ETA comparison while accepted instruction policy remains unchanged.
 
 `feederBufferMinutes` records the separate phase buffer, so speed compensation cannot lengthen feeder ETA or create an initial instruction by being added twice. Feeder ETA continues following observed feeder timing until passage. Accepted routes advance on observed passage rather than rerouting.
+
+## Floating submenus and runway sync
+
+Vue Teleport renders menus and dialogs into same-origin WebView2 child windows owned by the radar rather than the AMAN pane. `NewWindowRequested` supplies an unnavigated controller from the opener's environment and completes its deferral after setup. Only the embedded floating document and predefined surface names are accepted. Forms keep the owning Vue component and its existing controller session; floating documents do not load the AMAN worker. Title drags use native sibling-window positioning with the existing no-copy/no-erase radar invalidation path. Closing an owner hides its surfaces; reloading it destroys obsolete surfaces. Supervisor content remains inside the framed native body.
+
+Sync EuroScope validates fresh telemetry and supported ESSA ARR/DEP selections, then applies them through the ordinary revision-checked plan edit. It preserves arrival rates and clears a pending runway configuration. Observer/TWR permissions and edit freshness guards remain in force.
+
+In buffer mode, Information route-point observations use cumulative distance along the remaining accepted route divided by current groundspeed, anchored to the position sample time. They are independent of landing and feeder buffers. Live point EET is a fallback when coordinates are missing; unavailable/stale points are blank. The final airport column retains the buffered landing ETA. Performance/demo mode retains its existing display calculation.

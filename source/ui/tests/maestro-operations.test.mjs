@@ -5,6 +5,8 @@ import {DEFAULT_CONFIG as RELEASE_DEFAULT_CONFIG,validateConfig,validateEdits,va
 import {gainDragEdits,insertRelative,extraFlightEdits,manualTransferSeconds,maximumDelayEdits,instructionColor,signedDuration,informationRoute,COORDINATION_MESSAGES} from '../src/maestro-operations.ts'
 import {validateCoordinations,mergeCoordinationChanges} from '../src/maestro-coordination.ts'
 import {SessionRecording,decodeRecording} from '../src/maestro-recording.ts'
+import {distanceNm} from '../src/maestro-star-prediction.ts'
+import {runwaySelections} from '../src/maestro-runway-sync.ts'
 const DEFAULT_CONFIG={...RELEASE_DEFAULT_CONFIG,timingModel:'performance'}
 
 const now=Date.UTC(2026,9,12,10),config=()=>({...structuredClone(DEFAULT_CONFIG),predictionMode:'euroscope',unstableSeconds:0,minimumNewSeconds:0})
@@ -196,6 +198,49 @@ test('Information route drops passed points and ends at ESSA with the independen
  const c=config(),input=packet([p('TEST',1200,{route:[{name:'ELTOK',latitude:59.8,longitude:17,seconds:100},{name:'STAR1',latitude:59.7,longitude:17.5,seconds:500},{name:'SA19R',latitude:59.65,longitude:17.92,seconds:1200}]})])
  const first=runEngine(input,c,{}),f={...first.flights[0],passedFeeder:true,calculatedRouteIndex:0}
  const points=informationRoute(f,now);assert.ok(points.every(p=>p.name!=='ELTOK'));assert.equal(points.at(-1).name,'ESSA');assert.equal(points.at(-1).time,f.eta)
+})
+
+test('buffer-mode route point ETA uses current GS and accepted route distance, independently of landing buffer',()=>{
+ const c={...config(),timingModel:'euroscope-buffer'},route=[{name:'SA630',latitude:59,longitude:18,seconds:180},{name:'TEB',latitude:59.1,longitude:18,seconds:420},{name:'SA19R',latitude:59.2,longitude:18,seconds:700}]
+ const first=runEngine(packet([p('EJU14A',1200,{route,latitude:58.9,longitude:18,groundspeed:440})]),c,{})
+ const f={...first.flights[0],amanRoute:route,amanRoutePassed:0,passedFeeder:true}
+ const points=informationRoute(f,now),seconds=distanceNm(f,route[0])/440*3600
+ assert.equal(points[0].time,now+seconds*1000)
+ assert.ok(points[0].time<now+120000,'nearby point does not inherit several minutes of landing buffer')
+ const slower=informationRoute({...f,groundspeed:220,eta:f.eta+600000},now)
+ assert.ok(Math.abs(slower[0].time-now-2*(points[0].time-now))<1)
+ assert.equal(slower.at(-1).time,f.eta+600000)
+ assert.equal(informationRoute(f,now+2000)[0].time,points[0].time,'clock tick alone cannot move an estimate from the same position sample')
+})
+
+test('route point ETA retains passed-point filtering and follows accepted legs after rerouting',()=>{
+ const c={...config(),timingModel:'euroscope-buffer'},route=[{name:'ELTOK',latitude:59,longitude:18,seconds:300},{name:'SA630',latitude:59.1,longitude:18,seconds:500},{name:'TEB',latitude:59.2,longitude:18,seconds:700}]
+ const f=runEngine(packet([p('TEST',1200,{route,latitude:59.05,longitude:18,groundspeed:300})]),c,{}).flights[0]
+ const passed={...f,passedFeeder:true,amanRoute:route,amanRoutePassed:1,route:[{name:'DIRECT_OTHER',latitude:59.3,longitude:18,seconds:100}]}
+ const points=informationRoute(passed,now)
+ assert.deepEqual(points.map(p=>p.name),['SA630','TEB','ESSA'])
+ assert.equal(points[1].time,now+(distanceNm(passed,route[1])+distanceNm(route[1],route[2]))/300*3600000)
+ assert.ok(Number.isNaN(informationRoute({...passed,positionAgeSeconds:16},now)[0].time))
+})
+
+test('route-point fallback uses live EuroScope EET when coordinates are unavailable, never the landing buffer',()=>{
+ const f=runEngine(packet([p('TEST',1200)]),{...config(),timingModel:'euroscope-buffer'},{}).flights[0]
+ assert.equal(informationRoute(f,now)[0].time,now+100000)
+ assert.ok(Number.isNaN(informationRoute({...f,route:[]},now)[0].time))
+})
+
+test('Information keeps remaining accepted points when feeder and assigned threshold are absent from that route',()=>{
+ const f=runEngine(packet([p('TEST',1200)]),{...config(),timingModel:'euroscope-buffer'},{}).flights[0]
+ const route=[{name:'SA630',seconds:100},{name:'TEB',seconds:300}]
+ assert.deepEqual(informationRoute({...f,ff:'NILUG',route,amanRoute:route,amanRoutePassed:0},now).map(p=>p.name),['SA630','TEB','ESSA'])
+})
+
+test('Sync EuroScope uses fresh supported ESSA ARR and DEP selections and rejects missing or stale data',()=>{
+ const input=packet([]),activeRunways={arrivals:['ESSA/07','ESSA/01R','ESSA/01R'],departures:['ESSA/25','ESSA/01L']}
+ assert.deepEqual(runwaySelections({...input,activeRunways},now),{active:['ESSA/01R'],departureRunway:'ESSA/01L'})
+ assert.throws(()=>runwaySelections({...input,activeRunways,timestamp:now-16000},now),/fresh/)
+ assert.throws(()=>runwaySelections({...input,activeRunways:{...activeRunways,departures:[]}},now),/departure/)
+ assert.throws(()=>runwaySelections({...input,activeRunways:{arrivals:['ESSB/30'],departures:['ESSB/12']}},now),/ESSA/)
 })
 test('legacy histories do not invent a missing initial allocation',()=>{
  const c=config(),input=packet([p('TEST',1200)]),first=runEngine(input,c,{})

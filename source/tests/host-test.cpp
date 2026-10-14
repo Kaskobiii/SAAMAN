@@ -32,6 +32,7 @@ int wmain(int argc,wchar_t** argv){
             for(int wait=0;wait<100;wait++){std::ifstream file(folder/L"operations-ui.json");if(file){try{file>>operations;if(operations.contains("ok"))break;}catch(...){}}Sleep(100);}
             if(!operations.value("ok",false)){std::cerr<<"AMAN operations UI failed: "<<operations.dump()<<"\n";return 1;}
             host.Show(true);bool supervisorReady=false;for(int wait=0;wait<100;wait++){Sleep(100);std::ifstream supervisory(folder/L"supervisor-first-open.txt");int visible=0;if(supervisory>>visible&&visible==1){supervisorReady=true;break;}}if(!supervisorReady){std::cerr<<"Supervision was not visible on first open\n";return 1;}
+            saaman::Json supervisorFrame;for(int wait=0;wait<100;wait++){std::ifstream frameFile(folder/L"supervisor-frame.json");if(frameFile){try{frameFile>>supervisorFrame;if(supervisorFrame.contains("ok"))break;}catch(...){}}Sleep(100);}if(!supervisorFrame.value("ok",false)){std::cerr<<"Supervisor move/close failed: "<<supervisorFrame.dump()<<"\n";return 1;}
             const HWND panel=host.PanelHandle();if(!panel||!GetParent(panel)||(GetWindowLongPtrW(panel,GWL_STYLE)&WS_CHILD)==0||(GetWindowLongPtrW(panel,GWL_STYLE)&(WS_POPUP|WS_CAPTION))!=0){std::cerr<<"AMAN is not an embedded child panel\n";return 1;}
             // Simulate fresh radar backbuffers, without resizing or WM_PAINT.
             // Each frame must include the chrome and leave the browser area alone.

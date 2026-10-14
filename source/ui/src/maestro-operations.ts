@@ -75,9 +75,25 @@ export function maximumDelayEdits(snapshot:EngineSnapshot,config:EngineConfig,ed
 export function informationRoute(f:EngineFlight,now:number){
  const route=f.amanRoute??f.route
  const feeder=route.findIndex(p=>p.name===f.ff),threshold=route.findIndex(p=>p.name===`SA${f.runway}`)
- let points=route.slice(f.amanRoute?f.amanRoutePassed??0:Math.max(0,feeder),threshold>=feeder?threshold+1:undefined)
+ let points=route.slice(f.amanRoute?f.amanRoutePassed??0:Math.max(0,feeder),threshold>=0?threshold+1:undefined)
  if(!f.amanRoute&&f.passedFeeder&&Number.isInteger(f.calculatedRouteIndex))points=points.filter(p=>f.route.indexOf(p)>(f.calculatedRouteIndex??-1))
  if(!points.some(p=>p.name===f.arrival))points.push({name:f.arrival,seconds:0})
+ if(f.euroscopeBaseline){
+  // Route-point observations use distance / current GS, independently of the
+  // buffered landing forecast and the protected feeder allocation.
+  const at=Number.isFinite(f.lastSeen)?f.lastSeen:now,fresh=now-at<=15000&&(f.positionAgeSeconds??0)<=15
+  let prior={latitude:f.latitude,longitude:f.longitude},distance=0,known=fresh&&f.groundspeed>=60&&Number.isFinite(prior.latitude)&&Number.isFinite(prior.longitude)
+  return points.map(p=>{
+   if(p.name===f.arrival)return {name:p.name,time:f.eta}
+   if(known&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)){
+    distance+=distanceNm(prior as any,p as any);prior={latitude:p.latitude,longitude:p.longitude}
+    return {name:p.name,time:at+distance/f.groundspeed*3600000}
+   }
+   known=false
+   const observed=f.route.find(point=>point.name===p.name&&point.seconds>=0&&Number.isFinite(point.seconds))
+   return {name:p.name,time:fresh&&observed?at+observed.seconds*1000:NaN}
+  })
+ }
  const first=points[0],initialLeg=f.passedFeeder&&first&&Number.isFinite(f.latitude)&&Number.isFinite(first.latitude)?distanceNm(f as any,first as any):0
  const lengths=[initialLeg];for(let i=1;i<points.length;i++){
   const a=points[i-1],b=points[i];lengths.push(lengths[i-1]+(Number.isFinite(a.latitude)&&Number.isFinite(b.latitude)?distanceNm(a as any,b as any):0))

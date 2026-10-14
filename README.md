@@ -2,7 +2,7 @@
 
 An embedded EuroScope arrival manager for Stockholm Arlanda (ESSA), with shared
 sequencing and controller coordination through the existing vatIRIS backend.
-The current version is **1.3.8**. Syncing between two EuroScope controllers has
+The current version is **1.3.9**. Syncing between two EuroScope controllers has
 been confirmed in use.
 
 **Shared mode requires the vatIRIS AMAN backend**, normally at
@@ -36,6 +36,8 @@ or controller key is required in vatIRIS callsign mode.
 - Shared sequence, edits and acknowledgements, with one elected sequencer and
   recovery when another controller takes over.
 - Initial runway configuration from EuroScope's active ARR/DEP selections.
+- Sync EuroScope in runway configuration reapplies the current ARR/DEP selections.
+- Submenus and dialogs can be moved outside AMAN on the EuroScope radar.
 - Configurable EuroScope time buffers, with extra landing compensation for higher
   current groundspeed. ETA follows live EuroScope estimates. Feeder estimates keep
   their normal/near-fix buffer; accepted routes and times survive direct clearances
@@ -65,7 +67,7 @@ also been confirmed in EuroScope.
 See [architecture](source/ARCHITECTURE.md),
 [backend integration](source/BACKEND-INTEGRATION.md),
 [operating requirements](source/OPERATING-REQUIREMENTS.md) and
-[latest release notes](docs/RELEASE-NOTES-1.3.8.md).
+[latest release notes](docs/RELEASE-NOTES-1.3.9.md).
 
 ## License and credits
 

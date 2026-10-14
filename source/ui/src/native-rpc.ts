@@ -5,6 +5,7 @@ const webview=(window as any).chrome?.webview
 webview?.addEventListener('message',(event:{data:Result})=>{
     if((event.data as any).event==='pulse'){window.dispatchEvent(new Event('saaman-pulse'));return}
     if((event.data as any).event==='coordination-ack'){window.dispatchEvent(new CustomEvent('saaman-coordination-ack',{detail:{id:(event.data as any).messageId}}));return}
+    if((event.data as any).event==='floating-close'){window.dispatchEvent(new CustomEvent('saaman-floating-close',{detail:{key:(event.data as any).key}}));return}
     const message=event.data,request=pending.get(message.id);if(!request)return
     pending.delete(message.id);clearTimeout(request.timer)
     if(message.ok)request.resolve(message.result)

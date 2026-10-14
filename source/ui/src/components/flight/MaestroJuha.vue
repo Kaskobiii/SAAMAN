@@ -5,6 +5,8 @@ import {APPLICATION_BUILD} from '@/build'
 import MaestroInformation from './MaestroInformation.vue'
 import {gainDragEdits,insertRelative,maximumDelayEdits,manualTransferSeconds,instructionColor,zulu,COORDINATION_MESSAGES} from '@/maestro-operations'
 import {nativeRequest} from '@/native-rpc'
+import {useFloatingSurface} from '@/floating-surface'
+import {runwaySelections} from '@/maestro-runway-sync'
 import {configureRelayAuth,leaveSharedRoom,suspendSharedRoom} from '@/native-transport'
 import {sharedSettings} from '@/maestro-settings'
 import {feederCoverage,type ControllerPresence} from '@/maestro-feeder-coverage'
@@ -70,11 +72,12 @@ const dialogDrag=ref<{startX:number;startY:number;x:number;y:number;width:number
 const movableDialog=computed(()=>!!dialog.value)
 const pointerPosition=reactive({x:20,y:80})
 function rememberPointer(event:MouseEvent|PointerEvent){const root=rootElement.value?.getBoundingClientRect();if(root){pointerPosition.x=event.clientX-root.left;pointerPosition.y=event.clientY-root.top}}
-function fitDialog(){const root=rootElement.value?.getBoundingClientRect(),panel=rootElement.value?.querySelector<HTMLElement>('.native-dialog');if(!root||!panel||!dialogPosition.value)return;const rect=panel.getBoundingClientRect();dialogPosition.value={x:Math.max(4,Math.min(dialogPosition.value.x,root.width-rect.width-4)),y:Math.max(4,Math.min(dialogPosition.value.y,root.height-rect.height-4))}}
+function fitDialog(){if(dialogTarget.value)return;const root=rootElement.value?.getBoundingClientRect(),panel=rootElement.value?.querySelector<HTMLElement>('.native-dialog');if(!root||!panel||!dialogPosition.value)return;const rect=panel.getBoundingClientRect();dialogPosition.value={x:Math.max(4,Math.min(dialogPosition.value.x,root.width-rect.width-4)),y:Math.max(4,Math.min(dialogPosition.value.y,root.height-rect.height-4))}}
 const popupDrag=ref<{startX:number;startY:number;x:number;y:number;width:number;height:number}|null>(null)
-function startPopupDrag(event:PointerEvent){if(event.button!==0||(event.target as HTMLElement).closest('button'))return;const panel=(event.currentTarget as HTMLElement).parentElement!,rect=panel.getBoundingClientRect();event.preventDefault();event.stopPropagation();try{(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)}catch{};popupDrag.value={startX:event.clientX,startY:event.clientY,x:popupPosition.x,y:popupPosition.y,width:rect.width,height:rect.height}}
+function startPopupDrag(event:PointerEvent){if(menuSurface.startDrag(event))return;if(event.button!==0||(event.target as HTMLElement).closest('button'))return;const panel=(event.currentTarget as HTMLElement).parentElement!,rect=panel.getBoundingClientRect();event.preventDefault();event.stopPropagation();try{(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)}catch{};popupDrag.value={startX:event.clientX,startY:event.clientY,x:popupPosition.x,y:popupPosition.y,width:rect.width,height:rect.height}}
 const dialogStyle=computed(()=>movableDialog.value&&dialogPosition.value?{position:'absolute' as const,left:`${dialogPosition.value.x}px`,top:`${dialogPosition.value.y}px`}:{})
 function startDialogDrag(event:PointerEvent){
+    if(dialogSurface.startDrag(event))return
     if(!movableDialog.value||event.button!==0||(event.target as HTMLElement).closest('button'))return
     const panel=(event.currentTarget as HTMLElement).parentElement!,rect=panel.getBoundingClientRect(),root=rootElement.value!.getBoundingClientRect()
     event.preventDefault();event.stopPropagation()
@@ -116,6 +119,11 @@ function scrollTimeKey(event:KeyboardEvent){
 }
 const displayElement = ref<HTMLElement>()
 const rootElement = ref<HTMLElement>()
+const floatingError=(e:Error)=>{error.value=e.message}
+const dialogSurface=useFloatingSurface('dialog',dialog,rootElement,'.native-dialog',()=>dialog.value='',floatingError)
+const menuSurface=useFloatingSurface('menu',computed(()=>menu.value==='maestro'?'':menu.value),rootElement,'.popup:not(.global-menu)',()=>menu.value='',floatingError)
+const globalSurface=useFloatingSurface('global',computed(()=>menu.value==='maestro'?'maestro':''),rootElement,'.global-menu',()=>menu.value='',floatingError)
+const dialogTarget=dialogSurface.target,menuTarget=menuSurface.target,globalTarget=globalSurface.target
 const scrollElement = ref<HTMLElement>()
 const plotWidth = ref(740)
 const horizontalPosition = ref(0)
@@ -156,6 +164,16 @@ const columnWidth = computed(() => Math.max(450+2*((labels.value.feeder?60:0)+(l
 const panels = computed(()=>config.value.displayPreferences?.panels??{ winds: false, rates: false, tracks: true })
 const draft = ref<EngineConfig>(structuredClone(DEFAULT_CONFIG))
 const draftArrival = computed({get:()=>draft.value.active.find(r=>r.startsWith('ESSA/'))||'ESSA/19R',set:(r:string)=>draft.value.active=[...draft.value.active.filter(a=>!a.startsWith('ESSA/')),r]})
+const runwaySyncError=ref(''),runwaySyncBusy=ref(false)
+async function syncEuroScope(){
+ if(!editable.value||runwaySyncBusy.value)return
+ runwaySyncBusy.value=true;runwaySyncError.value=''
+ try{
+  const selections=runwaySelections(await nativeRequest('telemetry:get'),Date.now())
+  const next=clone(effectiveConfig(config.value,now.value));next.active=selections.active;next.departureRunway=selections.departureRunway;next.pending=undefined
+  if(await commit(edits.value,next)){draft.value=clone(next);applyMinutes.value=0;dialog.value=''}else runwaySyncError.value=error.value
+ }catch(e:any){runwaySyncError.value=e.message}finally{runwaySyncBusy.value=false}
+}
 const listSelection = ref<string[]>([])
 const slotDraft = reactive({ id: '', runway: 'ESSA/19R', start: '', duration: 8,kind:'closure' as 'closure'|'gap' })
 const flightSlots = reactive({ before: 0, after: 0 })
@@ -268,6 +286,7 @@ function locked(f:EngineFlight) { return f.state===2 || f.state===3 }
 function y(time: number) { return nowBaseline.value - (time - referenceTime.value) / 60000 * pixelsPerMinute.value }
 function timeAt(element:HTMLElement,clientY:number) { return referenceTime.value+(nowBaseline.value-(clientY-element.getBoundingClientRect().top))/pixelsPerMinute.value*60000 }
 function fitPopup(){
+    if(menuTarget.value)return
     const root=rootElement.value?.getBoundingClientRect(),popup=popupElement.value;if(!root||!popup)return
     popup.style.maxHeight=`${Math.max(1,root.height-8)}px`
     popup.style.maxWidth=`${Math.max(1,root.width-8)}px`
@@ -424,6 +443,7 @@ function relayChanged(event:Event){
     if(!demo.value&&!drag.value&&!gapDrag.value&&!settling.value&&!gapSettling.value){receive(data);if(bridge.value)void publishTiming()}
 }
 function openDialog(name: string) {
+    runwaySyncError.value=''
     menu.value = ''; draft.value = clone(currentConfig.value); dialog.value = name;dialogPosition.value={...pointerPosition};dialogDrag.value=null;void nextTick(fitDialog)
     applyMinutes.value=0;applyBaseTime.value=Math.floor(now.value/60000)*60000
     const pending=name==='configuration'?nextConfiguration.value:name==='rates'&&config.value.pendingRate&&config.value.pendingRate.at>now.value?config.value.pendingRate:null
@@ -804,7 +824,9 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
         <button class="errors-button" data-action="errors" :disabled="!error&&!diagnosticFlights.length" @click="openDialog('diagnostics')">Errors {{diagnosticFlights.length+(error?1:0)}}</button>
         <button data-action="coordinations" @click="positionPopup($event,true);menu=menu==='coordination'?'':'coordination'">Coordinations</button>
     </nav>
-    <div v-if="menu==='maestro'" class="popup global-menu" ><button @click="openDialog('setup')">ESSA · Operation mode</button><button @click="openDialog('feeders')">ACC feeders</button><small class="build-version">{{applicationBuild}}</small></div>
+    <Teleport :to="globalTarget||'body'" :disabled="!globalTarget">
+    <div v-if="menu==='maestro'" class="popup global-menu" ><div class="menu-title" @pointerdown="globalSurface.startDrag">MAESTRO<button @click="menu=''">×</button></div><button @click="openDialog('setup')">ESSA · Operation mode</button><button @click="openDialog('feeders')">ACC feeders</button><small class="build-version">{{applicationBuild}}</small></div>
+    </Teleport>
     <div class="display" ref="displayElement">
         <div class="time-overview" role="scrollbar" aria-label="Arrival overview — scroll timeline in time" aria-orientation="vertical" aria-controls="aman-timeline" :aria-valuemin="-60" :aria-valuemax="120" :aria-valuenow="clockOffset" :aria-valuetext="`${clockOffset} minutes from now`" tabindex="0" @pointerdown="startTimeScroll" @keydown="scrollTimeKey" @dblclick="clockOffset=0">
             <div class="overview-window" :style="overviewWindow" title="Visible time window — drag to scroll"></div>
@@ -839,6 +861,7 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
 
 
     <div v-if="selectionBox" class="recompute-box" :style="selectionBox" aria-hidden="true"></div>
+    <Teleport :to="menuTarget||'body'" :disabled="!menuTarget">
     <div v-if="menu==='recompute'" class="popup recompute-menu" ref="popupElement"  :style="{left:`${popupPosition.x}px`,top:`${popupPosition.y}px`}">
         <div class="menu-title" @pointerdown="startPopupDrag">{{recomputeSelection.length}} aircraft selected<button @click="closeFieldMenu">×</button></div>
         <button :disabled="!editable" @click="refreshDelay(recomputeSelection)">Refresh delay</button><button data-action="recompute-selection" :disabled="!editable" @click="recomputeFlights(recomputeSelection)">Recompute</button>
@@ -853,6 +876,8 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
     </div>
     <div v-if="menu==='timeline'" class="popup timeline-menu" ref="popupElement"  :style="{left:`${popupPosition.x}px`,top:`${popupPosition.y}px`}"><div class="menu-title" @pointerdown="startPopupDrag">{{slotDraft.runway}} · {{slotDraft.start}} UTC<button @click="menu=''">×</button></div><button data-menu="add-flight" @click="insertCallsign='';openDialog('insert')">Manually add flight</button><template v-if="view==='Runway'"><button data-menu="closure" @click="insertInterval('closure')">Insert closure</button><button data-menu="gap" @click="insertInterval('gap')">Insert gap</button></template></div>
     <div v-if="menu==='coordination'" class="popup coordination-menu" ref="popupElement" :style="{left:`${popupPosition.x}px`,top:`${popupPosition.y}px`}"><div class="menu-title" @pointerdown="startPopupDrag">Coordinations<button @click="menu=''">×</button></div><small v-if="localPreview||demo">Join a shared vatIRIS room to coordinate with other operators.</small><button v-for="message in COORDINATION_MESSAGES" :key="message" :disabled="!canCoordinate" @click="sendCoordination(message)">{{message}}</button></div>
+    </Teleport>
+    <Teleport :to="dialogTarget||'body'" :disabled="!dialogTarget">
     <div v-if="dialog" class="dialog-shade" :class="{'movable-dialog-shade':movableDialog}" @click.self="dialog=''">
         <div class="native-dialog" :class="{'movable-dialog':movableDialog}" :style="dialogStyle" @mouseleave="leaveDialogMenu" :data-dialog="dialog">
             <div class="dialog-title" @pointerdown="startDialogDrag">{{dialog==='configuration'?'RUNWAY CONFIGURATION':dialog==='information'?current?.callsign:dialog==='relative-side'?`INSERT ${relativeOperation.toUpperCase()}`:dialog==='insert'?'MANUALLY ADD FLIGHT':dialog.replaceAll('-',' ').toUpperCase()}}<button @click="dialog=''">×</button></div>
@@ -872,6 +897,7 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
                 <p>{{localPreview?'Local sequence on this computer.':nativeInfo.authProvider==='vatiris-callsign'?`${sharedRole} · ${nativeInfo.relay.network} / ESSA`:`${sharedRole} · ${nativeInfo.relay.network} / ${nativeInfo.relay.session} / ${nativeInfo.relay.channel}`}}</p>
             </template>
             <template v-else-if="dialog==='configuration'||dialog==='rates'">
+                <button v-if="dialog==='configuration'" data-action="sync-euroscope" :disabled="!editable||runwaySyncBusy" @click="syncEuroScope">Sync EuroScope</button><p v-if="runwaySyncError" role="alert">{{runwaySyncError}}</p>
                 <template v-if="dialog==='configuration'"><label>Arrival runway <select data-input="arrival-runway" v-model="draftArrival"><option v-for="r in RUNWAYS.filter(r=>r.startsWith('ESSA/'))" :key="r" :value="r">{{r.split('/')[1]}}</option></select></label><label>Departure runway <select data-input="departure-runway" v-model="draft.departureRunway"><option v-for="r in RUNWAYS.filter(r=>r.startsWith('ESSA/'))" :key="r" :value="r">{{r.split('/')[1]}}</option></select></label></template>
                 <div class="rate-row"><label>Arrival rate<br>{{rateRunway.split('/')[1]}}</label><input data-input="arrival-rate-slider" type="range" min="60" max="600" step="1" v-model.number="draftRateSeconds" @input="draftApplyRate=true" :aria-label="`${rateRunway} landing interval`"><output>{{Math.round(3600/draftRateSeconds)}} / h<br>{{draftRateSeconds}} s · {{rateDistanceNm(draftRateSeconds,rateRunway,draft).toFixed(1)}} NM</output></div>
                 <div class="apply-row"><label for="aman-apply-slider">{{applyMinutes===0?'Apply now':`Apply at ${utc(applyAt)} UTC`}}</label><input id="aman-apply-slider" data-input="apply-time-slider" aria-label="Change application time" type="range" min="0" max="60" step="1" v-model.number="applyMinutes"><span class="apply-range"><span>Now</span><span>+60 min</span></span></div><button v-if="dialog==='configuration'?nextConfiguration:config.pendingRate&&config.pendingRate.at>now" data-action="cancel-planned-change" :disabled="!editable" @click="cancelPlannedChange">Cancel planned changes</button><button data-action="save-rates" :disabled="!editable" @click="saveRates">{{(dialog==='configuration'?nextConfiguration:config.pendingRate&&config.pendingRate.at>now)?'Update change':'Apply'}}</button><button @click="dialog=''">Close</button>
@@ -891,6 +917,7 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
             <template v-else-if="dialog==='diagnostics'"><p v-if="error" role="alert">{{error}} <button @click="error=''">Dismiss</button></p><p v-for="f in diagnosticFlights" :key="f.callsign">{{f.callsign}} — {{f.issue}} <span v-for="warning in f.dataWarnings" :key="warning">{{warning}} </span><span v-if="f.maximumDelayExceeded">Required delay exceeds this aircraft’s maximum. Change the sequence or constraints.</span><span v-if="f.trajectory?.feasible===false">The model cannot meet the configured approach conditions on this path. Review the inputs in supervision.</span><button :disabled="!editable" @click="recomputeFlights([f.callsign])">Recompute</button></p></template>
         </div>
     </div>
+    </Teleport>
 </section>
 </template>
 

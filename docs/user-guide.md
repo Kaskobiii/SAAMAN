@@ -52,6 +52,8 @@ Labels show the scheduled minute and callsign, with delay information and option
 | Turquoise | Frozen |
 | Pink | Landed |
 
+Submenus and dialogs can be moved outside AMAN by dragging their title bars.
+
 Click a label to select it. Right-click it to open its callsign menu. A selected aircraft has a frame around its label.
 
 ## 5. Manage the sequence
@@ -73,7 +75,7 @@ Drag across an empty timeline area to select several aircraft for the available 
 
 ## 6. Rates, runways and gaps
 
-Click the runway configuration box to change arrival/departure configuration. Click the rate box to change an arrival rate, from **6 to 60 aircraft per hour**. Use **Apply now** or choose a future application time and press **Apply**. Check any planned change shown in the header.
+Click the runway configuration box to change arrival/departure configuration. **Sync EuroScope** applies EuroScope's current ESSA ARR and DEP selections immediately. Click the rate box to change an arrival rate, from **6 to 60 aircraft per hour**. Use **Apply now** or choose a future application time and press **Apply**. Check any planned change shown in the header.
 
 In Runway view, right-click an empty timeline area and select **Insert closure** or **Insert gap**. You can also insert either before or after an aircraft from its callsign menu. Click the block to edit its start and duration or remove it; drag the body to move it, or an edge to adjust its length.
 

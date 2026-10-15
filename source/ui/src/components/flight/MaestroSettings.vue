@@ -11,9 +11,9 @@ const fields:{group:string;key:keyof EngineConfig;label:string;min:number;max:nu
     {group:'Sequence settings',key:'unstableSeconds',label:'Initial observation (seconds)',min:0,max:3600},
     {group:'Sequence settings',key:'frozenMinutes',label:'Frozen: minutes to landing',min:0,max:30},
     {group:'Sequence settings',key:'minimumNewSeconds',label:'Missed approach recovery minimum (seconds)',min:0,max:3600},
-    {group:'Landing time',key:'euroscopeBufferMinutes',label:'ETA buffer up to 300 kt (minutes)',min:0,max:15},
-    {group:'Landing time',key:'euroscopeHighSpeedBufferMinutes',label:'ETA buffer at 450 kt (minutes)',min:0,max:15},
-    {group:'Landing time',key:'euroscopeSuperstableBufferMinutes',label:'Slow Superstable / Frozen buffer (minutes)',min:0,max:15},
+    {group:'Landing time',key:'euroscopeBufferMinutes',label:'Normal feeder / fallback allowance (minutes)',min:0,max:15},
+    {group:'Landing time',key:'euroscopeHighSpeedBufferMinutes',label:'Extra landing correction limit (minutes)',min:0,max:15},
+    {group:'Landing time',key:'euroscopeSuperstableBufferMinutes',label:'Near feeder / fallback allowance (minutes)',min:0,max:15},
     {group:'Sequence settings',key:'landingSpeedKnots',label:'Runway spacing reference speed (kt)',min:50,max:200}]
 const groups=['Surface wind','Sequence settings','Landing time']
 const labels={type:'Aircraft type (always shown)',feeder:'Feeder fix',totalDelay:'Total delay',currentDelay:'Current instruction (always shown)',runway:'Runway'}
@@ -33,6 +33,6 @@ defineExpose({saved:()=>{draft.value=null;error.value=''}})
 <p v-if="group==='Sequence settings'">Stable: 15 minutes · Superstable: 4 minutes (fixed)</p>
 <p v-if="group==='Landing time'">ETA updates live; existing slots change on Recompute.</p></fieldset><fieldset v-if="draft.displayPreferences"><legend>Shared labels and panels</legend><label v-for="(name,key) in labels" :key="key"><input type="checkbox" v-model="draft.displayPreferences.labels[key]" :disabled="key==='type'||key==='currentDelay'">{{name}}</label><label v-for="(name,key) in panels" :key="key"><input type="checkbox" v-model="draft.displayPreferences.panels[key]">{{name}}</label></fieldset></div>
 <p v-if="error" class="warning">{{error}}</p><button @click="save" :disabled="busy||base!==revision">Save for everyone</button><button @click="edit" :disabled="busy">Reload settings</button><button @click="draft=null" :disabled="busy">Cancel</button>
-</template><p v-else>Wind {{current.surfaceWindAuto?'automatic':`${current.surfaceWindDirection}° / ${current.surfaceWindSpeed} kt`}} · Frozen {{current.frozenMinutes}} min · ETA buffer {{current.euroscopeBufferMinutes}} min up to 300 kt / {{Math.max(current.euroscopeBufferMinutes??2,current.euroscopeHighSpeedBufferMinutes??6)}} min at 450 kt / {{Math.min(current.euroscopeBufferMinutes??2,current.euroscopeSuperstableBufferMinutes??1)}} min slow Superstable/Frozen</p>
+</template><p v-else>Wind {{current.surfaceWindAuto?'automatic':`${current.surfaceWindDirection}° / ${current.surfaceWindSpeed} kt`}} · Frozen {{current.frozenMinutes}} min · Feeder allowances {{current.euroscopeBufferMinutes}} / {{Math.min(current.euroscopeBufferMinutes??2,current.euroscopeSuperstableBufferMinutes??1)}} min · Extra landing correction limit {{current.euroscopeHighSpeedBufferMinutes??6}} min</p>
 </section></template>
 <style scoped>.settings{padding:16px;background:#5b6b75;color:#fff;font:14px Arial,sans-serif}.settings h2{font-size:18px}.groups{display:flex;flex-wrap:wrap;gap:16px}fieldset{flex:1;min-width:220px;border:1px solid #9bafb9}label{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:9px 0}input[type=number]{width:85px}input,select,button{font:inherit;padding:5px;border-radius:5px;border:1px solid #adbfc9}button{margin:6px 8px 0 0;cursor:pointer}.warning{color:#ffdf6a}button:disabled{opacity:.5}</style>

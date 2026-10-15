@@ -1,4 +1,4 @@
-# SAAMAN native plugin, 1.3.10
+# SAAMAN native plugin, 1.3.11
 
 SAAMAN.dll is an x86 EuroScope plugin with Win32 child panels hosting the AMAN UI
 through Microsoft WebView2. The calculation engine is editable TypeScript.
@@ -110,13 +110,21 @@ Context defaults to shared vatIRIS callsign mode on VATSIM live. Loading options
 without a shared field keeps that default; explicit saved local mode is retained.
 Native context checks cover fresh defaults, older partial options and local reload.
 
-## Live ETA and accepted landing buffer
+## Live landing ETA and accepted planning times
 
-The high-speed supervisory setting defaults to six minutes at 450 kt. Above 300 kt, the landing buffer adds `(groundspeed - 300) / 150 * max(0, highSpeedBuffer - normalBuffer)` to the current phase base, rounded to seconds and capped at 15 minutes. Every valid update uses current groundspeed and EuroScope landing EET for public `eta` / `liveBufferedEta`. Stale or invalid observations retain the last valid public ETA; a zero-minute airborne EET remains usable for the forecast.
+`maestro-landing-prediction.ts` predicts crossing of `SA<assigned runway>`, not the later airport route endpoint. If threshold EET is unavailable it explicitly falls back to the airport estimate. Fresh route coordinates supply remaining distance; a heading clearance makes that path uncertain unless current position and track establish alignment with final. No hypothetical turn back to a STAR is invented.
 
-Initial capture and explicit Recompute store the accepted ETA, raw estimate, groundspeed and buffers in `euroscopeBaseline`. Allocation uses that baseline rather than the public ETA: `runEngine` copies previous checkpoint flights with their accepted ETA for scheduling, then exposes the live ETA after allocation. The caller's checkpoint is never mutated. Upgrades preserve older accepted baselines. Normal timeline labels continue using STA or STA-FF. `runwayDelay` shows the live STA-minus-ETA comparison while accepted instruction policy remains unchanged.
+The generic expected groundspeed profile uses 140 kt within 4 NM, 180 at 10, 240 at 20, 300 at 40 and 450 at 100 NM, interpolated between points. It starts from observed groundspeed and sheds excess speed progressively over remaining distance. Traffic already slower than the profile is not accelerated. This is an empirical nominal profile, not an aircraft-specific performance or wind model; it can mispredict both departure acceleration and future vectoring. Integrating the profile gives an expected travel time. Only the difference missing from EuroScope's threshold EET is added, to avoid counting existing slowdown twice.
 
-`feederBufferMinutes` records the separate phase buffer, so speed compensation cannot lengthen feeder ETA or create an initial instruction by being added twice. Feeder ETA continues following observed feeder timing until passage. Accepted routes advance on observed passage rather than rerouting.
+Whole-minute EET samples receive a 30-second midpoint estimate of quantization uncertainty when not superseded by final geometry; the SDK's exact rounding rule has not been established. Established short final (within 4 NM, cross-track <=0.25 NM, heading within 15 degrees, altitude <=4500 ft, vertical speed <=300 ft/min) uses along-final distance/current GS, adjusted for position age. There is no minimum one-minute floor and a correction can be negative. An established fresh airborne flight continues receiving live ETA below 350 ft until independently detected as landed; initial ground capture remains guarded.
+
+The existing backend configuration keys are retained. `euroscopeBufferMinutes` (default 2) and `euroscopeSuperstableBufferMinutes` (default 1) remain feeder allowances and fallback bases. `euroscopeHighSpeedBufferMinutes` (default 6) is now an **extra landing correction limit**, not six minutes at 450 kt: the route correction is capped at phase base plus this value, with an overall 15-minute maximum. Unsupported path geometry uses a capped fraction of remaining EET plus the phase fallback allowance, with no speed-only addition. A vector can retain the last model-derived correction on the same assigned runway for up to ten minutes from its original observation. Stale positions cannot apply that correction; fallback does not renew its age; new final geometry supersedes it. The source, reference, distance and correction are visible in supervision. This retention avoids an artificial drop on entry into vectoring; it does not predict future clearances.
+
+`landingPrediction.continuity` travels in checkpoints so sequencer handover preserves recent model information. It contains only a model correction, runway and observation timestamp. STA, assigned delay and retained holding instructions never feed back into live prediction. Resuming/requeueing an aircraft resets this history; runway changes cannot reuse a correction from the previous runway.
+
+Initial capture, explicit Recompute and confirmed runway changes store accepted ETA, raw estimate, reference, groundspeed and correction in `euroscopeBaseline`. Scheduling uses that accepted baseline, while public `eta` / `liveBufferedEta` follows live observations. Existing baselines survive upgrade, ordinary speed changes, route edits and phase changes. `runEngine` does not mutate its caller's checkpoint. Timeline labels retain STA/STA-FF; `runwayDelay` shows STA minus live ETA, independently of accepted instruction policy. Stale/invalid observations retain the last valid public ETA.
+
+`feederBufferMinutes` records the separate phase allowance. Landing slowdown correction does not lengthen feeder ETA or get added to feeder timing twice. Accepted routes advance on observed passage, not ordinary reroutes. Existing five-minute holding instructions remain intact until the existing controller refresh/recompute policy changes them.
 
 ## Floating submenus and runway sync
 

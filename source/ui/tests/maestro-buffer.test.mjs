@@ -235,27 +235,27 @@ test('speed buffer defaults, settings migration and bounds are shared and valida
  assert.equal(sharedSettings(config()).euroscopeHighSpeedBufferMinutes,6)
 })
 
-test('fast-flight buffer grows from 300 kt, interpolates through 450 kt and is capped',()=>{
+test('missing route geometry cannot justify an extra speed-only landing correction',()=>{
  const c=config()
- for(const [groundspeed,seconds] of [[250,120],[300,120],[375,240],[450,360],[500,440],[1000,900]]){
+ for(const [groundspeed,seconds] of [[250,120],[300,120],[375,120],[450,120],[500,120],[1000,120]]){
   assert.equal(Math.round(euroscopeBufferMinutes(flight({groundspeed}),c)*60),seconds)
  }
  assert.equal(euroscopeBufferMinutes(flight({groundspeed:500}),{...c,euroscopeHighSpeedBufferMinutes:2}),2)
  assert.equal(euroscopeBufferMinutes(flight({groundspeed:500}),{...c,euroscopeHighSpeedBufferMinutes:1}),2)
- assert.equal(euroscopeBufferMinutes(flight({groundspeed:500}),{...c,euroscopeBufferMinutes:15}),15)
+ assert.equal(euroscopeBufferMinutes(flight({groundspeed:500}),{...c,euroscopeBufferMinutes:15}),12.5)
 })
 
-test('slower Superstable/Frozen capture keeps one minute, while fast near-feeder traffic gets the speed addition',()=>{
+test('the near-feeder fallback and feeder buffer retain their one-minute setting without a speed-only addition',()=>{
  const c=config(),near=flight({groundspeed:250,route:[{name:'ELTOK',seconds:100}]})
  assert.equal(euroscopeBufferMinutes(near,c),1)
- assert.equal(euroscopeBufferMinutes({...near,groundspeed:450},c),5);assert.equal(euroscopeFeederBufferMinutes({...near,groundspeed:450},c),1)
+ assert.equal(euroscopeBufferMinutes({...near,groundspeed:450},c),1);assert.equal(euroscopeFeederBufferMinutes({...near,groundspeed:450},c),1)
  assert.equal(euroscopeBufferMinutes(flight({groundspeed:250,landingSeconds:180}),c),1)
 })
 
 test('live speed selection updates ETA while accepted landing and feeder captures wait for Recompute',()=>{
  const c=config(),first=runEngine(packet([flight({groundspeed:450})]),c,{}),a=first.flights[0]
- assert.equal(a.euroscopeBaseline.groundspeed,450);assert.equal(a.euroscopeBaseline.bufferMinutes,6)
- assert.equal(a.eta,now+1860000);assert.equal(a.etaFf,now+1020000);assert.equal(a.delay,0);assert.equal(a.euroscopeBaseline.feederBufferMinutes,2)
+ assert.equal(a.euroscopeBaseline.groundspeed,450);assert.equal(a.euroscopeBaseline.bufferMinutes,2)
+ assert.equal(a.eta,now+1620000);assert.equal(a.etaFf,now+1020000);assert.equal(a.delay,0);assert.equal(a.euroscopeBaseline.feederBufferMinutes,2)
  const input=packet([flight({groundspeed:250,landingSeconds:1000,direct:'OTHER'})],now+2000)
  const next=runEngine(input,c,{},first),b=next.flights[0]
  assert.equal(b.sta,a.sta);assert.equal(b.staFf,a.staFf);assert.deepEqual(b.euroscopeBaseline,a.euroscopeBaseline)
@@ -265,11 +265,12 @@ test('live speed selection updates ETA while accepted landing and feeder capture
  assert.equal(refreshed.eta,now+1123000)
 })
 
-test('recorded SAS1AB at 499 kt gains the selected buffer on Recompute without changing the entered order',()=>{
+test('recording 7 SAS1AB Recompute uses remaining route slowdown without changing entered order or feeder buffer',()=>{
  const {input,config:c,edits,previous}=speedFixture
  const next=runEngine(input,c,edits,previous),sas=next.flights.find(f=>f.callsign==='SAS1AB'),ryr=next.flights.find(f=>f.callsign==='RYR5W')
- assert.equal(sas.euroscopeBaseline.groundspeed,499);assert.equal(Math.round(sas.euroscopeBaseline.bufferMinutes*60),438)
- assert.equal(new Date(sas.eta).toISOString().slice(11,19),'21:04:26');assert.equal(new Date(sas.euroscopeBaseline.etaFf).toISOString().slice(11,19),'20:51:08');assert.equal(sas.euroscopeBaseline.feederBufferMinutes,2)
+ assert.equal(sas.euroscopeBaseline.groundspeed,499);assert.equal(sas.landingPrediction.method,'route-slowdown')
+ assert.ok(Math.abs(sas.eta-Date.UTC(2026,9,13,21,3,53))<90000,'forecast stays within 90 seconds of the recorded arrival')
+ assert.equal(new Date(sas.euroscopeBaseline.etaFf).toISOString().slice(11,19),'20:51:08');assert.equal(sas.euroscopeBaseline.feederBufferMinutes,2)
  assert.ok(sas.order>ryr.order);assert.ok(sas.sta>ryr.sta)
  const hold=runEngine({...input,timestamp:input.timestamp+2000,flights:input.flights.map(f=>f.callsign==='SAS1AB'?{...f,groundspeed:250,landingSeconds:500}:f)},c,edits,next)
  assert.equal(hold.flights.find(f=>f.callsign==='SAS1AB').sta,sas.sta)
@@ -317,7 +318,7 @@ test('invalid or stale live observations retain the last valid ETA and accepted 
 test('a zero-minute final estimate updates live ETA without capturing another baseline',()=>{
  const c=config(),first=runEngine(packet([flight({landingSeconds:180,route:[{name:'ELTOK',seconds:60}],groundspeed:250,altitude:1000})]),c,{})
  const next=runEngine(packet([flight({landingSeconds:0,route:[{name:'ELTOK',seconds:-60}],groundspeed:140,altitude:500})],now+2000),c,{},first).flights[0]
- assert.equal(next.eta,now+62000);assert.equal(next.sta,first.flights[0].sta);assert.deepEqual(next.euroscopeBaseline,first.flights[0].euroscopeBaseline)
+ assert.equal(next.eta,now+2000);assert.equal(next.sta,first.flights[0].sta);assert.deepEqual(next.euroscopeBaseline,first.flights[0].euroscopeBaseline)
 })
 
 test('shared checkpoint round trip keeps live forecasts separate from accepted scheduling times',()=>{

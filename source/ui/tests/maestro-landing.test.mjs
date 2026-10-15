@@ -15,11 +15,11 @@ test('landing reference is the assigned threshold instead of the later airport e
 })
 
 test('remaining distance changes the slowdown correction even at identical groundspeed',()=>{
- const near=predictLanding(p(),config(),1),far=predictLanding(p({latitude:61}),config(),1)
+ const near=predictLanding(p({aircraft:'ZZZZ'}),config(),1),far=predictLanding(p({aircraft:'ZZZZ',latitude:61}),config(),1)
  assert.equal(near.method,'route-slowdown');assert.equal(far.method,'route-slowdown')
  assert.ok(far.distanceNm>near.distanceNm);assert.ok(far.correctionSeconds>near.correctionSeconds)
  assert.ok(near.seconds>=near.rawSeconds);assert.ok(far.correctionSeconds<=7*60)
- const limited=predictLanding(p({latitude:65}),{...config(),euroscopeHighSpeedBufferMinutes:0},1)
+ const limited=predictLanding(p({aircraft:'ZZZZ',latitude:65}),{...config(),euroscopeHighSpeedBufferMinutes:0},1)
  assert.ok(limited.correctionSeconds<=60)
 })
 
@@ -45,10 +45,11 @@ test('heading vectors, missing route geometry and stale positions use an explici
  assert.equal(capped.correctionSeconds,15*60)
 })
 
-test('recording 9 fresh capture no longer starts four minutes late',()=>{
+test('recording 9 fresh capture uses the live aircraft profile and protects its new allocation',()=>{
  const {input,config:c}=fixture.frames[0],first=runEngine(input,c,{}).flights[0]
- assert.equal(first.landingPrediction.method,'route-slowdown')
- assert.ok(Math.abs(first.eta-fixture.recordedArrival)<90000,'initial forecast is within 90 seconds of the observed arrival')
+ assert.equal(first.landingPrediction.method,'aircraft-profile')
+ assert.equal(first.eta,input.timestamp+first.landingPrediction.routeTiming.seconds*1000)
+ assert.ok(Math.abs(first.eta-fixture.recordedArrival)<180000,'available-input replay remains within three minutes; not an exact initial-capture validation')
  assert.equal(first.sta,first.eta)
 })
 
@@ -107,7 +108,7 @@ test('an existing five-minute holding instruction is preserved through live fina
 })
 
 test('vectors retain a recent model correction across checkpoints without feeding assigned delay into ETA',()=>{
- const now=1_000_000,f=p({latitude:61}),c=config(),model=predictLanding(f,c,1,undefined,now)
+ const now=1_000_000,f=p({aircraft:'ZZZZ',latitude:61}),c=config(),model=predictLanding(f,c,1,undefined,now)
  assert.ok(model.correctionSeconds>90)
  const vector={...f,assignedHeading:210},checkpoint=JSON.parse(JSON.stringify(model))
  const held=predictLanding(vector,c,1,checkpoint,now+5000)

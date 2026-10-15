@@ -265,14 +265,14 @@ test('live speed selection updates ETA while accepted landing and feeder capture
  assert.equal(refreshed.eta,now+1123000)
 })
 
-test('recording 7 SAS1AB Recompute uses remaining route slowdown without changing entered order or feeder buffer',()=>{
+test('recording 7 SAS1AB Recompute uses aircraft performance while preserving entered order',()=>{
  const {input,config:c,edits,previous}=speedFixture
  const next=runEngine(input,c,edits,previous),sas=next.flights.find(f=>f.callsign==='SAS1AB'),ryr=next.flights.find(f=>f.callsign==='RYR5W')
- assert.equal(sas.euroscopeBaseline.groundspeed,499);assert.equal(sas.landingPrediction.method,'route-slowdown')
- assert.ok(Math.abs(sas.eta-Date.UTC(2026,9,13,21,3,53))<90000,'forecast stays within 90 seconds of the recorded arrival')
- assert.equal(new Date(sas.euroscopeBaseline.etaFf).toISOString().slice(11,19),'20:51:08');assert.equal(sas.euroscopeBaseline.feederBufferMinutes,2)
+ assert.equal(sas.euroscopeBaseline.groundspeed,499);assert.equal(sas.landingPrediction.method,'aircraft-profile')
+ assert.equal(sas.eta,input.timestamp+sas.landingPrediction.routeTiming.seconds*1000)
+ assert.equal(sas.euroscopeBaseline.etaFf,input.timestamp+sas.landingPrediction.routeTiming.feeder.seconds*1000)
  assert.ok(sas.order>ryr.order);assert.ok(sas.sta>ryr.sta)
- const hold=runEngine({...input,timestamp:input.timestamp+2000,flights:input.flights.map(f=>f.callsign==='SAS1AB'?{...f,groundspeed:250,landingSeconds:500}:f)},c,edits,next)
+ const hold=runEngine({...input,timestamp:input.timestamp+2000,flights:input.flights.map(f=>f.callsign==='SAS1AB'?{...f,groundspeed:250,landingSeconds:1000}:f)},c,edits,next)
  assert.equal(hold.flights.find(f=>f.callsign==='SAS1AB').sta,sas.sta)
  assert.equal(hold.flights.find(f=>f.callsign==='SAS1AB').euroscopeBaseline.bufferMinutes,sas.euroscopeBaseline.bufferMinutes)
 })

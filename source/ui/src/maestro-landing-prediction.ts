@@ -1,10 +1,12 @@
 import type {TelemetryFlight,EngineConfig} from './maestro-engine'
 import {distanceNm,STAR_RUNWAYS} from './maestro-star-prediction'
 import {finalPosition,headingDifference} from './maestro-geometry'
+import {predictRouteTiming,type RouteTiming} from './maestro-route-timing'
 
 export interface LandingPrediction {
  seconds:number;rawSeconds:number;correctionSeconds:number
- reference:'threshold'|'airport';method:'route-slowdown'|'retained-slowdown'|'final-position'|'fallback'
+ reference:'threshold'|'airport';method:'aircraft-profile'|'route-slowdown'|'retained-slowdown'|'final-position'|'fallback'
+ routeTiming?:RouteTiming
  distanceNm?:number;establishedFinal:boolean
  continuity?:{runway:string;seconds:number;at:number}
 }
@@ -46,6 +48,13 @@ export function predictLanding(p:TelemetryFlight,config:EngineConfig,baseMinutes
  if(establishedFinal){
   const distance=Math.max(0,relative!.along),seconds=Math.max(0,distance/p.groundspeed*3600-Math.max(0,p.positionAgeSeconds??0))
   return {seconds,rawSeconds,correctionSeconds:seconds-rawSeconds,reference:'threshold',method:'final-position',distanceNm:distance,establishedFinal}
+ }
+ const routeTiming=predictRouteTiming(p,config)
+ if(routeTiming){
+  const correctionSeconds=routeTiming.seconds-rawSeconds
+  return {seconds:routeTiming.seconds,rawSeconds,correctionSeconds,reference:'threshold',method:'aircraft-profile',routeTiming,
+   distanceNm:routeTiming.distanceNm,establishedFinal:false,
+   continuity:{runway:`${p.arrival}/${p.runway}`,seconds:Math.max(0,correctionSeconds),at:timestamp}}
  }
  let distance:number|undefined
  if(alignedApproach)distance=Math.max(0,relative!.along)

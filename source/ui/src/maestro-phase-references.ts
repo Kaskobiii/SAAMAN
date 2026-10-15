@@ -4,6 +4,21 @@ export interface AircraftPhaseReference {
  highDescentFpm?:number;descentFpm?:number;approachFpm?:number;source:string
 }
 export type PhaseReferences=Record<string,AircraftPhaseReference>
+// Fail closed on damaged data. Unknown fields never become executable inputs.
+export function bundledPhaseReferences(dataset:any):PhaseReferences {
+ const result:PhaseReferences=Object.create(null)
+ if(dataset?.schema!=='saaman-phase-profiles-1'||!dataset.profiles||typeof dataset.profiles!=='object')return result
+ for(const [icao,p] of Object.entries(dataset.profiles).slice(0,1000) as [string,any][]){
+  if(!/^[A-Z0-9]{1,4}$/.test(icao)||!p||typeof p!=='object')continue
+  const entry:AircraftPhaseReference={source:`https://learningzone.eurocontrol.int/ilp/customs/ATCPFDB/details.aspx?ICAO=${icao}`}
+  for(const key of ['mach','descentIas','approachIas','minimumCleanIas','landingIas','initialDescentToFeet','descentToFeet'] as const){
+   const value=p[key],limit=key==='mach'?5:key.endsWith('Feet')?60001:1500
+   if(Number.isFinite(value)&&value>0&&value<limit)entry[key]=value
+  }
+  if(entry.approachIas&&entry.landingIas)result[icao]=Object.freeze(entry)
+ }
+ return Object.freeze(result)
+}
 // Import the locally extracted speed-only dataset without treating missing or
 // implausibly labelled values as valid performance. No unit guessing occurs.
 export function phaseReferenceLookup(dataset:any):PhaseReferences {

@@ -12,16 +12,31 @@ export function manualTransferSeconds(config:EngineConfig,runway:string,feeder:s
 }
 function copyEdits(edits:Record<string,FlightEdit>):Record<string,FlightEdit>{return Object.fromEntries(Object.entries(edits).map(([key,value])=>[key,{...value}]))}
 function available(f:EngineFlight){return f.mode==='sequenced'&&f.state!==4&&!f.lost&&!f.issue}
-export function gainDragEdits(snapshot:EngineSnapshot,edits:Record<string,FlightEdit>,callsign:string,time:number,view='Runway'){
+export function dragTargetTime(snapshot:EngineSnapshot,callsign:string,time:number,view='Runway',config?:EngineConfig){
  const f=snapshot.flights.find(f=>f.callsign===callsign);if(!f||!available(f))throw Error('Select an available arrival')
+ if(!Number.isFinite(time))throw Error('Choose a valid time')
  const requested=view==='Runway'?time:f.sta+time-f.staFf
+ // A reservation with no live flight has no physical arrival estimate to
+ // restore. A later matching flight plan resumes the ordinary live policy.
+ const manual=config?.manualFlights?.some(p=>p.callsign===callsign)&&!snapshot.observedCallsigns?.includes(callsign)
  const original=f.originalAssignedSta??f.initialSta??f.sta
- const target=Math.max(snapshot.timestamp+1000,Math.min(original,requested))
+ return Math.max(snapshot.timestamp+1000,manual?requested:Math.min(original,requested))
+}
+export function gainDragEdits(snapshot:EngineSnapshot,edits:Record<string,FlightEdit>,callsign:string,time:number,view='Runway',config?:EngineConfig){
+ const f=snapshot.flights.find(f=>f.callsign===callsign);if(!f||!available(f))throw Error('Select an available arrival')
+ const target=dragTargetTime(snapshot,callsign,time,view,config)
  const queue=snapshot.flights.filter(p=>available(p)&&p.runway===f.runway&&p.callsign!==callsign).sort((a,b)=>a.order-b.order)
  const index=queue.findIndex(p=>p.sta>target);queue.splice(index<0?queue.length:index,0,f)
  const next=copyEdits(edits),group=`${snapshot.timestamp}-${Math.random().toString(36).slice(2,10)}`
  queue.forEach((p,order)=>{next[p.callsign]={...next[p.callsign],order,orderGroup:group,changedAt:snapshot.timestamp,targetKind:p.callsign===callsign?'time':next[p.callsign]?.targetKind}})
  next[callsign]={...next[callsign],target,targetKind:'time'}
+ return validateEdits(next)
+}
+export function swapFlightEdits(snapshot:EngineSnapshot,edits:Record<string,FlightEdit>,callsign:string,other:string,view='Runway'){
+ const a=snapshot.flights.find(f=>f.callsign===callsign),b=snapshot.flights.find(f=>f.callsign===other)
+ if(!a||!b||a===b||!available(a)||!available(b)||a.arrival!==b.arrival||a.runway!==b.runway||(view!=='Runway'&&a.ff!==b.ff))throw Error('Select two available arrivals in the same sequence')
+ const next=copyEdits(edits),stamp=Math.max(snapshot.timestamp+1,(edits[callsign]?.changedAt??0)+1,(edits[other]?.changedAt??0)+1),group=`${stamp}-${Math.random().toString(36).slice(2,10)}`
+ for(const [flight,slot] of [[a,b],[b,a]])next[flight.callsign]={...next[flight.callsign],order:slot.order,target:slot.sta,targetKind:'time',orderGroup:group,changedAt:stamp,closurePosition:undefined,swapAt:undefined}
  return validateEdits(next)
 }
 export function insertRelative(snapshot:EngineSnapshot,edits:Record<string,FlightEdit>,callsign:string,anchor:string,side:'before'|'after'){

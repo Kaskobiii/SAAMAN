@@ -54,11 +54,11 @@ Labels show the scheduled minute and callsign, with delay information and option
 
 Submenus and dialogs can be moved outside AMAN by dragging their title bars.
 
-Click a label to select it. Right-click it to open its callsign menu. A selected aircraft has a frame around its label.
+Click a label to highlight and select it. Right-click it to open its callsign menu. Press **Escape** to cancel a selection or drag.
 
 ## 5. Manage the sequence
 
-Use **Runway** view when changing the overall landing order. Drag an aircraft to adjust its position; the guide line shows the proposed time. Frozen and Superstable aircraft can also be adjusted manually.
+Use **Runway** view when changing the overall landing order. Select an aircraft, then move the pointer onto its timeline: an arrow shows the proposed insertion point. Click to confirm. Hover over another callsign to show the swap icon, then click that callsign to exchange their slots. You can also drag to an arrow position or drop onto another callsign to swap. Frozen and Superstable aircraft can also be adjusted manually. Swaps use the same runway; feeder views also require the same feeder. Normal spacing and closures still apply.
 
 The callsign menu provides the main actions:
 
@@ -71,7 +71,7 @@ The callsign menu provides the main actions:
 - **Recompute:** deliberately refresh the aircraft's accepted planning data. Coordinate its use when it could change the shared sequence.
 - **Remove:** remove the aircraft from AMAN.
 
-Drag across an empty timeline area to select several aircraft for the available group actions. Use the shared sequence together with normal controller coordination.
+Drag across an empty timeline area to select several aircraft for the available group actions. Clear an individual selection with **Escape** first, or hold **Shift** while starting the selection box. Aircraft manually added without a flight plan can be moved both earlier and later; the new time is retained. Use the shared sequence together with normal controller coordination.
 
 ## 6. Rates, runways and gaps
 

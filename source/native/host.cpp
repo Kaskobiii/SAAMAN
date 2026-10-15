@@ -189,7 +189,15 @@ struct Host::Impl {
                         if(method=="host:test-supervisor"&&self->host.context->test){std::ofstream(self->host.context->directory/L"supervisor-frame.json")<<data.dump();self->Reply(id,true);return S_OK;}
                         if(method=="host:test-runways"&&self->host.context->test){std::lock_guard lock(self->host.context->mutex);self->host.context->telemetry["activeRunways"]={{"arrivals",Json::array({"ESSA/01R"})},{"departures",Json::array({"ESSA/01L"})}};self->host.context->telemetry["timestamp"]=Now();self->Reply(id,true);return S_OK;}
                         if(method=="host:test-operations"&&self->host.context->test){std::ofstream(self->host.context->directory/L"operations-ui.json")<<data.dump(2);self->Reply(id,true);return S_OK;}
-                        if(method=="host:test-frame"&&self->host.context->test){RECT rectangle{},bounds{};GetWindowRect(self->hwnd,&rectangle);MapWindowPoints(HWND_DESKTOP,GetParent(self->hwnd),reinterpret_cast<POINT*>(&rectangle),2);self->controller->get_Bounds(&bounds);self->Reply(id,{{"x",rectangle.left},{"y",rectangle.top},{"width",rectangle.right-rectangle.left},{"height",rectangle.bottom-rectangle.top},{"browserLeft",bounds.left},{"browserTop",bounds.top},{"dragging",self->dragging},{"resizing",self->resizing},{"visible",self->host.visible[self->supervisor?1:0].load()}});return S_OK;}
+                        if(method=="host:test-frame"&&self->host.context->test){
+                            const auto capture=data.value("capture",std::string());
+                            if(capture=="insert"||capture=="swap"){
+                                ComPtr<IStream> stream;const auto file=self->host.context->directory/Wide("placement-"+capture+".png");
+                                if(FAILED(SHCreateStreamOnFileEx(file.c_str(),STGM_CREATE|STGM_WRITE,FILE_ATTRIBUTE_NORMAL,TRUE,nullptr,&stream)))throw RequestError(500,"Could not create preview capture");
+                                const auto started=self->browser->CapturePreview(COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG,stream.Get(),Callback<ICoreWebView2CapturePreviewCompletedHandler>([stream,weak,id](HRESULT error)->HRESULT{if(auto owner=weak.lock())owner->Reply(id,SUCCEEDED(error));return S_OK;}).Get());
+                                if(FAILED(started))throw RequestError(500,"Could not capture preview");return S_OK;
+                            }
+                            RECT rectangle{},bounds{};GetWindowRect(self->hwnd,&rectangle);MapWindowPoints(HWND_DESKTOP,GetParent(self->hwnd),reinterpret_cast<POINT*>(&rectangle),2);self->controller->get_Bounds(&bounds);self->Reply(id,{{"x",rectangle.left},{"y",rectangle.top},{"width",rectangle.right-rectangle.left},{"height",rectangle.bottom-rectangle.top},{"browserLeft",bounds.left},{"browserTop",bounds.top},{"dragging",self->dragging},{"resizing",self->resizing},{"visible",self->host.visible[self->supervisor?1:0].load()}});return S_OK;}
                         const auto result=self->host.context->Request(method,data,self->supervisor);self->Reply(id,result);
                         if(method=="mode:set"&&result.value("changed",true)){if(self->host.coordination)self->host.coordination->Hide();for(const auto& other:self->host.windows)if(other.get()!=self.get()&&!other->auth&&other->browser)other->browser->Reload();}
                     }catch(const RequestError& error){self->Reply(id,Json(),false,error.status,error.what());}catch(const std::exception& error){self->Reply(id,Json(),false,400,error.what());}return S_OK;
@@ -308,7 +316,44 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     flight.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,button:2,clientX:rect.left+5,clientY:rect.top+5}));await wait(40);[...findAll('.flight-menu button')].find(b=>b.innerText.includes('Insert gap')).click();await floatingReady('dialog','[data-dialog=relative-side]');
                     result.beforeAfterChoices=findAll('[data-dialog=relative-side] .submenu-choice').length;if(result.beforeAfterChoices!==2)throw Error('Before/after submenu missing');find('.dialog-title button').click();await wait(40);
                     find('.time-area').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,button:2,clientX:rect.left+5,clientY:rect.top+5}));await wait(40);find('[data-menu=add-flight]').click();await floatingReady('dialog','[data-dialog=insert]');
-                    result.manualLists=findAll('.manual-flight-lists [role=listbox]').length;if(result.manualLists!==2)throw Error('Overshoot/Planned lists missing');find('.dialog-title button').click();await wait(40);
+                    result.manualLists=findAll('.manual-flight-lists [role=listbox]').length;if(result.manualLists!==2)throw Error('Overshoot/Planned lists missing');
+                    if(!boundaryGap){
+                        const enter=(element,value)=>{element.value=value;element.dispatchEvent(new element.ownerDocument.defaultView.Event('input',{bubbles:true}))};
+                        enter(find('[data-input=manual-callsign]'),'RESERVE_TEST');
+                        enter(find('[data-dialog=insert] input[type=time]'),new Date(Date.now()+18*60000).toISOString().slice(11,16));
+                        find('[data-action=insert-flight]').click();await wait(250);
+                        const planFlight=async name=>(await rpc('plan:get')).snapshot.flights.find(f=>f.callsign===name);
+                        let manual=find('.flight[data-callsign=RESERVE_TEST]');if(!manual)throw Error('Manual reservation missing');
+                        const originalManual=await planFlight('RESERVE_TEST'),manualRect=manual.getBoundingClientRect(),x=manualRect.left+15,y=manualRect.top+manualRect.height/2;
+                        manual.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:85,clientX:x,clientY:y}));
+                        window.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,buttons:1,pointerId:85,clientX:x,clientY:y-46}));await wait(40);
+                        const arrow=find('[data-placement=insert]');result.insertionArrow=arrow?.dataset.source==='RESERVE_TEST';if(!result.insertionArrow)throw Error('Insertion arrow missing');
+                        await rpc('host:test-frame',{capture:'insert'});
+                        window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,button:0,pointerId:85,clientX:x,clientY:y-46}));await wait(250);
+                        const laterManual=await planFlight('RESERVE_TEST');result.manualLaterDrag=laterManual.sta===originalManual.sta+120000;if(!result.manualLaterDrag)throw Error('Manual flight snapped back instead of accepting a later time');
+                        await wait(250);if((await planFlight('RESERVE_TEST')).sta!==laterManual.sta)throw Error('Manual flight time did not persist');
+                        manual=find('.flight[data-callsign=RESERVE_TEST]');manual.click();await wait(30);
+                        result.selectionHighlight=manual.classList.contains('selected')&&manual.getAttribute('aria-pressed')==='true'&&getComputedStyle(manual).borderTopColor==='rgb(240, 248, 255)'&&getComputedStyle(manual).backgroundColor!=='rgba(0, 0, 0, 0)';if(!result.selectionHighlight)throw Error('Selected aircraft highlight missing');
+                        const area=manual.closest('.time-area'),m=manual.getBoundingClientRect(),clickX=area.getBoundingClientRect().left+area.getBoundingClientRect().width/2-30,clickY=m.top+m.height/2+23;
+                        window.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:clickX,clientY:clickY}));await wait(30);
+                        const clickPreview=find('[data-placement=insert]');if(!clickPreview)throw Error('Selected aircraft hover arrow missing');const previewTime=Number(clickPreview.dataset.time);
+                        area.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:clickX,clientY:clickY}));await wait(250);
+                        const inserted=await planFlight('RESERVE_TEST');result.selectionInsertion=Math.abs(inserted.sta-previewTime)<1000&&Math.abs(inserted.sta-(laterManual.sta-60000))<5000;if(!result.selectionInsertion)throw Error('Selected aircraft insertion click did not set the proposed time');
+                        manual=find('.flight[data-callsign=RESERVE_TEST]');manual.click();await wait(30);
+                        const live=find('.flight[data-callsign=SAAMAN_TEST]'),liveRect=live.getBoundingClientRect(),liveBefore=await planFlight('SAAMAN_TEST');
+                        window.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:liveRect.left+15,clientY:liveRect.top+liveRect.height/2}));await wait(30);
+                        const swap=find('[data-placement=swap]');result.swapPreview=swap?.dataset.target==='SAAMAN_TEST'&&live.classList.contains('swap-target')&&getComputedStyle(live).borderTopColor==='rgb(255, 229, 122)';if(!result.swapPreview)throw Error('Swap icon or destination highlight missing');
+                        await rpc('host:test-frame',{capture:'swap'});live.click();await wait(250);
+                        const swappedManual=await planFlight('RESERVE_TEST'),swappedLive=await planFlight('SAAMAN_TEST');result.selectionSwap=swappedManual.sta===liveBefore.sta&&swappedLive.sta===inserted.sta;if(!result.selectionSwap)throw Error('Clicking the swap destination did not exchange the two slots');
+                        const dragManual=find('.flight[data-callsign=RESERVE_TEST]'),dragTarget=find('.flight[data-callsign=SAAMAN_TEST]'),from=dragManual.getBoundingClientRect(),to=dragTarget.getBoundingClientRect();
+                        dragManual.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:86,clientX:from.left+15,clientY:from.top+from.height/2}));
+                        window.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,buttons:1,pointerId:86,clientX:to.left+15,clientY:to.top+to.height/2}));await wait(30);
+                        if(!find('[data-placement=swap]'))throw Error('Drag swap preview missing');
+                        window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,button:0,pointerId:86,clientX:to.left+15,clientY:to.top+to.height/2}));await wait(250);
+                        result.dragSwap=(await planFlight('RESERVE_TEST')).sta===inserted.sta&&(await planFlight('SAAMAN_TEST')).sta===liveBefore.sta;if(!result.dragSwap)throw Error('Dropping onto another callsign did not swap slots');
+                        window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+                        if(find('[data-placement]'))throw Error('Escape did not clear the placement indicator');
+                    }else{find('.dialog-title button').click();await wait(40)}
                     find('[data-action=coordinations]').click();await floatingReady('menu','.coordination-menu');
                     result.coordinationChoices=findAll('.coordination-menu>button').length;if(result.coordinationChoices!==10)throw Error('Coordination menu mismatch');
                     find('[data-action=coordinations]').click();

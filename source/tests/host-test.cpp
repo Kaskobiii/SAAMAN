@@ -29,7 +29,7 @@ int wmain(int argc,wchar_t** argv){
             for(int wait=0;wait<20&&!host.IsVisible();wait++)Sleep(50);
             if(!host.IsVisible()||host.PanelHandle()!=backgroundPanel){std::cerr<<"Opening AMAN did not reuse its background connection\n";return 1;}
             saaman::Json operations;
-            for(int wait=0;wait<100;wait++){std::ifstream file(folder/L"operations-ui.json");if(file){try{file>>operations;if(operations.contains("ok"))break;}catch(...){}}Sleep(100);}
+            for(int wait=0;wait<250;wait++){std::ifstream file(folder/L"operations-ui.json");if(file){try{file>>operations;if(operations.contains("ok"))break;}catch(...){}}Sleep(100);}
             if(!operations.value("ok",false)){std::cerr<<"AMAN operations UI failed: "<<operations.dump()<<"\n";return 1;}
             host.Show(true);bool supervisorReady=false;for(int wait=0;wait<100;wait++){Sleep(100);std::ifstream supervisory(folder/L"supervisor-first-open.txt");int visible=0;if(supervisory>>visible&&visible==1){supervisorReady=true;break;}}if(!supervisorReady){std::cerr<<"Supervision was not visible on first open\n";return 1;}
             saaman::Json supervisorFrame;for(int wait=0;wait<100;wait++){std::ifstream frameFile(folder/L"supervisor-frame.json");if(frameFile){try{frameFile>>supervisorFrame;if(supervisorFrame.contains("ok"))break;}catch(...){}}Sleep(100);}if(!supervisorFrame.value("ok",false)){std::cerr<<"Supervisor move/close failed: "<<supervisorFrame.dump()<<"\n";return 1;}

@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import axios from 'axios'
 import {APPLICATION_BUILD} from '@/build'
 import MaestroInformation from './MaestroInformation.vue'
-import {gainDragEdits,insertRelative,maximumDelayEdits,manualTransferSeconds,instructionColor,zulu,COORDINATION_MESSAGES} from '@/maestro-operations'
+import {gainDragEdits,dragTargetTime,swapFlightEdits,insertRelative,maximumDelayEdits,manualTransferSeconds,instructionColor,zulu,COORDINATION_MESSAGES} from '@/maestro-operations'
 import {nativeRequest} from '@/native-rpc'
 import {useFloatingSurface} from '@/floating-surface'
 import {runwaySelections} from '@/maestro-runway-sync'
@@ -59,6 +59,9 @@ const polling = ref(false)
 const error = ref('')
 const menu = ref('')
 const selected = ref('')
+const placementSelection=ref('')
+type PlacementPreview={kind:'insert'|'swap';callsign:string;other?:string;time:number;top:number;group:string;right:boolean}
+const placementPreview=ref<PlacementPreview|null>(null)
 const recomputeSelection=ref<string[]>([])
 const selectionDrag=ref<{startX:number;startY:number;x:number;y:number;left:number;right:number;moved:boolean}|null>(null)
 const selectionBox=computed(()=>{
@@ -155,9 +158,7 @@ const changeMarkers=computed(()=>{
     if(['rates','configuration'].includes(dialog.value)&&applyMinutes.value>0)markers.push({kind:dialog.value==='rates'?'rate':'configuration',at:applyAt.value,runway:rateRunway.value,preview:true})
     return markers
 })
-const dragGuide = ref<number | null>(null)
-function dragTime(moving:NonNullable<typeof drag.value>,clientY:number){return Math.round((moving.time-(clientY-moving.startY)/moving.scale*60000)/15000)*15000}
-const dragHint=computed(()=>drag.value&&all.value.find(f=>f.callsign===drag.value!.callsign)?.state===1?`${utc(dragTime(drag.value,drag.value.pointerY),true)} UTC`:'Insert here')
+
 let resizeObserver: ResizeObserver
 const labels = computed(()=>config.value.displayPreferences?.labels??{ type: false, feeder: false, totalDelay: false, currentDelay: true, runway: false })
 const columnWidth = computed(() => Math.max(450+2*((labels.value.feeder?60:0)+(labels.value.runway?40:0)+(labels.value.totalDelay?50:0)),plotWidth.value / Math.max(1,groups.value.length)))
@@ -476,16 +477,72 @@ function editFlight(patch: FlightEdit) {
     void commit({ ...edits.value, [callsign]: { ...edits.value[callsign], ...patch, changedAt: now.value } })
     menu.value = ''
 }
-function selectFlight(f:EngineFlight){if(suppressClick){suppressClick=false;return}selected.value=f.callsign;menu.value=''}
+function samePlacementLane(a:EngineFlight,b:EngineFlight){return movable(a)&&movable(b)&&a.callsign!==b.callsign&&rwy(a)===rwy(b)&&groupOf(a)===groupOf(b)&&(view.value==='Runway'||a.ff===b.ff)}
+function selectFlight(f:EngineFlight){
+    if(suppressClick){suppressClick=false;return}
+    const source=all.value.find(p=>p.callsign===placementSelection.value)
+    if(source&&samePlacementLane(source,f)){
+        void applyPlacement({kind:'swap',callsign:source.callsign,other:f.callsign,time:f.sta,top:labelY(f),group:groupOf(f)!,right:rightSide(f)});return
+    }
+    selected.value=f.callsign;menu.value='';placementPreview.value=null
+    placementSelection.value=placementSelection.value===f.callsign||!movable(f)?'':f.callsign
+}
+function updatePlacement(event:PointerEvent|MouseEvent){
+    placementPreview.value=null
+    if(!editable.value||menu.value||dialog.value)return
+    const callsign=drag.value?.moved?drag.value.callsign:placementSelection.value
+    const source=all.value.find(f=>f.callsign===callsign)
+    if(!source||!movable(source)||drag.value&&!drag.value.moved)return
+    const under=document.elementsFromPoint(event.clientX,event.clientY).filter(el=>rootElement.value?.contains(el))
+    if(!drag.value&&under.some(el=>(el as HTMLElement).closest<HTMLElement>('.flight')?.dataset.callsign===callsign))return
+    const area=under.map(el=>el.closest<HTMLElement>('.time-area')).find(Boolean)
+    const group=area?.closest<HTMLElement>('.timeline-column')?.dataset.column
+    if(!area||!group||group!==groupOf(source))return
+    const hit=under.map(el=>el.closest<HTMLElement>('.flight')).find(el=>el&&el.dataset.callsign!==callsign)
+    if(hit){
+        const other=all.value.find(f=>f.callsign===hit.dataset.callsign)
+        if(other&&samePlacementLane(source,other))placementPreview.value={kind:'swap',callsign,other:other.callsign,time:displayedTime(other),top:labelY(other),group,right:rightSide(other)}
+        return
+    }
+    if(under.some(el=>el.closest('.closure-gap')))return
+    const pointerTop=event.clientY-area.getBoundingClientRect().top
+    if(pointerTop<0||pointerTop>nowBaseline.value)return
+    const requested=drag.value?drag.value.time-(event.clientY-drag.value.startY)/drag.value.scale*60000:timeAt(area,event.clientY)
+    const target=dragTargetTime(sequence.value!,callsign,requested,view.value,config.value)
+    const time=view.value==='Runway'?target:source.staFf+target-source.sta
+    if(view.value==='Runway'&&displayedGaps.value.some(slot=>slot.runway===rwy(source)&&time>=slot.begin&&time<slot.end))return
+    const top=y(time);if(top<0||top>nowBaseline.value)return
+    placementPreview.value={kind:'insert',callsign,time,top,group,right:rightSide(source)}
+}
+async function applyPlacement(preview:PlacementPreview){
+    if(!sequence.value||!editable.value)return
+    const source=all.value.find(f=>f.callsign===preview.callsign);if(!source||!movable(source))return
+    placementSelection.value='';placementPreview.value=null;selected.value=source.callsign
+    try{
+        const next=preview.kind==='swap'?swapFlightEdits(sequence.value,edits.value,source.callsign,preview.other!,view.value):gainDragEdits(sequence.value,edits.value,source.callsign,preview.time,view.value,config.value)
+        if(preview.kind==='insert')settling.value={callsign:source.callsign,top:preview.top}
+        await commit(next)
+    }catch(e:any){error.value=e.message}finally{settling.value=null}
+}
+function placeOnTimeline(event:MouseEvent){
+    if(suppressClick||!placementSelection.value||(event.target as HTMLElement).closest('button,input,.closure-gap'))return
+    updatePlacement(event);if(placementPreview.value)void applyPlacement(placementPreview.value)
+}
+function cancelPlacement(event:KeyboardEvent){if(event.key==='Escape'){drag.value=null;placementSelection.value='';placementPreview.value=null;selected.value=''}}
+watch(view,()=>{placementSelection.value='';placementPreview.value=null})
+watch([menu,dialog],([m,d])=>{if(m||d){placementSelection.value='';placementPreview.value=null}})
+watch(editable,allowed=>{if(!allowed)placementPreview.value=null})
 function flightClick(f: EngineFlight,event:MouseEvent) {
     if(suppressClick){suppressClick=false;return}
+    placementSelection.value='';placementPreview.value=null
     selected.value = f.callsign;positionPopup(event); menu.value = 'flight'
 }
 function leaveDialogMenu(){}
 function closeFieldMenu(){menu.value='';recomputeSelection.value=[]}
 function startSelection(event:PointerEvent){
     if(event.button!==0||!editable.value||(event.target as HTMLElement).closest('button,input,.closure-gap,.popup'))return
-    event.preventDefault();closeFieldMenu();selected.value='';error.value=''
+    if(placementSelection.value&&!event.shiftKey)return
+    event.preventDefault();closeFieldMenu();selected.value='';placementSelection.value='';placementPreview.value=null;error.value=''
     try{(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)}catch{ /* Synthetic events have no capture. */ }
     const timeline=(event.currentTarget as HTMLElement).getBoundingClientRect(),width=columnWidth.value,total=groups.value.length*width
     const lane=Math.floor((event.clientX-timeline.left-width/2)/width)
@@ -522,6 +579,8 @@ async function recomputeFlights(callsigns:string[]){
 }
 function startDrag(f: EngineFlight,event:PointerEvent) {
     if(event.button!==0)return
+    if(placementSelection.value&&placementSelection.value!==f.callsign)return
+    if(!editable.value)return
     if(!movable(f)){
         error.value=busy.value?'Waiting for the previous change to finish':stale.value?'Waiting for fresh aircraft data':
             !localPreview&&!demo.value&&!['sequencer','editor'].includes(sharedRole.value)?'Join the shared room as an editor to change the sequence':
@@ -577,64 +636,31 @@ function pointerMove(event:PointerEvent) {
     if(timeScroll.value){clockOffset.value=Math.max(-60,Math.min(120,timeScroll.value.offset-(event.clientY-timeScroll.value.startY)*timeScroll.value.minutesPerPixel));return}
     if(selectionDrag.value){updateSelection(event);return}
     if(gapDrag.value){updateGapDrag(event);return}
-    if(!drag.value)return
+    if(!drag.value){updatePlacement(event);return}
     if(Math.hypot(event.clientX-drag.value.startX,event.clientY-drag.value.startY)>4)drag.value.moved=true
     if(drag.value.moved){
         drag.value.pointerY=event.clientY
-        dragGuide.value=insertionGuide(drag.value,event.clientY)
+        updatePlacement(event)
     }
 }
 function dragPosition(f:EngineFlight) {
     if(settling.value?.callsign===f.callsign)return settling.value.top
     return drag.value?.callsign===f.callsign && drag.value.moved ? drag.value.labelStart+drag.value.pointerY-drag.value.startY : labelY(f)
 }
-function insertionGuide(moving:NonNullable<typeof drag.value>,clientY:number) {
-    const flight=all.value.find(f=>f.callsign===moving.callsign);if(!flight)return null
-    const pointerTop=moving.labelStart+clientY-moving.startY
-    // Labels are not drop targets. Their occupied vertical band is excluded.
-    const peers=all.value.filter(f=>f.callsign!==moving.callsign && f.mode==='sequenced' && f.state!==4 && !f.lost && !f.issue && rwy(f)===rwy(flight) && (view.value!=='ACC'||f.ff===flight.ff))
-    if(peers.some(f=>{
-        const centre=labelY(f)
-        const nearest=Math.min(...peers.filter(p=>p.callsign!==f.callsign).map(p=>Math.abs(labelY(p)-centre)),21)
-        return Math.abs(centre-pointerTop)<=Math.min(7,nearest/3)
-    }))return null
-    if(pointerTop<0 || pointerTop>nowBaseline.value)return null
-    const time=moving.time-(pointerTop-moving.labelStart)/moving.scale*60000
-    if(view.value==='Runway'&&displayedGaps.value.some(s=>s.runway===rwy(flight)&&time>=s.begin&&time<s.end))return null
-    return pointerTop
-}
-function pointerCancel(){popupDrag.value=null;dialogDrag.value=null;timeScroll.value=null;drag.value=null;dragGuide.value=null;gapDrag.value=null;selectionDrag.value=null;recomputeSelection.value=[]}
+function pointerCancel(){popupDrag.value=null;dialogDrag.value=null;timeScroll.value=null;drag.value=null;placementSelection.value='';placementPreview.value=null;gapDrag.value=null;selectionDrag.value=null;recomputeSelection.value=[]}
 function pointerUp(event:PointerEvent) {
     if(popupDrag.value){pointerMove(event);popupDrag.value=null;return}
     if(dialogDrag.value){pointerMove(event);dialogDrag.value=null;return}
     if(timeScroll.value){timeScroll.value=null;return}
     if(selectionDrag.value){finishSelection(event);return}
     if(gapDrag.value){finishGapDrag(event);return}
-    const moving=drag.value;const validDrop=moving&&insertionGuide(moving,event.clientY)!==null;drag.value=null;dragGuide.value=null
-    if(!moving || (!moving.moved&&Math.hypot(event.clientX-moving.startX,event.clientY-moving.startY)<=4))return
-    suppressClick=true;setTimeout(()=>suppressClick=false,50)
-    if(!validDrop){error.value='Drop in a gap between aircraft, above the red NOW line';return}
-    const flight=all.value.find(f=>f.callsign===moving.callsign);if(!flight)return
-    const pointerTop=moving.labelStart+event.clientY-moving.startY
-    const peers=all.value.filter(f=>f.callsign!==flight.callsign&&f.mode==='sequenced'&&f.state!==4&&!f.lost&&!f.issue&&rwy(f)===rwy(flight)&&groupOf(f)===groupOf(flight)&&(view.value!=='ACC'||f.ff===flight.ff)).sort((a,b)=>displayedTime(a)-displayedTime(b))
-    const index=peers.findIndex(f=>labelY(f)<pointerTop)
-    const targetDisplayed=peers.length ? index===0?displayedTime(peers[0])-1:index<0?displayedTime(peers.at(-1)!)+1:(displayedTime(peers[index-1])+displayedTime(peers[index]))/2 : Math.round(moving.time-(event.clientY-moving.startY)/moving.scale*60000)
-    const pointerTime=moving.time-(pointerTop-moving.labelStart)/moving.scale*60000
-    const nearbyClosure=view.value==='Runway'?displayedGaps.value.filter(s=>s.runway===rwy(flight)).find(s=>{
-        const low=!peers.length||index===0?-Infinity:index<0?displayedTime(peers.at(-1)!):displayedTime(peers[index-1])
-        const high=!peers.length||index<0?Infinity:displayedTime(peers[index])
-        return s.end>low&&s.begin<high
-    }):undefined
-    // A closure has two boundaries, never an invisible midpoint drop target.
-    if(nearbyClosure&&pointerTime>=nearbyClosure.begin&&pointerTime<nearbyClosure.end){error.value='Drop before the closure start or after its end';return}
-    const closurePosition=nearbyClosure?{id:nearbyClosure.id,side:(pointerTime<nearbyClosure.begin?'before':'after') as 'before'|'after'}:undefined
-    const insertionTime=closurePosition?pointerTime:targetDisplayed
-    const originalPosition=peers.filter(p=>p.order<flight.order).length
-    const nextPosition=index<0?peers.length:index
-    if(sequence.value){
-        settling.value={callsign:flight.callsign,top:pointerTop}
-        try{void commit(gainDragEdits(sequence.value,edits.value,flight.callsign,pointerTime,view.value)).finally(()=>settling.value=null)}catch(e:any){settling.value=null;error.value=e.message}
-    }
+    const moving=drag.value
+    if(!moving||(!moving.moved&&Math.hypot(event.clientX-moving.startX,event.clientY-moving.startY)<=4)){drag.value=null;return}
+    moving.moved=true;updatePlacement(event)
+    const preview=placementPreview.value;drag.value=null;placementPreview.value=null
+    suppressClick=true;setTimeout(()=>suppressClick=false,100)
+    if(!preview){error.value='Choose an available callsign or a future position outside a closure';return}
+    void applyPlacement(preview)
 }
 function newSlot(group:string,event:MouseEvent) {
     if(!editable.value)return
@@ -744,10 +770,10 @@ onMounted(() => {
     pollingTimer = setInterval(()=>{void refreshCoverage();void poll()}, 3000)
     resizeObserver = new ResizeObserver(entries => {plotHeight.value=Math.max(200,entries[0].contentRect.height-28);plotWidth.value=Math.max(200,scrollElement.value?.clientWidth??entries[0].contentRect.width-19);void nextTick(()=>{fitPopup();fitDialog()})})
     if (displayElement.value) resizeObserver.observe(displayElement.value)
-    window.addEventListener('pointermove',pointerMove,true);window.addEventListener('pointerup',pointerUp,true);window.addEventListener('pointercancel',pointerCancel,true)
+    window.addEventListener('keydown',cancelPlacement);window.addEventListener('pointermove',pointerMove,true);window.addEventListener('pointerup',pointerUp,true);window.addEventListener('pointercancel',pointerCancel,true)
 })
 function nativePulse(){void refreshCoverage();void poll()}
-onUnmounted(() => { window.removeEventListener('saaman-coordination-ack',nativeCoordinationAck);window.removeEventListener('beforeunload',closeCoordinationPopup);closeCoordinationPopup();window.removeEventListener('saaman-relay',relayChanged);window.removeEventListener('saaman-pulse',nativePulse);clearTimeout(scrollAnimationTimer);clearInterval(timer); clearInterval(pollingTimer); resizeObserver?.disconnect();window.removeEventListener('pointermove',pointerMove,true);window.removeEventListener('pointerup',pointerUp,true);window.removeEventListener('pointercancel',pointerCancel,true) })
+onUnmounted(() => { window.removeEventListener('saaman-coordination-ack',nativeCoordinationAck);window.removeEventListener('beforeunload',closeCoordinationPopup);closeCoordinationPopup();window.removeEventListener('saaman-relay',relayChanged);window.removeEventListener('saaman-pulse',nativePulse);clearTimeout(scrollAnimationTimer);clearInterval(timer); clearInterval(pollingTimer); resizeObserver?.disconnect();window.removeEventListener('keydown',cancelPlacement);window.removeEventListener('pointermove',pointerMove,true);window.removeEventListener('pointerup',pointerUp,true);window.removeEventListener('pointercancel',pointerCancel,true) })
 
 function showEtaFf(){if(!current.value)return;etaFfDraft.value=zulu(current.value.etaFf);openDialog('eta-ff')}
 function saveEtaFf(){
@@ -835,12 +861,15 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
             <i class="overview-now" :style="{top:`${overviewPercent(now)}%`}"></i>
         </div>
         <div class="horizontal-scroll" ref="scrollElement" @scroll="syncHorizontal">
-            <div id="aman-timeline" class="timeline-strip" :class="{'scrolling-time':scrollingTime}" @pointerdown="startSelection" :style="{'--column-width':`${columnWidth}px`,'--axis-x':`${columnWidth/2}px`}">
+            <div id="aman-timeline" class="timeline-strip" :class="{'scrolling-time':scrollingTime}" @pointerdown="startSelection" @click="placeOnTimeline" @pointerleave="placementPreview=null" :style="{'--column-width':`${columnWidth}px`,'--axis-x':`${columnWidth/2}px`}">
                 <div class="now-line" :style="{top:`${y(now)}px`}"><span>{{utc(now)}} NOW</span></div>
-                <div v-if="dragGuide!==null" class="drag-guide" :style="{top:`${dragGuide}px`}"><span>{{dragHint}}</span></div>
                 <div v-for="g in groups" :key="g.id" class="timeline-column" :data-column="g.id">
                     <div class="time-area" @contextmenu.stop.prevent="newSlot(g.id,$event)">
                         <div class="axis"></div>
+                        <span v-if="editable&&placementPreview?.group===g.id" class="placement-marker" :class="{right:placementPreview.right,swap:placementPreview.kind==='swap'}" :style="{top:`${placementPreview.top}px`,left:`calc(var(--axis-x) + ${placementPreview.right?12:-26}px)`}" :data-placement="placementPreview.kind" :data-source="placementPreview.callsign" :data-time="placementPreview.time" :data-target="placementPreview.other" role="img" :aria-label="placementPreview.kind==='swap'?`Swap ${placementPreview.callsign} with ${placementPreview.other}`:`Insert ${placementPreview.callsign} at ${utc(placementPreview.time,true)} UTC`">
+                            <svg v-if="placementPreview.kind==='swap'" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h17m-5-5 5 5-5 5M21 17H4m5-5-5 5 5 5"/></svg>
+                            <svg v-else viewBox="0 0 24 24" aria-hidden="true"><path d="M2 8h10V3l10 9-10 9v-5H2Z"/></svg>
+                        </span>
                         <div v-for="i in ticks" :key="i" class="tick" :class="{major:Number(minutes(Math.floor(referenceTime/60000)*60000+i*60000))%5===0}" :style="{top:`${y(Math.floor(referenceTime/60000)*60000+i*60000)}px`}"><span v-if="Number(minutes(Math.floor(referenceTime/60000)*60000+i*60000))%5===0">{{minutes(Math.floor(referenceTime/60000)*60000+i*60000)}}</span></div>
                         <svg class="time-anchors" aria-hidden="true"><g v-for="f in visibleFlights.filter(f=>groupOf(f)===g.id&&y(displayedTime(f))>=0&&y(displayedTime(f))<=plotHeight)" :key="f.callsign" :stroke="stateColor(f)"><circle :cx="columnWidth/2+(rightSide(f)?20:-14)" :cy="y(displayedTime(f))" r="2" :fill="stateColor(f)"/></g></svg>
                         <i v-for="marker in changeMarkers.filter(m=>y(m.at)>=0&&y(m.at)<=plotHeight)" :key="marker.kind" class="change-time-marker" :class="[marker.kind,{preview:marker.preview}]" :data-kind="marker.kind" :data-preview="!!marker.preview" :data-time="marker.at" :style="{top:`${y(marker.at)}px`}" :title="`${marker.kind==='rate'?'Rate':'Runway configuration'} change at ${utc(marker.at)} UTC`"></i>
@@ -849,7 +878,7 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
                             <button class="gap-body" data-gap-handle="move" :aria-label="`Move closure for ${s.runway.split('/')[1]}`" @pointerdown.stop="startGapDrag(s.id,'move',$event)" @click.stop="gapClick(s.id)"><span>{{s.kind==='gap'?'GAP':'CLOSED'}} <small>{{((s.end-s.begin)/60000).toFixed(1)}}m</small></span></button>
                             <button v-if="y(s.begin)<=plotHeight" class="gap-handle begin" data-gap-handle="begin" :disabled="!editable" :aria-label="`Drag closure start for ${s.runway.split('/')[1]}`" @pointerdown.stop="startGapDrag(s.id,'begin',$event)" @click.stop><span>{{utc(s.begin,true)}} START</span></button>
                         </div>
-                        <button v-for="f in visibleFlights.filter(f=>groupOf(f)===g.id&&y(displayedTime(f))>=0&&y(displayedTime(f))<=plotHeight)" :key="f.callsign" class="flight" :class="{right:rightSide(f),boxed:selected===f.callsign||recomputeSelection.includes(f.callsign),movable:movable(f),dragging:drag?.callsign===f.callsign&&drag.moved}" :data-callsign="f.callsign" :data-state="STATE_NAMES[f.state]" :style="{top:`${dragPosition(f)}px`,color:stateColor(f)}" :title="flightTooltip(f)" @click.stop="selectFlight(f)" @contextmenu.prevent.stop="flightClick(f,$event)" @pointerdown.stop="startDrag(f,$event)">
+                        <button v-for="f in visibleFlights.filter(f=>groupOf(f)===g.id&&y(displayedTime(f))>=0&&y(displayedTime(f))<=plotHeight)" :key="f.callsign" class="flight" :class="{right:rightSide(f),boxed:selected===f.callsign||recomputeSelection.includes(f.callsign),selected:selected===f.callsign,'swap-target':placementPreview?.other===f.callsign,movable:movable(f),dragging:drag?.callsign===f.callsign&&drag.moved}" :data-callsign="f.callsign" :aria-pressed="selected===f.callsign" :data-state="STATE_NAMES[f.state]" :style="{top:`${dragPosition(f)}px`,color:stateColor(f)}" :title="flightTooltip(f)" @click.stop="selectFlight(f)" @contextmenu.prevent.stop="flightClick(f,$event)" @pointerdown.stop="startDrag(f,$event)">
                             <span v-if="labels.totalDelay">{{Math.round(f.totalDelay/60)}}</span><span v-if="labels.feeder">{{f.ff}}</span><span v-if="labels.runway">{{rwy(f).split('/')[1]}}</span><span class="type">{{f.aircraft||'UNKN'}}</span><span class="wake" :title="`Wake turbulence category: ${f.wake||'?'}`">{{f.wake||'?'}}</span><span v-if="delayLabel(f.delay)" class="delay" :style="{color:delayColor(f.delay)}">{{delayLabel(f.delay)}}</span><strong>{{f.callsign}}</strong><span class="ff-time" :title="`${view==='Runway'?'Scheduled landing':'Scheduled feeder crossing'} ${utc(view==='Runway'?f.sta:f.staFf,true)} UTC`">{{minutes(f.state===4||view==='Runway'?f.sta:f.staFf)}}</span><span v-if="f.spacingConflict" class="conflict" title="Check spacing after this sequence change">!</span>
                         </button>
                     </div>
@@ -1100,4 +1129,13 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
 .manual-flight-lists{display:flex;gap:12px;min-width:310px;margin-bottom:12px}
 .manual-flight-lists section{flex:1;min-width:0}.manual-flight-lists h3{font:inherit;margin:0 0 5px}
 .flight-list{height:125px;overflow:auto;border:1px solid #b2c1ca;background:#6c818e}.flight-list button{display:block;width:100%;margin:0;border:0;border-radius:0;text-align:left;background:transparent}.flight-list button.chosen{background:#387da3;color:white}.flight-list span{display:block;padding:6px}
+</style>
+
+<style scoped>
+.flight.selected{border-color:#f0f8ff!important;background:#819ba955!important;box-shadow:0 0 0 1px #192b35!important;z-index:14}
+.flight.swap-target{border-color:#ffe57a!important;background:#91854444!important;box-shadow:0 0 0 1px #ffe57a!important}
+.placement-marker{position:absolute;width:22px;height:22px;transform:translateY(-50%);color:#ffe57a;z-index:18;pointer-events:none;filter:drop-shadow(0 1px 1px #172029)}
+.placement-marker.right:not(.swap){transform:translateY(-50%) scaleX(-1)}
+.placement-marker svg{width:100%;height:100%;fill:currentColor}
+.placement-marker.swap svg{fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
 </style>

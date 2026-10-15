@@ -140,7 +140,16 @@ struct Host::Impl {
                         }
                         if(method=="host:test-floating"&&self->host.context->test){
                             const auto key=data.at("key").get<std::string>();for(const auto& candidate:self->host.windows)if(candidate->floating&&candidate->floatingKey==key&&candidate->floatingOwner.lock()==self){
-                                if(data.value("capture",false)){ComPtr<IStream> stream;const auto file=self->host.context->directory/Wide("floating-"+key+".png");if(SUCCEEDED(SHCreateStreamOnFileEx(file.c_str(),STGM_CREATE|STGM_WRITE,FILE_ATTRIBUTE_NORMAL,TRUE,nullptr,&stream)))candidate->browser->CapturePreview(COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG,stream.Get(),Callback<ICoreWebView2CapturePreviewCompletedHandler>([stream](HRESULT)->HRESULT{return S_OK;}).Get());}
+                                if(data.value("probeSizing",false)){
+                                    RECT bounds{};GetWindowRect(candidate->hwnd,&bounds);
+                                    WINDOWPOS resize{candidate->hwnd,HWND_TOP,0,0,bounds.right-bounds.left+20,bounds.bottom-bounds.top+20,SWP_NOMOVE|SWP_NOACTIVATE};
+                                    SendMessageW(candidate->hwnd,WM_WINDOWPOSCHANGING,0,reinterpret_cast<LPARAM>(&resize));
+                                    WINDOWPOS move{candidate->hwnd,HWND_TOP,10,10,bounds.right-bounds.left,bounds.bottom-bounds.top,SWP_NOACTIVATE};
+                                    SendMessageW(candidate->hwnd,WM_WINDOWPOSCHANGING,0,reinterpret_cast<LPARAM>(&move));
+                                    candidate->havePreviousBounds=false;
+                                    self->Reply(id,{{"resizeRedrawAllowed",(resize.flags&SWP_NOREDRAW)==0},{"resizeDiscardsOldPixels",(resize.flags&SWP_NOCOPYBITS)!=0},{"moveDefersRedraw",(move.flags&SWP_NOREDRAW)!=0},{"moveDiscardsOldPixels",(move.flags&SWP_NOCOPYBITS)!=0}});return S_OK;
+                                }
+                                if(data.value("capture",false)){ComPtr<IStream> stream;const auto file=self->host.context->directory/Wide("floating-"+key+".png");if(SUCCEEDED(SHCreateStreamOnFileEx(file.c_str(),STGM_CREATE|STGM_WRITE,FILE_ATTRIBUTE_NORMAL,TRUE,nullptr,&stream))){candidate->browser->CapturePreview(COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG,stream.Get(),Callback<ICoreWebView2CapturePreviewCompletedHandler>([stream,weak,id](HRESULT error)->HRESULT{if(auto owner=weak.lock())owner->Reply(id,SUCCEEDED(error));return S_OK;}).Get());return S_OK;}}
                                 if(data.value("close",false))SendMessageW(candidate->hwnd,WM_CLOSE,0,0);
                                 RECT r{};GetWindowRect(candidate->hwnd,&r);MapWindowPoints(HWND_DESKTOP,self->host.parent,reinterpret_cast<POINT*>(&r),2);self->Reply(id,{{"x",r.left},{"y",r.top},{"width",r.right-r.left},{"height",r.bottom-r.top},{"visible",candidate->floatingVisible},{"parentIsRadar",GetParent(candidate->hwnd)==self->host.parent},{"dragging",candidate->dragging}});return S_OK;
                             }throw RequestError(400,"No submenu window");
@@ -280,7 +289,13 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     popup.querySelector('[data-menu=information]').click();await wait(80);
                     await floatingReady('dialog','[data-dialog=information]');
                     const info=find('[data-dialog=information]'),beforeDialog=await rpc('host:test-floating',{key:'dialog'});result.pointerDialog=beforeDialog.parentIsRadar&&beforeDialog.visible;if(!result.pointerDialog)throw Error('Information is not a separate radar-owned window');
+                    result.floatingPaintPolicy=await rpc('host:test-floating',{key:'dialog',probeSizing:true});
+                    if(!Object.values(result.floatingPaintPolicy).every(Boolean))throw Error('Submenu resize suppresses its first paint or move copies old pixels');
                     const title=info.querySelector('.dialog-title'),popWindow=info.ownerDocument.defaultView;
+                    const boxOf=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,scrollTop:e.scrollTop,scrollLeft:e.scrollLeft,scrollHeight:e.scrollHeight,display:e.ownerDocument.defaultView.getComputedStyle(e).display}};
+                    result.informationLayout={viewport:[popWindow.innerWidth,popWindow.innerHeight],root:boxOf(info.ownerDocument.getElementById('floating-root')),panel:boxOf(info),title:boxOf(title),table:boxOf(info.querySelector('table')),body:boxOf(info.ownerDocument.body)};
+                    const topOfTitle=title.getBoundingClientRect();if(topOfTitle.top<0||topOfTitle.bottom>popWindow.innerHeight||topOfTitle.width<100)throw Error('Information title is clipped');
+
                     title.dispatchEvent(new popWindow.PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:82,screenX:200,screenY:200}));popWindow.dispatchEvent(new popWindow.PointerEvent('pointermove',{bubbles:true,pointerId:82,screenX:-800,screenY:200}));popWindow.dispatchEvent(new popWindow.PointerEvent('pointerup',{bubbles:true,pointerId:82,screenX:-800,screenY:200}));await wait(100);
                     const afterDialog=await rpc('host:test-floating',{key:'dialog'});result.draggableDialog=afterDialog.x===0&&afterDialog.x<frameAfter.x&&!afterDialog.dragging;if(!result.draggableDialog)throw Error('Information cannot move outside AMAN');
                     result.shortRunwayHeader=[...info.querySelectorAll('th')].some(h=>/^(01[LR]|19[LR]|08|26)$/.test(h.innerText))&&![...info.querySelectorAll('th')].some(h=>/^Runway /.test(h.innerText));if(!result.shortRunwayHeader)throw Error('Information runway header was not shortened');
@@ -374,10 +389,15 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
             if(!auth&&message==WM_WINDOWPOSCHANGING){
                 auto* position=reinterpret_cast<WINDOWPOS*>(l);
                 if(position&&(!(position->flags&SWP_NOMOVE)||!(position->flags&SWP_NOSIZE))){
-                    // Windows must not copy the old pane pixels or erase the
-                    // exposed parent itself. Schedule both surfaces below.
-                    position->flags|=SWP_NOCOPYBITS|SWP_NOREDRAW;
-                    if(GetWindowRect(hwnd,&previousBounds)){MapWindowPoints(HWND_DESKTOP,GetParent(hwnd),reinterpret_cast<POINT*>(&previousBounds),2);havePreviousBounds=true;}
+                    // Keep the no-copy drag fix, but allow normal repainting
+                    // when a newly opened submenu receives its content size.
+                    // Deferring resize paint can leave the software WebView's
+                    // old surface visible after its viewport has changed.
+                    const bool knownBounds=GetWindowRect(hwnd,&previousBounds)!=FALSE;
+                    const bool sizeChanged=!(position->flags&SWP_NOSIZE)&&(!knownBounds||position->cx!=previousBounds.right-previousBounds.left||position->cy!=previousBounds.bottom-previousBounds.top);
+                    position->flags|=SWP_NOCOPYBITS;
+                    if(!sizeChanged)position->flags|=SWP_NOREDRAW;
+                    if(knownBounds){MapWindowPoints(HWND_DESKTOP,GetParent(hwnd),reinterpret_cast<POINT*>(&previousBounds),2);havePreviousBounds=true;}
                 }
             }
             if(message==WM_WINDOWPOSCHANGED){
@@ -392,7 +412,13 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     host.MarkRadarDirty();havePreviousBounds=false;
                 }
             }
-            if(message==WM_SIZE){Bounds();InvalidateRect(hwnd,nullptr,FALSE);return 0;}
+            if(message==WM_SIZE){
+                Bounds();
+                // Invalidate the browser descendants after applying the new
+                // viewport, rather than only painting the host's frame.
+                RedrawWindow(hwnd,nullptr,nullptr,RDW_INVALIDATE|RDW_NOERASE|RDW_ALLCHILDREN);
+                return 0;
+            }
             if(message==WM_SETFOCUS&&controller){controller->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);return 0;}
             if(message==WM_CLOSE&&floating&&!host.stopping){Present(false);if(auto owner=floatingOwner.lock())if(owner->browser){const auto event=Wide(Json({{"event","floating-close"},{"key",floatingKey}}).dump());owner->browser->PostWebMessageAsJson(event.c_str());}return 0;}
             if(message==WM_CLOSE&&!auth&&!host.stopping){host.visible[supervisor?1:0].store(false);Present(false);return 0;}

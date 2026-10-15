@@ -1,4 +1,4 @@
-# SAAMAN native plugin, 1.3.15
+# SAAMAN native plugin, 1.3.16
 
 SAAMAN.dll is an x86 EuroScope plugin with Win32 child panels hosting the AMAN UI
 through Microsoft WebView2. The calculation engine is editable TypeScript.
@@ -161,3 +161,11 @@ Validation includes a minimal NSZ4052 recording-10 fixture spanning climb, accel
 The shared native window-position handler previously added SWP_NOREDRAW for both moves and resizes, including the first content-sized resize of a floating submenu. It now retains SWP_NOCOPYBITS for both operations, and defers redraw only when the size actually stays the same. WM_SIZE updates the WebView bounds before invalidating the host and browser descendants. The no-copy drag handling and normal radar refresh notifications remain in place.
 
 An isolated native regression checks the policy on a real floating submenu: resize redraw must be allowed, pure moves must still defer redraw, and neither may copy stale pixels. CapturePreview now completes before the test proceeds to another menu, so the Information image verifies the intended window. Layout checks require the Information title to be inside the viewport. The isolated hidden host harness did not reproduce the exact live blank-panel symptom, but caught the repaint-suppression policy. The user tested the resulting DLL in EuroScope and confirmed that Information and the other submenus display correctly immediately.
+
+## Selection placement and manual reservations (1.3.16)
+
+The selected label now overrides the transparent-label styling with an explicit border and background. A separate armed selection drives a pointer preview: empty space shows the accepted insertion target on the source lane; another available label in that lane shows a pair-swap icon and destination highlight. Clicks confirm the preview; dragging shares the same hit testing and operations. Hit testing uses the current document's elementsFromPoint stack rather than the captured pointer target, so dropping a dragged label onto another aircraft still finds the destination beneath it. Leaving the timeline, changing views or opening a menu clears previews; Escape also cancels a pending drag. Non-editors can highlight labels but cannot arm placements.
+
+Pair swaps exchange the two allocated landing-time targets and order slots, preserving intervening aircraft and existing engine constraints. Feeder-view swaps additionally require the same feeder. No new backend fields or endpoints are required.
+
+The gain-drag limit is retained for live telemetry. Only a configured manual reservation absent from observedCallsigns can move beyond its original time. Passing the active config to the operation makes this distinction explicit; a matching live flight automatically returns to the live policy. Tests cover both timing models, earlier/later moves, repeated updates and checkpoint restoration, feeder-view shifts, real-flight takeover, nonadjacent swaps and invalid destinations. Native UI smoke covers visible highlight colours, insertion arrows, preview-to-commit agreement, persisted later manual dragging, click swaps, drag swaps and Escape. Screenshots capture both preview states.

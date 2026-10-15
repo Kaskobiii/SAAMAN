@@ -2,7 +2,7 @@ import {test} from 'node:test'
 import {reactive} from 'vue'
 import assert from 'node:assert/strict'
 import {DEFAULT_CONFIG as RELEASE_DEFAULT_CONFIG,validateConfig,validateEdits,validateTelemetry,runEngine,delayLabel} from '../src/maestro-engine.ts'
-import {gainDragEdits,insertRelative,extraFlightEdits,manualTransferSeconds,maximumDelayEdits,instructionColor,signedDuration,informationRoute,COORDINATION_MESSAGES} from '../src/maestro-operations.ts'
+import {gainDragEdits,swapFlightEdits,insertRelative,extraFlightEdits,manualTransferSeconds,maximumDelayEdits,instructionColor,signedDuration,informationRoute,COORDINATION_MESSAGES} from '../src/maestro-operations.ts'
 import {validateCoordinations,mergeCoordinationChanges} from '../src/maestro-coordination.ts'
 import {SessionRecording,decodeRecording} from '../src/maestro-recording.ts'
 import {distanceNm} from '../src/maestro-star-prediction.ts'
@@ -50,6 +50,60 @@ test('manually gaining an Unstable flight promotes it to Stable',()=>{
  const edits=gainDragEdits(first,{},'BLUE',first.flights[0].sta-60000)
  const next=runEngine({...input,timestamp:now+1000},c,edits,first)
  assert.equal(next.flights[0].state,1)
+})
+
+test('a reservation without a flight plan can move later and earlier and retain either time across updates and restoration',()=>{
+ for(const timingModel of ['performance','euroscope-buffer']){
+  const c={...config(),timingModel},original=now+1500000
+  c.manualFlights=[{callsign:'RESERVE',aircraft:'UNKN',wake:'?',runway:'ESSA/19R',feeder:'ELTOK',eta:original}]
+  let s=runEngine(packet([]),c,{}),edits={}
+  for(const [step,target] of [[1,original+180000],[2,original-180000],[3,original+300000]]){
+   edits=gainDragEdits(s,edits,'RESERVE',target,'Runway',c)
+   s=runEngine(packet([],now+step*1000),c,edits,s)
+   assert.equal(s.flights[0].sta,target)
+   s=runEngine(packet([],now+step*1000+500),c,edits,JSON.parse(JSON.stringify(s)))
+   assert.equal(s.flights[0].sta,target,'timer updates must not restore the insertion time')
+  }
+  const before=s.flights[0],feederTime=before.staFf+120000
+  edits=gainDragEdits(s,edits,'RESERVE',feederTime,'ACC',c)
+  s=runEngine(packet([],now+5000),c,edits,s)
+  assert.equal(s.flights[0].staFf,feederTime)
+  assert.equal(s.flights[0].sta-before.sta,120000)
+ }
+})
+
+test('a live flight matching an old manual reservation retains the live drag limit',()=>{
+ const c=config();c.manualFlights=[{callsign:'LIVE',aircraft:'A320',wake:'M',runway:'ESSA/19R',feeder:'ELTOK',eta:now+1500000}]
+ const s=runEngine(packet([p('LIVE',1200)]),c,{})
+ const edits=gainDragEdits(s,{},'LIVE',s.flights[0].sta+600000,'Runway',c)
+ assert.equal(edits.LIVE.target,s.flights[0].originalAssignedSta)
+})
+
+test('swapping nonadjacent aircraft exchanges their slots, leaves the middle aircraft in place and survives the next update',()=>{
+ const c=config();c.frozenMinutes=0
+ const input=packet([p('AA',1200),p('BB',1500),p('CC',1800)])
+ const first=runEngine(input,c,{}),a=first.flights.find(f=>f.callsign==='AA'),b=first.flights.find(f=>f.callsign==='BB'),z=first.flights.find(f=>f.callsign==='CC')
+ const edits=swapFlightEdits(first,{},'AA','CC')
+ let next=runEngine({...input,timestamp:now+1000},c,edits,first)
+ assert.deepEqual(next.flights.sort((a,b)=>a.order-b.order).map(f=>f.callsign),['CC','BB','AA'])
+ assert.equal(next.flights.find(f=>f.callsign==='CC').sta,a.sta)
+ assert.equal(next.flights.find(f=>f.callsign==='AA').sta,z.sta)
+ assert.equal(next.flights.find(f=>f.callsign==='BB').sta,b.sta)
+ next=runEngine({...input,timestamp:now+2000},c,edits,next)
+ assert.deepEqual(next.flights.sort((a,b)=>a.order-b.order).map(f=>f.callsign),['CC','BB','AA'])
+ assert.ok(next.flights.every(f=>!f.spacingConflict))
+})
+
+test('swap refuses another runway, feeder view lane, lost or landed aircraft without modifying input edits',()=>{
+ const c=config(),s=runEngine(packet([p('AA',1200),p('BB',1500)]),c,{}),original=JSON.stringify(s),edits={AA:{maximumDelayMinutes:5}}
+ assert.throws(()=>swapFlightEdits(s,edits,'AA','AA'))
+ for(const change of [{runway:'01R'},{lost:true},{state:4},{mode:'missed'}]){
+  const copy=structuredClone(s);Object.assign(copy.flights.find(f=>f.callsign==='BB'),change)
+  assert.throws(()=>swapFlightEdits(copy,edits,'AA','BB'))
+ }
+ const copy=structuredClone(s);copy.flights.find(f=>f.callsign==='BB').ff='NILUG'
+ assert.throws(()=>swapFlightEdits(copy,edits,'AA','BB','ACC'))
+ assert.deepEqual(edits,{AA:{maximumDelayMinutes:5}});assert.equal(JSON.stringify(s),original)
 })
 test('Refresh delay changes the instruction without moving a Superstable allocation or its order',()=>{
  const c=config();c.frozenMinutes=0;const input=packet([p('LEAD',1200),p('FOLLOW',1200)])

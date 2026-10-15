@@ -690,9 +690,14 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         const liveEuroscopeEta=bufferMode&&usableEuroScope?now+ms(landingPrediction!.rawSeconds):undefined
         const captureBaseline=bufferMode&&usableEuroScope&&(landingPrediction!.rawSeconds>0||landingPrediction!.establishedFinal&&landingPrediction!.seconds>0)&&(!old?.euroscopeBaseline||recompute||resumed||confirmedRunwayChange)
         const liveEuroscopeEtaFf=bufferMode?e.etaFfOverride??now+ms(modelFeederSeconds):undefined
-        const liveBufferedEtaFf=liveEuroscopeEtaFf===undefined?undefined:liveEuroscopeEtaFf+ms(feederBufferMinutes*60)
+        // Physical passage and explicit controller overrides take precedence.
+        // Profile timing already includes the descent/slowdown; do not add a
+        // second fixed buffer or feed the assigned instruction back into ETA.
+        const profileFeeder=landingPrediction?.routeTiming?.feeder
+        const useProfileFeeder=profileFeeder&&!feederObservation?.passed&&profileFeeder.name===feederObservation?.feeder&&e.etaFfOverride===undefined
+        const liveBufferedEtaFf=liveEuroscopeEtaFf===undefined?undefined:useProfileFeeder?now+ms(profileFeeder.seconds):liveEuroscopeEtaFf+ms(feederBufferMinutes*60)
         const liveBufferedEta=liveEuroscopeEta===undefined?undefined:now+ms(landingPrediction!.seconds)
-        const euroscopeBaseline=bufferMode?(captureBaseline?{at:now,runway:p.runway?`${p.arrival}/${p.runway}`:runway,eta:liveBufferedEta!+manualFeederShift,rawEta:liveEuroscopeEta!,etaFf:liveBufferedEtaFf!,rawEtaFf:liveEuroscopeEtaFf,feederBuffered:true,bufferMinutes:selectedBufferMinutes,feederBufferMinutes,groundspeed:p.groundspeed,landingReference:landingPrediction!.reference,landingMethod:landingPrediction!.method}:old?.euroscopeBaseline&&!old.euroscopeBaseline.feederBuffered?{...old.euroscopeBaseline,etaFf:old.euroscopeBaseline.etaFf+ms((old.euroscopeBaseline.feederBufferMinutes??old.euroscopeBaseline.bufferMinutes)*60),rawEtaFf:old.euroscopeBaseline.etaFf,feederBuffered:true}:old?.euroscopeBaseline):undefined
+        const euroscopeBaseline=bufferMode?(captureBaseline?{at:now,runway:p.runway?`${p.arrival}/${p.runway}`:runway,eta:liveBufferedEta!+manualFeederShift,rawEta:liveEuroscopeEta!,etaFf:liveBufferedEtaFf!,rawEtaFf:liveEuroscopeEtaFf,feederBuffered:true,bufferMinutes:selectedBufferMinutes,feederBufferMinutes:useProfileFeeder?(liveBufferedEtaFf!-liveEuroscopeEtaFf!)/60000:feederBufferMinutes,groundspeed:p.groundspeed,landingReference:landingPrediction!.reference,landingMethod:landingPrediction!.method}:old?.euroscopeBaseline&&!old.euroscopeBaseline.feederBuffered?{...old.euroscopeBaseline,etaFf:old.euroscopeBaseline.etaFf+ms((old.euroscopeBaseline.feederBufferMinutes??old.euroscopeBaseline.bufferMinutes)*60),rawEtaFf:old.euroscopeBaseline.etaFf,feederBuffered:true}:old?.euroscopeBaseline):undefined
         const eta = euroscopeBaseline?.eta??now + ms(prediction.seconds)+manualFeederShift
         const resumedMissed=resumed&&old?.mode==='missed'
         const airborneAgain=previous?.grounded?.[p.callsign]!==undefined&&e.landedAt===undefined&&p.altitude>=500&&p.groundspeed>=60&&(p.verticalSpeed??0)>300&&(p.positionAgeSeconds??0)<=15

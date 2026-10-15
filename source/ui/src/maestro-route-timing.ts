@@ -1,16 +1,11 @@
 import type {TelemetryFlight,EngineConfig} from './maestro-engine'
 import {distanceNm} from './maestro-star-prediction'
 import {iasToTas,machToTas,performanceAt,aircraftType} from './maestro-aircraft-performance'
-import type {PhaseReferences} from './maestro-phase-references'
+import {bundledPhaseReferences,type PhaseReferences} from './maestro-phase-references'
+import phaseData from './data/eurocontrol-phase-profiles.json'
 
-// Selected factual reference values, not a copy of the database or its charts.
-// Units remain IAS/Mach here; they must never be interpreted as groundspeed.
-export const PHASE_REFERENCES:PhaseReferences={
- HDJT:{mach:.72,descentIas:270,approachIas:160,minimumCleanIas:140,landingIas:112,highDescentFpm:2000,descentFpm:2000,approachFpm:1500,
-  source:'https://learningzone.eurocontrol.int/ilp/customs/ATCPFDB/details.aspx?ICAO=HDJT&NameFilter=hondajet'},
- A20N:{mach:.78,descentIas:290,approachIas:250,minimumCleanIas:210,landingIas:135,highDescentFpm:1000,descentFpm:3000,approachFpm:1500,
-  source:'https://learningzone.eurocontrol.int/ilp/customs/ATCPFDB/details.aspx?ICAO=A20N'},
-}
+// Validated once at module load; no network, files or database queries in EuroScope.
+export const PHASE_REFERENCES:PhaseReferences=bundledPhaseReferences(phaseData)
 export interface RouteTiming {
  seconds:number;distanceNm:number;beforeFeederNm:number;afterFeederSeconds:number;entryGroundspeed:number
  feeder?:{name:string;seconds:number;distanceNm:number}
@@ -20,11 +15,11 @@ const positioned=(p:any)=>Number.isFinite(p?.latitude)&&Math.abs(p.latitude)<=90
 const feeders=['ELTOK','NILUG','XILAN','VACRA']
 const clamp=(v:number,a:number,b:number)=>Math.max(a,Math.min(b,v))
 export function remainingRoute(p:TelemetryFlight){
- if(!positioned(p)||(p.positionAgeSeconds??0)>15)return undefined
+ if(!positioned(p)||!Array.isArray(p.route)||p.route.length>512||!Number.isFinite(p.positionAgeSeconds??0)||(p.positionAgeSeconds??0)>15)return undefined
  const end=p.route.findIndex(q=>q.name===`SA${p.runway}`)
- if(end<0||p.route[end].seconds<0)return undefined
+ if(end<0||!Number.isFinite(p.route[end].seconds)||p.route[end].seconds<0)return undefined
  const direct=p.direct?p.route.findIndex(q=>q.name===p.direct&&q.seconds>=0):-1
- const points=p.route.slice(0,end+1).filter((q,i)=>q.seconds>=0&&(direct<0||i>=direct))
+ const points=p.route.slice(0,end+1).filter((q,i)=>Number.isFinite(q.seconds)&&q.seconds>=0&&(direct<0||i>=direct))
  if(!points.length||points.at(-1)!==p.route[end]||!points.every(positioned))return undefined
  let prior=p,distance=0,feeder:{name:string;distanceNm:number}|undefined
  for(const point of points){
@@ -36,7 +31,7 @@ export function remainingRoute(p:TelemetryFlight){
 }
 export function predictRouteTiming(p:TelemetryFlight,config:EngineConfig,references:PhaseReferences=PHASE_REFERENCES):RouteTiming|undefined {
  if(p.arrival!=='ESSA'||p.assignedHeading&&p.assignedHeading>0||p.routeProblem||p.speedDataValid===false||
-  !Number.isFinite(p.altitude)||p.altitude<350||!Number.isFinite(p.groundspeed)||p.groundspeed<60||(p.verticalSpeed??0)>300)return undefined
+  !Number.isFinite(p.altitude)||p.altitude<350||p.altitude>60000||!Number.isFinite(p.groundspeed)||p.groundspeed<60||p.groundspeed>1200||!Number.isFinite(p.verticalSpeed??0)||(p.verticalSpeed??0)>300)return undefined
  const geometry=remainingRoute(p)
  if(!geometry)return undefined
  const type=aircraftType(p.aircraft),reference=references[type]
@@ -47,7 +42,7 @@ export function predictRouteTiming(p:TelemetryFlight,config:EngineConfig,referen
  const approachIas=reference?.approachIas??performanceAt(type,3000,'descent',config.performanceModel)?.nominalIas
  if(!approachIas)return undefined
  const nominal=(altitude:number,remaining:number)=>{
-  const actual=performanceAt(type,altitude,'descent',config.performanceModel)
+  const actual=!reference||!reference.mach&&altitude>22000?performanceAt(type,altitude,'descent',config.performanceModel):undefined
   const approach=reference?.approachIas??approachIas,descent=reference?.descentIas??actual?.nominalIas??approach
   const descentBoundary=reference?.descentToFeet??10000,initialBoundary=reference?.initialDescentToFeet??24000
   const descentIas=reference?approach+(descent-approach)*clamp((altitude-(descentBoundary-2000))/4000,0,1):undefined
@@ -100,6 +95,7 @@ export function predictRouteTiming(p:TelemetryFlight,config:EngineConfig,referen
   if(end===before)feederTime=total
  }
  const age=Math.max(0,p.positionAgeSeconds??0),seconds=Math.max(0,total-age)
+ if(!Number.isFinite(seconds)||seconds>14400||!Number.isFinite(feederTime))return undefined
  const feeder=geometry.feeder?{...geometry.feeder,seconds:Math.max(0,feederTime-age)}:undefined
  return {seconds,distanceNm:distance,beforeFeederNm:before,afterFeederSeconds:seconds-(feeder?.seconds??0),feeder,
   entryGroundspeed:Math.min(p.groundspeed,(nominal(entryAltitude,after)??p.groundspeed)*ratio),

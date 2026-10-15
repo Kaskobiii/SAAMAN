@@ -3,7 +3,9 @@ import assert from 'node:assert/strict'
 import {predictRouteTiming,remainingRoute,PHASE_REFERENCES} from '../src/maestro-route-timing.ts'
 import {DEFAULT_CONFIG,runEngine} from '../src/maestro-engine.ts'
 import {SessionRecording,decodeRecording} from '../src/maestro-recording.ts'
-import {phaseReferenceLookup} from '../src/maestro-phase-references.ts'
+import {phaseReferenceLookup,bundledPhaseReferences} from '../src/maestro-phase-references.ts'
+import {predictLanding} from '../src/maestro-landing-prediction.ts'
+import {iasToTas} from '../src/maestro-aircraft-performance.ts'
 const c=()=>({...structuredClone(DEFAULT_CONFIG),minimumNewSeconds:0,unstableSeconds:0})
 const p=(extra={})=>({callsign:'TIMING',aircraft:'A20N',wake:'M',departure:'EKCH',arrival:'ESSA',runway:'19R',latitude:61,longitude:18,altitude:30000,groundspeed:440,verticalSpeed:0,positionAgeSeconds:0,
  route:[{name:'ELTOK',seconds:500,latitude:60.4,longitude:18},{name:'FI19R',seconds:900,latitude:59.8,longitude:17.95},{name:'SA19R',seconds:1000,latitude:59.6664,longitude:17.92377}],landingSeconds:1060,distanceNm:80,...extra})
@@ -94,4 +96,45 @@ test('phase transition bands remain continuous rather than jumping at FL 100 or 
   const a=predictRouteTiming(p({altitude:altitude-1,groundspeed:350}),c()),b=predictRouteTiming(p({altitude:altitude+1,groundspeed:350}),c())
   assert.ok(a&&b);assert.ok(Math.abs(a.seconds-b.seconds)<2)
  }
+})
+
+test('all 398 bundled profiles are validated, with source anomalies omitted and bounded finite forecasts',()=>{
+ assert.equal(Object.keys(PHASE_REFERENCES).length,398)
+ for(const code of ['B412','C160','C340','DA40','DA42','KA52','MI8'])assert.equal(PHASE_REFERENCES[code].mach,undefined)
+ assert.equal(PHASE_REFERENCES.C25A.minimumCleanIas,undefined)
+ let modeled=0
+ for(const [aircraft,ref] of Object.entries(PHASE_REFERENCES)){
+  const f=p({aircraft,altitude:5000,groundspeed:Math.max(60,Math.min(1200,iasToTas(ref.approachIas,5000)))})
+  const result=predictLanding(f,c(),2)
+  assert.ok(Number.isFinite(result.seconds)&&result.seconds>=0,aircraft)
+  if(result.routeTiming){modeled++;assert.ok(result.seconds<=14400);assert.ok(result.routeTiming.feeder.seconds<=result.seconds)}
+ }
+ assert.ok(modeled>350,`${modeled} profiles modeled from plausible inputs`)
+ assert.deepEqual(Object.keys(bundledPhaseReferences({schema:'broken'})),[])
+ const damaged=bundledPhaseReferences({schema:'saaman-phase-profiles-1',profiles:{BAD:null,A320:{mach:Infinity,descentIas:-1,approachIas:240,landingIas:135,initialDescentToFeet:1e100}}})
+ assert.equal(damaged.A320.mach,undefined);assert.equal(damaged.A320.descentIas,undefined);assert.equal(damaged.A320.initialDescentToFeet,undefined)
+})
+
+test('live engine uses a full-database type for both timing sections without a second buffer or slot recapture',()=>{
+ const config=c(),flight=p({aircraft:'C25A',altitude:5000,groundspeed:240}),timestamp=2_000_000
+ const input={timestamp,source:'ESSA_FMP',flights:[flight]},snapshot=runEngine(input,config,{}),first=snapshot.flights[0]
+ assert.equal(first.landingPrediction.method,'aircraft-profile');assert.equal(first.landingPrediction.routeTiming.profile.type,'C25A')
+ assert.equal(first.euroscopeBaseline.eta,timestamp+first.landingPrediction.routeTiming.seconds*1000)
+ assert.equal(first.euroscopeBaseline.etaFf,timestamp+first.landingPrediction.routeTiming.feeder.seconds*1000)
+ const nextInput={...input,timestamp:timestamp+2000,flights:[{...flight,groundspeed:200}]},next=runEngine(nextInput,config,{},snapshot).flights[0]
+ assert.notEqual(next.liveBufferedEta,first.liveBufferedEta)
+ assert.deepEqual(next.euroscopeBaseline,first.euroscopeBaseline);assert.equal(next.sta,first.sta);assert.equal(next.staFf,first.staFf)
+ const at=timestamp+4000,recomputed=runEngine({...nextInput,timestamp:at},config,{TIMING:{recomputeAt:at}}, {...snapshot,flights:[next]}).flights[0]
+ assert.equal(recomputed.euroscopeBaseline.at,at);assert.equal(recomputed.euroscopeBaseline.landingMethod,'aircraft-profile')
+})
+
+test('out-of-range telemetry declines the profile promptly and retains finite fallback timing',()=>{
+ for(const extra of [{altitude:1e100},{altitude:Infinity},{groundspeed:1e100},{groundspeed:Infinity},{verticalSpeed:NaN},{positionAgeSeconds:NaN},{route:Array.from({length:513},()=>({name:'SA19R',seconds:60}))}]){
+  const flight=p(extra)
+  assert.equal(predictRouteTiming(flight,c()),undefined)
+  const result=predictLanding(flight,c(),2)
+  assert.ok(Number.isFinite(result.seconds)&&result.seconds>=0)
+ }
+ const input={timestamp:2_000_000,source:'ESSA_FMP',flights:[p({aircraft:'ZZZZ'})]},f=runEngine(input,c(),{}).flights[0]
+ assert.notEqual(f.landingPrediction.method,'aircraft-profile');assert.ok(Number.isFinite(f.eta)&&Number.isFinite(f.etaFf))
 })

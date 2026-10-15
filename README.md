@@ -2,7 +2,7 @@
 
 An embedded EuroScope arrival manager for Stockholm Arlanda (ESSA), with shared
 sequencing and controller coordination through the existing vatIRIS backend.
-The current build is **1.3.15** (submenu repaint test build). Unstable scheduled times follow the current forecast while maintaining real spacing and manual targets. Live feeder and landing forecasts use the bundled 398-aircraft descent, approach and landing reference database when route and telemetry are usable, with fallback for incomplete inputs. Syncing between two EuroScope controllers has
+The current version is **1.3.15**. Blank floating submenus on first opening are corrected. Unstable scheduled times follow the current forecast while maintaining real spacing and manual targets. Live feeder and landing forecasts use the bundled 398-aircraft descent, approach and landing reference database when route and telemetry are usable, with fallback for incomplete inputs. Syncing between two EuroScope controllers has
 been confirmed in use.
 
 **Shared mode requires the vatIRIS AMAN backend**, normally at

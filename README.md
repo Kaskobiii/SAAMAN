@@ -2,7 +2,7 @@
 
 An embedded EuroScope arrival manager for Stockholm Arlanda (ESSA), with shared
 sequencing and controller coordination through the existing vatIRIS backend.
-The current version is **1.3.11**. Syncing between two EuroScope controllers has
+The stable version is **1.3.11**. The **1.3.12 preview** adds a separate route-profile comparison and capture evidence; it does not replace active timing. Syncing between two EuroScope controllers has
 been confirmed in use.
 
 **Shared mode requires the vatIRIS AMAN backend**, normally at
@@ -69,7 +69,7 @@ also been confirmed in EuroScope.
 See [architecture](source/ARCHITECTURE.md),
 [backend integration](source/BACKEND-INTEGRATION.md),
 [operating requirements](source/OPERATING-REQUIREMENTS.md) and
-[latest release notes](docs/RELEASE-NOTES-1.3.11.md).
+[stable release notes](docs/RELEASE-NOTES-1.3.11.md) and [preview notes](docs/RELEASE-NOTES-1.3.12.md).
 
 ## License and credits
 

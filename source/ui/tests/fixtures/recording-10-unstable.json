@@ -1,0 +1,681 @@
+{
+  "description": "NSZ4052 capture during climb and later level-flight observations from recording 10; only the relevant flight and controller plan are retained.",
+  "frames": [
+    {
+      "input": {
+        "source": "ESSA_FMP",
+        "timestamp": 1792084721405,
+        "flights": [
+          {
+            "callsign": "NSZ4052",
+            "aircraft": "B38M",
+            "wake": "M",
+            "departure": "ESNS",
+            "arrival": "ESSA",
+            "runway": "19L",
+            "landingSeconds": 3540,
+            "distanceNm": 300.12167314238104,
+            "groundspeed": 300,
+            "altitude": 14993,
+            "dataWarnings": [],
+            "star": "VACRA1P",
+            "routeText": "ESNS/10 LAPIX DCT SIPRI VACRA",
+            "verticalSpeed": 6384,
+            "assignedSpeed": 0,
+            "assignedMach": 0,
+            "finalAltitude": 38000,
+            "clearedAltitude": 0,
+            "heading": 209,
+            "assignedHeading": 0,
+            "direct": "",
+            "routeProblem": "",
+            "latitude": 64.35161000000001,
+            "longitude": 20.932579999999998,
+            "threshold": {
+              "heading": 190.38784199143896,
+              "latitude": 59.648468888888885,
+              "longitude": 17.95874388888889
+            },
+            "positionAgeSeconds": 4,
+            "calculatedRouteIndex": 1,
+            "topskyMissedApproach": false,
+            "route": [
+              {
+                "latitude": 64.62472199999999,
+                "longitude": 21.076944,
+                "name": "ESNS",
+                "seconds": -60
+              },
+              {
+                "latitude": 63.905833,
+                "longitude": 20.478889,
+                "name": "LAPIX",
+                "seconds": 300
+              },
+              {
+                "latitude": 60.845556,
+                "longitude": 18.751667,
+                "name": "SIPRI",
+                "seconds": 2280
+              },
+              {
+                "latitude": 60.279222000000004,
+                "longitude": 18.391556,
+                "name": "VACRA",
+                "seconds": 2700
+              },
+              {
+                "latitude": 60.08474972222223,
+                "longitude": 18.36363888888889,
+                "name": "SA541",
+                "seconds": 2940
+              },
+              {
+                "latitude": 59.89625,
+                "longitude": 18.336916944444443,
+                "name": "ERXEC",
+                "seconds": 3120
+              },
+              {
+                "latitude": 59.826416944444446,
+                "longitude": 18.02369388888889,
+                "name": "AGILI",
+                "seconds": 3300
+              },
+              {
+                "latitude": 59.80121694444444,
+                "longitude": 18.014466944444443,
+                "name": "CI19L",
+                "seconds": 3360
+              },
+              {
+                "latitude": 59.768521944444444,
+                "longitude": 18.00249388888889,
+                "name": "FI19L",
+                "seconds": 3360
+              },
+              {
+                "latitude": 59.648469166666665,
+                "longitude": 17.958744166666666,
+                "name": "SA19L",
+                "seconds": 3480
+              },
+              {
+                "latitude": 59.65194399999999,
+                "longitude": 17.918611,
+                "name": "ESSA",
+                "seconds": 3540
+              }
+            ]
+          }
+        ]
+      },
+      "config": {
+        "timingModel": "euroscope-buffer",
+        "euroscopeBufferMinutes": 2,
+        "euroscopeSuperstableBufferMinutes": 1,
+        "euroscopeHighSpeedBufferMinutes": 6,
+        "performanceModel": "euroscope",
+        "predictionMode": "star",
+        "starDistanceMethod": "vectors",
+        "starApproachSpeed": 250,
+        "starBaseSpeed": 180,
+        "starFinalNm": 10,
+        "starBaseNm": 20,
+        "starEntryAltitude": 18000,
+        "starDescentRate": 1800,
+        "starCruiseSpeed": 450,
+        "starClimbRate": 1800,
+        "surfaceWindAuto": true,
+        "stableBufferMinutes": 5,
+        "superStableBufferMinutes": 5,
+        "defaultFeederMinutes": 15,
+        "maxFinalNm": 15,
+        "vectoringMode": 1,
+        "finalLengths": {
+          "ESSA/01L": 10,
+          "ESSA/01R": 14,
+          "ESSA/08": 10,
+          "ESSA/19L": 10,
+          "ESSA/19R": 10,
+          "ESSA/26": 10,
+          "ESSB/12": 10,
+          "ESSB/30": 10
+        },
+        "delayPaths": [],
+        "active": [
+          "ESSA/19L"
+        ],
+        "departureRunway": "ESSA/19R",
+        "rates": {
+          "ESSA/01L": 115,
+          "ESSA/01R": 115,
+          "ESSA/08": 166,
+          "ESSA/19L": 115,
+          "ESSA/19R": 115,
+          "ESSA/26": 142,
+          "ESSB/12": 142,
+          "ESSB/30": 142
+        },
+        "slots": [],
+        "manualFlights": [],
+        "landingSpeedKnots": 140,
+        "surfaceWindDirection": 0,
+        "surfaceWindSpeed": 0,
+        "stableMinutes": 15,
+        "superStableMinutes": 4,
+        "frozenMinutes": 3.5,
+        "unstableSeconds": 60,
+        "minimumNewSeconds": 600
+      },
+      "recordedDelay": 0
+    },
+    {
+      "input": {
+        "source": "ESSA_FMP",
+        "timestamp": 1792085049404,
+        "flights": [
+          {
+            "callsign": "NSZ4052",
+            "aircraft": "B38M",
+            "wake": "M",
+            "departure": "ESNS",
+            "arrival": "ESSA",
+            "runway": "19L",
+            "landingSeconds": 3120,
+            "distanceNm": 269.1373109924757,
+            "groundspeed": 370,
+            "altitude": 27451,
+            "dataWarnings": [],
+            "star": "VACRA1P",
+            "routeText": "ESNS/10 LAPIX DCT SIPRI VACRA",
+            "verticalSpeed": 3616,
+            "assignedSpeed": 0,
+            "assignedMach": 0,
+            "finalAltitude": 38000,
+            "clearedAltitude": 0,
+            "heading": 203,
+            "assignedHeading": 0,
+            "direct": "",
+            "routeProblem": "",
+            "latitude": 63.87824,
+            "longitude": 20.461689999999997,
+            "threshold": {
+              "heading": 190.38784199143896,
+              "latitude": 59.648468888888885,
+              "longitude": 17.95874388888889
+            },
+            "positionAgeSeconds": 2,
+            "calculatedRouteIndex": 2,
+            "topskyMissedApproach": false,
+            "route": [
+              {
+                "latitude": 64.62472199999999,
+                "longitude": 21.076944,
+                "name": "ESNS",
+                "seconds": -60
+              },
+              {
+                "latitude": 63.905833,
+                "longitude": 20.478889,
+                "name": "LAPIX",
+                "seconds": -60
+              },
+              {
+                "latitude": 60.845556,
+                "longitude": 18.751667,
+                "name": "SIPRI",
+                "seconds": 1860
+              },
+              {
+                "latitude": 60.279222000000004,
+                "longitude": 18.391556,
+                "name": "VACRA",
+                "seconds": 2280
+              },
+              {
+                "latitude": 60.08474972222223,
+                "longitude": 18.36363888888889,
+                "name": "SA541",
+                "seconds": 2460
+              },
+              {
+                "latitude": 59.89625,
+                "longitude": 18.336916944444443,
+                "name": "ERXEC",
+                "seconds": 2640
+              },
+              {
+                "latitude": 59.826416944444446,
+                "longitude": 18.02369388888889,
+                "name": "AGILI",
+                "seconds": 2820
+              },
+              {
+                "latitude": 59.80121694444444,
+                "longitude": 18.014466944444443,
+                "name": "CI19L",
+                "seconds": 2880
+              },
+              {
+                "latitude": 59.768521944444444,
+                "longitude": 18.00249388888889,
+                "name": "FI19L",
+                "seconds": 2940
+              },
+              {
+                "latitude": 59.648469166666665,
+                "longitude": 17.958744166666666,
+                "name": "SA19L",
+                "seconds": 3060
+              },
+              {
+                "latitude": 59.65194399999999,
+                "longitude": 17.918611,
+                "name": "ESSA",
+                "seconds": 3120
+              }
+            ]
+          }
+        ]
+      },
+      "config": {
+        "timingModel": "euroscope-buffer",
+        "euroscopeBufferMinutes": 2,
+        "euroscopeSuperstableBufferMinutes": 1,
+        "euroscopeHighSpeedBufferMinutes": 6,
+        "performanceModel": "euroscope",
+        "predictionMode": "star",
+        "starDistanceMethod": "vectors",
+        "starApproachSpeed": 250,
+        "starBaseSpeed": 180,
+        "starFinalNm": 10,
+        "starBaseNm": 20,
+        "starEntryAltitude": 18000,
+        "starDescentRate": 1800,
+        "starCruiseSpeed": 450,
+        "starClimbRate": 1800,
+        "surfaceWindAuto": true,
+        "stableBufferMinutes": 5,
+        "superStableBufferMinutes": 5,
+        "defaultFeederMinutes": 15,
+        "maxFinalNm": 15,
+        "vectoringMode": 1,
+        "finalLengths": {
+          "ESSA/01L": 10,
+          "ESSA/01R": 14,
+          "ESSA/08": 10,
+          "ESSA/19L": 10,
+          "ESSA/19R": 10,
+          "ESSA/26": 10,
+          "ESSB/12": 10,
+          "ESSB/30": 10
+        },
+        "delayPaths": [],
+        "active": [
+          "ESSA/19L"
+        ],
+        "departureRunway": "ESSA/19R",
+        "rates": {
+          "ESSA/01L": 115,
+          "ESSA/01R": 115,
+          "ESSA/08": 166,
+          "ESSA/19L": 115,
+          "ESSA/19R": 115,
+          "ESSA/26": 142,
+          "ESSB/12": 142,
+          "ESSB/30": 142
+        },
+        "slots": [],
+        "manualFlights": [],
+        "landingSpeedKnots": 140,
+        "surfaceWindDirection": 0,
+        "surfaceWindSpeed": 0,
+        "stableMinutes": 15,
+        "superStableMinutes": 4,
+        "frozenMinutes": 3.5,
+        "unstableSeconds": 60,
+        "minimumNewSeconds": 600
+      },
+      "recordedDelay": 92
+    },
+    {
+      "input": {
+        "source": "ESSA_FMP",
+        "timestamp": 1792085564401,
+        "flights": [
+          {
+            "callsign": "NSZ4052",
+            "aircraft": "B38M",
+            "wake": "M",
+            "departure": "ESNS",
+            "arrival": "ESSA",
+            "runway": "19L",
+            "landingSeconds": 2160,
+            "distanceNm": 211.39032224931876,
+            "groundspeed": 409,
+            "altitude": 37840,
+            "dataWarnings": [],
+            "star": "VACRA1P",
+            "routeText": "ESNS/10 LAPIX DCT SIPRI VACRA",
+            "verticalSpeed": -36,
+            "assignedSpeed": 0,
+            "assignedMach": 0,
+            "finalAltitude": 38000,
+            "clearedAltitude": 0,
+            "heading": 203,
+            "assignedHeading": 0,
+            "direct": "",
+            "routeProblem": "",
+            "latitude": 62.94938,
+            "longitude": 19.89903,
+            "threshold": {
+              "heading": 190.38784199143896,
+              "latitude": 59.648468888888885,
+              "longitude": 17.95874388888889
+            },
+            "positionAgeSeconds": 1,
+            "calculatedRouteIndex": 2,
+            "topskyMissedApproach": false,
+            "route": [
+              {
+                "latitude": 64.62472199999999,
+                "longitude": 21.076944,
+                "name": "ESNS",
+                "seconds": -60
+              },
+              {
+                "latitude": 63.905833,
+                "longitude": 20.478889,
+                "name": "LAPIX",
+                "seconds": -60
+              },
+              {
+                "latitude": 60.845556,
+                "longitude": 18.751667,
+                "name": "SIPRI",
+                "seconds": 1080
+              },
+              {
+                "latitude": 60.279222000000004,
+                "longitude": 18.391556,
+                "name": "VACRA",
+                "seconds": 1440
+              },
+              {
+                "latitude": 60.08474972222223,
+                "longitude": 18.36363888888889,
+                "name": "SA541",
+                "seconds": 1620
+              },
+              {
+                "latitude": 59.89625,
+                "longitude": 18.336916944444443,
+                "name": "ERXEC",
+                "seconds": 1800
+              },
+              {
+                "latitude": 59.826416944444446,
+                "longitude": 18.02369388888889,
+                "name": "AGILI",
+                "seconds": 1920
+              },
+              {
+                "latitude": 59.80121694444444,
+                "longitude": 18.014466944444443,
+                "name": "CI19L",
+                "seconds": 1980
+              },
+              {
+                "latitude": 59.768521944444444,
+                "longitude": 18.00249388888889,
+                "name": "FI19L",
+                "seconds": 1980
+              },
+              {
+                "latitude": 59.648469166666665,
+                "longitude": 17.958744166666666,
+                "name": "SA19L",
+                "seconds": 2100
+              },
+              {
+                "latitude": 59.65194399999999,
+                "longitude": 17.918611,
+                "name": "ESSA",
+                "seconds": 2160
+              }
+            ]
+          }
+        ]
+      },
+      "config": {
+        "timingModel": "euroscope-buffer",
+        "euroscopeBufferMinutes": 2,
+        "euroscopeSuperstableBufferMinutes": 1,
+        "euroscopeHighSpeedBufferMinutes": 6,
+        "performanceModel": "euroscope",
+        "predictionMode": "star",
+        "starDistanceMethod": "vectors",
+        "starApproachSpeed": 250,
+        "starBaseSpeed": 180,
+        "starFinalNm": 10,
+        "starBaseNm": 20,
+        "starEntryAltitude": 18000,
+        "starDescentRate": 1800,
+        "starCruiseSpeed": 450,
+        "starClimbRate": 1800,
+        "surfaceWindAuto": true,
+        "stableBufferMinutes": 5,
+        "superStableBufferMinutes": 5,
+        "defaultFeederMinutes": 15,
+        "maxFinalNm": 15,
+        "vectoringMode": 1,
+        "finalLengths": {
+          "ESSA/01L": 10,
+          "ESSA/01R": 14,
+          "ESSA/08": 10,
+          "ESSA/19L": 10,
+          "ESSA/19R": 10,
+          "ESSA/26": 10,
+          "ESSB/12": 10,
+          "ESSB/30": 10
+        },
+        "delayPaths": [],
+        "active": [
+          "ESSA/19L"
+        ],
+        "departureRunway": "ESSA/19R",
+        "rates": {
+          "ESSA/01L": 115,
+          "ESSA/01R": 115,
+          "ESSA/08": 166,
+          "ESSA/19L": 115,
+          "ESSA/19R": 115,
+          "ESSA/26": 142,
+          "ESSB/12": 142,
+          "ESSB/30": 142
+        },
+        "slots": [],
+        "manualFlights": [],
+        "landingSpeedKnots": 140,
+        "surfaceWindDirection": 0,
+        "surfaceWindSpeed": 0,
+        "stableMinutes": 15,
+        "superStableMinutes": 4,
+        "frozenMinutes": 3.5,
+        "unstableSeconds": 60,
+        "minimumNewSeconds": 600
+      },
+      "recordedDelay": 467
+    },
+    {
+      "input": {
+        "source": "ESSA_FMP",
+        "timestamp": 1792085936412,
+        "flights": [
+          {
+            "callsign": "NSZ4052",
+            "aircraft": "B38M",
+            "wake": "M",
+            "departure": "ESNS",
+            "arrival": "ESSA",
+            "runway": "19L",
+            "landingSeconds": 1740,
+            "distanceNm": 168.96490651292635,
+            "groundspeed": 416,
+            "altitude": 37915,
+            "dataWarnings": [],
+            "star": "VACRA1P",
+            "routeText": "ESNS/10 LAPIX DCT SIPRI VACRA",
+            "verticalSpeed": 4,
+            "assignedSpeed": 0,
+            "assignedMach": 0,
+            "finalAltitude": 38000,
+            "clearedAltitude": 0,
+            "heading": 203,
+            "assignedHeading": 0,
+            "direct": "",
+            "routeProblem": "",
+            "latitude": 62.26561000000001,
+            "longitude": 19.508,
+            "threshold": {
+              "heading": 190.38784199143896,
+              "latitude": 59.648468888888885,
+              "longitude": 17.95874388888889
+            },
+            "positionAgeSeconds": 2,
+            "calculatedRouteIndex": 2,
+            "topskyMissedApproach": false,
+            "route": [
+              {
+                "latitude": 64.62472199999999,
+                "longitude": 21.076944,
+                "name": "ESNS",
+                "seconds": -60
+              },
+              {
+                "latitude": 63.905833,
+                "longitude": 20.478889,
+                "name": "LAPIX",
+                "seconds": -60
+              },
+              {
+                "latitude": 60.845556,
+                "longitude": 18.751667,
+                "name": "SIPRI",
+                "seconds": 720
+              },
+              {
+                "latitude": 60.279222000000004,
+                "longitude": 18.391556,
+                "name": "VACRA",
+                "seconds": 1080
+              },
+              {
+                "latitude": 60.08474972222223,
+                "longitude": 18.36363888888889,
+                "name": "SA541",
+                "seconds": 1200
+              },
+              {
+                "latitude": 59.89625,
+                "longitude": 18.336916944444443,
+                "name": "ERXEC",
+                "seconds": 1380
+              },
+              {
+                "latitude": 59.826416944444446,
+                "longitude": 18.02369388888889,
+                "name": "AGILI",
+                "seconds": 1500
+              },
+              {
+                "latitude": 59.80121694444444,
+                "longitude": 18.014466944444443,
+                "name": "CI19L",
+                "seconds": 1560
+              },
+              {
+                "latitude": 59.768521944444444,
+                "longitude": 18.00249388888889,
+                "name": "FI19L",
+                "seconds": 1620
+              },
+              {
+                "latitude": 59.648469166666665,
+                "longitude": 17.958744166666666,
+                "name": "SA19L",
+                "seconds": 1680
+              },
+              {
+                "latitude": 59.65194399999999,
+                "longitude": 17.918611,
+                "name": "ESSA",
+                "seconds": 1740
+              }
+            ]
+          }
+        ]
+      },
+      "config": {
+        "timingModel": "euroscope-buffer",
+        "euroscopeBufferMinutes": 2,
+        "euroscopeSuperstableBufferMinutes": 1,
+        "euroscopeHighSpeedBufferMinutes": 6,
+        "performanceModel": "euroscope",
+        "predictionMode": "star",
+        "starDistanceMethod": "vectors",
+        "starApproachSpeed": 250,
+        "starBaseSpeed": 180,
+        "starFinalNm": 10,
+        "starBaseNm": 20,
+        "starEntryAltitude": 18000,
+        "starDescentRate": 1800,
+        "starCruiseSpeed": 450,
+        "starClimbRate": 1800,
+        "surfaceWindAuto": true,
+        "stableBufferMinutes": 5,
+        "superStableBufferMinutes": 5,
+        "defaultFeederMinutes": 15,
+        "maxFinalNm": 15,
+        "vectoringMode": 1,
+        "finalLengths": {
+          "ESSA/01L": 10,
+          "ESSA/01R": 14,
+          "ESSA/08": 10,
+          "ESSA/19L": 10,
+          "ESSA/19R": 10,
+          "ESSA/26": 10,
+          "ESSB/12": 10,
+          "ESSB/30": 10
+        },
+        "delayPaths": [],
+        "active": [
+          "ESSA/19L"
+        ],
+        "departureRunway": "ESSA/19R",
+        "rates": {
+          "ESSA/01L": 115,
+          "ESSA/01R": 115,
+          "ESSA/08": 166,
+          "ESSA/19L": 115,
+          "ESSA/19R": 115,
+          "ESSA/26": 142,
+          "ESSB/12": 142,
+          "ESSB/30": 142
+        },
+        "slots": [],
+        "manualFlights": [],
+        "landingSpeedKnots": 140,
+        "surfaceWindDirection": 0,
+        "surfaceWindSpeed": 0,
+        "stableMinutes": 15,
+        "superStableMinutes": 4,
+        "frozenMinutes": 3.5,
+        "unstableSeconds": 60,
+        "minimumNewSeconds": 600
+      },
+      "recordedDelay": 488
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 An embedded EuroScope arrival manager for Stockholm Arlanda (ESSA), with shared
 sequencing and controller coordination through the existing vatIRIS backend.
-The current version is **1.3.10**. Syncing between two EuroScope controllers has
+The current version is **1.3.11**. Syncing between two EuroScope controllers has
 been confirmed in use.
 
 **Shared mode requires the vatIRIS AMAN backend**, normally at
@@ -38,10 +38,12 @@ or controller key is required in vatIRIS callsign mode.
 - Initial runway configuration from EuroScope's active ARR/DEP selections.
 - Sync EuroScope in runway configuration reapplies the current ARR/DEP selections.
 - Submenus and dialogs can be moved outside AMAN on the EuroScope radar.
-- Configurable EuroScope time buffers, with extra landing compensation for higher
-  current groundspeed. ETA follows live EuroScope estimates. Feeder estimates keep
-  their normal/near-fix buffer; accepted routes and times survive direct clearances
-  until an explicit Recompute.
+- Live landing ETA to the assigned runway threshold, using remaining route
+  distance and expected slowing down, with position-based timing on short final.
+  Feeder estimates keep their normal/near-fix allowance. Existing accepted times,
+  instructions and order remain protected; Recompute captures fresh planning time.
+  Earlier predictions remain uncertain during vectors or before clearance changes;
+  see the replay results and limitations in the release notes.
 - Controller-specific ACC/ARR-W feeder coverage, with unfiltered Runway and FLOW views.
 - Coordination notifications in a separate window centered over EuroScope,
   showing the sending login callsign and UTC send time.
@@ -67,7 +69,7 @@ also been confirmed in EuroScope.
 See [architecture](source/ARCHITECTURE.md),
 [backend integration](source/BACKEND-INTEGRATION.md),
 [operating requirements](source/OPERATING-REQUIREMENTS.md) and
-[latest release notes](docs/RELEASE-NOTES-1.3.10.md).
+[latest release notes](docs/RELEASE-NOTES-1.3.11.md).
 
 ## License and credits
 

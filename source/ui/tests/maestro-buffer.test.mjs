@@ -60,7 +60,7 @@ test('an older checkpoint with a stale approach repairs it once when the confirm
 })
 
 test('a withdrawn runway assignment cancels the wait without recapturing timing or approach',()=>{
- const c=config(),p=flight(),first=runEngine(packet([p]),c,{}),waiting=runEngine(packet([{...p,runway:'01R'}],now+2000),c,{},first)
+ const c=config(),p=flight({route:[{name:'ELTOK',seconds:700}]}),first=runEngine(packet([p]),c,{}),waiting=runEngine(packet([{...p,runway:'01R'}],now+2000),c,{},first)
  const restored=runEngine(packet([p],now+4000),c,{},waiting).flights[0]
  assert.equal(restored.runwayTransition,undefined);assert.equal(restored.euroscopeBaseline.at,first.flights[0].euroscopeBaseline.at)
  assert.equal(restored.sta,first.flights[0].sta);assert.deepEqual(restored.amanRoute,first.flights[0].amanRoute)
@@ -96,20 +96,22 @@ test('initial usable EuroScope arrival plus buffer sets a baseline without any p
  assert.equal(f.eta,now+1620000);assert.equal(f.sta,f.eta);assert.equal(f.euroscopeBaseline.rawEta,now+1500000)
  assert.equal(f.euroscopeBaseline.bufferMinutes,2);assert.equal(f.trajectory,undefined);assert.equal(f.distanceProfile,undefined);assert.equal(f.gainCapacitySeconds,0)
 })
-test('direct, speed and route ETA changes do not recalculate accepted landing or feeder times',()=>{
- const c=config(),first=runEngine(packet([flight()]),c,{})
+test('direct, speed and route ETA changes do not recalculate Stable landing or feeder times',()=>{
+ const c=config(),first=runEngine(packet([flight({route:[{name:'ELTOK',seconds:700}]})]),c,{})
  const next=runEngine(packet([flight({direct:'OTHER',assignedSpeed:210,assignedHeading:100,groundspeed:220,landingSeconds:600,route:[{name:'ELTOK',seconds:300}]})],now+2000),c,{},first)
  const a=first.flights[0],b=next.flights[0]
  assert.equal(b.eta,b.liveBufferedEta);assert.notEqual(b.eta,a.eta);assert.equal(b.sta,a.sta);assert.equal(b.staFf,a.staFf)
  assert.equal(b.euroscopeBaseline.at,a.euroscopeBaseline.at);assert.equal(b.liveEuroscopeEta,now+602000);assert.equal(b.liveBufferedEta,now+722000)
 })
-test('Unstable allocations also retain their captured time until explicit Recompute',()=>{
+test('Unstable allocations follow current landing and feeder predictions without recapturing history',()=>{
  const c={...config(),unstableSeconds:60},first=runEngine(packet([flight()]),c,{})
  const next=runEngine(packet([flight({landingSeconds:1000,route:[{name:'ELTOK',seconds:800}]})],now+2000),c,{},first)
- assert.equal(next.flights[0].state,0);assert.equal(next.flights[0].sta,first.flights[0].sta);assert.equal(next.flights[0].staFf,first.flights[0].staFf)
+ const f=next.flights[0]
+ assert.equal(f.state,0);assert.equal(f.sta,f.liveBufferedEta);assert.equal(f.staFf,f.etaFf);assert.equal(f.delay,0)
+ assert.notEqual(f.sta,first.flights[0].sta);assert.deepEqual(f.euroscopeBaseline,first.flights[0].euroscopeBaseline)
 })
-test('saving a buffer does not move existing flights; Recompute captures the new EuroScope ETA and buffer',()=>{
- const c=config(),first=runEngine(packet([flight()]),c,{})
+test('saving a buffer does not move Stable flights; Recompute captures the new EuroScope ETA and buffer',()=>{
+ const c=config(),first=runEngine(packet([flight({route:[{name:'ELTOK',seconds:700}]})]),c,{})
  const changed={...c,euroscopeBufferMinutes:4},input=packet([flight({landingSeconds:600,route:[{name:'ELTOK',seconds:300}]})],now+2000)
  const held=runEngine(input,changed,{},first);assert.equal(held.flights[0].sta,first.flights[0].sta)
  const recomputed=runEngine({...input,timestamp:now+3000},changed,{BUFFER:{recomputeAt:now+3000,changedAt:now+3000}},held)
@@ -158,7 +160,7 @@ test('Recompute updates a Superstable leader time without moving it behind its S
  assert.equal(a.euroscopeBaseline.at,t);assert.equal(a.euroscopeBaseline.bufferMinutes,1)
 })
 test('entering Superstable does not shorten an accepted normal-buffer landing slot',()=>{
- const c=config(),first=runEngine(packet([flight()]),c,{})
+ const c=config(),first=runEngine(packet([flight({route:[{name:'ELTOK',seconds:700}]})]),c,{})
  const next=runEngine(packet([flight({landingSeconds:700,route:[{name:'ELTOK',seconds:180}]})],now+2000),c,{},first),f=next.flights[0]
  assert.equal(f.state,2);assert.equal(f.sta,first.flights[0].sta);assert.equal(f.euroscopeBaseline.bufferMinutes,2)
  assert.equal(f.liveBufferedEta,now+762000)
@@ -199,7 +201,7 @@ test('a direct beyond NILUG and negative EuroScope feeder EET cannot make distan
  const first=runEngine(packet([a.flight],a.timestamp),c,{})
  const next=runEngine(packet([b.flight],b.timestamp),c,{},first),f=next.flights[0]
  assert.equal(f.passedFeeder,false);assert.ok(f.state<2)
- assert.ok(f.etaFf-b.timestamp>240000);assert.equal(f.sta,first.flights[0].sta)
+ assert.ok(f.etaFf-b.timestamp>240000);assert.equal(f.sta,f.liveBufferedEta)
 })
 test('Information route ignores rerouting and Recompute; only observed passage removes route points',()=>{
  const c=config();c.active=['ESSA/01R'];c.departureRunway='ESSA/01L'
@@ -252,10 +254,10 @@ test('the near-feeder fallback and feeder buffer retain their one-minute setting
  assert.equal(euroscopeBufferMinutes(flight({groundspeed:250,landingSeconds:180}),c),1)
 })
 
-test('live speed selection updates ETA while accepted landing and feeder captures wait for Recompute',()=>{
- const c=config(),first=runEngine(packet([flight({groundspeed:450})]),c,{}),a=first.flights[0]
+test('live speed selection updates ETA while Stable landing and feeder captures wait for Recompute',()=>{
+ const c=config(),first=runEngine(packet([flight({groundspeed:450,route:[{name:'ELTOK',seconds:700}]})]),c,{}),a=first.flights[0]
  assert.equal(a.euroscopeBaseline.groundspeed,450);assert.equal(a.euroscopeBaseline.bufferMinutes,2)
- assert.equal(a.eta,now+1620000);assert.equal(a.etaFf,now+1020000);assert.equal(a.delay,0);assert.equal(a.euroscopeBaseline.feederBufferMinutes,2)
+ assert.equal(a.eta,now+1620000);assert.equal(a.etaFf,now+820000);assert.equal(a.delay,0);assert.equal(a.euroscopeBaseline.feederBufferMinutes,2)
  const input=packet([flight({groundspeed:250,landingSeconds:1000,direct:'OTHER'})],now+2000)
  const next=runEngine(input,c,{},first),b=next.flights[0]
  assert.equal(b.sta,a.sta);assert.equal(b.staFf,a.staFf);assert.deepEqual(b.euroscopeBaseline,a.euroscopeBaseline)
@@ -285,7 +287,7 @@ test('existing recorded high-speed baseline stays fixed until an explicit new Re
 })
 
 for(const [phase,seconds,capture] of [['Unstable',900,{unstableSeconds:60}],['Stable',700,{}],['Superstable',100,{}],['Frozen',60,{}]])
-test(`live ETA changes over repeated ${phase} updates without changing allocation or capture`,()=>{
+test(`live ETA changes over repeated ${phase} updates with phase-appropriate allocation and protected history`,()=>{
  const c={...config(),...capture},p=flight({route:[{name:'ELTOK',seconds}],landingSeconds:phase==='Frozen'?120:1500,groundspeed:phase==='Frozen'?250:450})
  const first=runEngine(packet([p]),c,{}),original=structuredClone(first),a=first.flights[0]
  assert.equal(a.state,['Unstable','Stable','Superstable','Frozen'].indexOf(phase))
@@ -297,13 +299,15 @@ test(`live ETA changes over repeated ${phase} updates without changing allocatio
   const buffer=euroscopeBufferMinutes(updated,c,latest.flights[0])
   assert.equal(b.eta,t+(landingSeconds+buffer*60)*1000)
   assert.equal(b.runwayDelay,Math.round((b.sta-b.eta)/1000))
-  assert.equal(b.sta,a.sta);assert.equal(b.staFf,a.staFf);assert.equal(b.order,a.order)
+  if(phase==='Unstable'){assert.equal(b.sta,b.eta);assert.equal(b.staFf,b.etaFf);assert.equal(b.delay,0)}
+  else {assert.equal(b.sta,a.sta);assert.equal(b.staFf,a.staFf)}
+  assert.equal(b.order,a.order)
   assert.deepEqual(b.euroscopeBaseline,a.euroscopeBaseline);assert.equal(b.initialEta,a.initialEta)
  }
  assert.deepEqual(first,original,'previous snapshots remain immutable')
  const exported=toJuhaSequence(latest,c,{}).sequence[0]
  assert.equal(exported.eet_ades,(latest.flights[0].eta-latest.timestamp)/1000)
- assert.equal(exported.eet_rwy,(a.sta-latest.timestamp)/1000)
+ assert.equal(exported.eet_rwy,(latest.flights[0].sta-latest.timestamp)/1000)
 })
 
 test('invalid or stale live observations retain the last valid ETA and accepted slot',()=>{

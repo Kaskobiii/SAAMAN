@@ -629,6 +629,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         route:f.feeder==='OTHER'?[]:[{name:f.feeder,seconds:f.feederEta!==undefined?(f.feederEta-now)/1000:(f.eta-now)/1000-(config.defaultFeederMinutes??15)*60}],landingSeconds:(f.eta-now)/1000,distanceNm:100,groundspeed:140,altitude:10000}))]
     manual.forEach(f=>present.add(f.callsign))
     const flights: EngineFlight[] = []
+    const provisionalTimings=new Set<string>()
     const diagnostics: string[] = []
     for (const p of predictions) {
         const old = oldByCallsign.get(p.callsign)
@@ -770,6 +771,20 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             recomputedAt: waitingRunwayChange?old!.recomputedAt:e.recomputeAt || old?.recomputedAt || 0, lastTrustedEta: issue ? old?.lastTrustedEta ?? old?.eta ?? eta : eta,
             trajectory:prediction.trajectory,distanceProfile:prediction.distanceProfile,scheduledBeforeLanding:landed?old?.scheduledBeforeLanding??(old?.state!==4?old?.sta:undefined):undefined,vectorDetection:prediction.vectorDetection,vectorCandidateSince:prediction.vectorCandidateSince,predictionSource:prediction.source,originalLandingSeconds:p.landingSeconds,finalAlongNm:onFinal?final?.along:undefined })
         const emitted=flights.at(-1)!,fix=STAR_FEEDERS[emitted.ff]
+        // Unstable forecasts are provisional, including their last update on
+        // entering Stable. Keep capture history intact; schedule from the
+        // current landing/feeder pair until a later phase accepts the slot.
+        if(bufferMode&&!issue&&!old?.issue&&!passed&&!old?.passedFeeder&&!waitingRunwayChange&&!missedRecovery&&
+            (state===0||old?.state===0)&&e.target===undefined){
+            if(usableEuroScope&&liveBufferedEta!==undefined&&liveBufferedEtaFf!==undefined){
+                emitted.eta=liveBufferedEta+manualFeederShift
+                provisionalTimings.add(p.callsign)
+            }else if(old){
+                emitted.eta=previousEtas.get(p.callsign)??old.eta;emitted.etaFf=old.etaFf
+                emitted.sta=old.sta;emitted.staFf=old.staFf
+                provisionalTimings.add(p.callsign)
+            }
+        }
         if(bufferMode){const route=arrivalRoute(p,old,passed,confirmedRunwayChange||!!obsoleteApproach);emitted.amanRoute=route.points;emitted.amanRoutePassed=route.index}
         if(runwayTransition?.pending)diagnostics.push(`${p.callsign}: Waiting for EuroScope assignment and active runway plan to agree (${runwayTransition.from} → ${runwayTransition.to})`)
         const perf=bufferMode?undefined:performanceAt(p.aircraft,p.altitude,'descent',config.performanceModel)
@@ -847,7 +862,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         }
         for(const f of fixed){
             const old=oldByCallsign.get(f.callsign)
-            const reset=!old||!!f.euroscopeBaseline&&f.euroscopeBaseline.at!==old.euroscopeBaseline?.at||old.runway!==f.runway||old.mode!=='sequenced'||!f.runwayTransition?.pending&&(edits[f.callsign]?.recomputeAt||0)>old.recomputedAt||!!f.trajectory&&old.trajectory?.model!==f.trajectory.model
+            const reset=provisionalTimings.has(f.callsign)||!old||!!f.euroscopeBaseline&&f.euroscopeBaseline.at!==old.euroscopeBaseline?.at||old.runway!==f.runway||old.mode!=='sequenced'||!f.runwayTransition?.pending&&(edits[f.callsign]?.recomputeAt||0)>old.recomputedAt||!!f.trajectory&&old.trajectory?.model!==f.trajectory.model
             f.planningEta=reset?f.eta:old.planningEta??old.eta
             if(!reset&&Math.abs(f.eta-f.planningEta)>30000){
                 const candidate=old.planningEtaCandidate
@@ -935,7 +950,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             const f=fixed[i],e=edits[f.callsign]??{}
             const rate=windConfig(effectiveConfig(config,f.eta),f.arrival,winds,now)
             const gap=ms(Math.max(rate.rates[runway],projected?wakeInterval(projected.flight.wake,f.wake,runway,rate):0))+ms(((projected?.flight.slotAfter??0)+f.slotBefore)*60)
-            const transfer=Math.max(0,f.euroscopeBaseline?f.euroscopeBaseline.eta-f.euroscopeBaseline.etaFf:f.eta-f.etaFf),feederLeader=f.distanceProfile&&!f.passedFeeder?projectedFeeders.get(f.ff):undefined
+            const transfer=Math.max(0,provisionalTimings.has(f.callsign)?f.eta-f.etaFf:f.euroscopeBaseline?f.euroscopeBaseline.eta-f.euroscopeBaseline.etaFf:f.eta-f.etaFf),feederLeader=f.distanceProfile&&!f.passedFeeder?projectedFeeders.get(f.ff):undefined
             const feederFloor=feederLeader===undefined?-Infinity:feederLeader+ms(rate.rates[runway])+ms((f.slotBefore+(projected?.flight.slotAfter??0))*60)+transfer
             const start=afterSlots(Math.max(e.target??Math.max(f.planningEta??f.eta,f.eta),f.passedFeeder?-Infinity:f.minimumArrival,projected?projected.time+gap:-Infinity,feederFloor),runway,config)
             if(!f.passedFeeder&&e.order===undefined&&e.target===undefined&&!f.slotBefore&&!f.slotAfter&&!e.closurePosition&&!f.missedRecovery){
@@ -1010,7 +1025,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             if(holdTma)anchor=edits[f.callsign]?.target??old.tmaAssignment?.sta??old.sta
             if(selectedClosure&&closurePosition?.side==='before')anchor=Math.min(anchor,selectedClosure.begin-1)
             const rateGap=ms(acceptedRate)+ms(((last?.slotAfter||0)+f.slotBefore)*60)
-            const transfer = Math.max(0,holdTma&&old&&!f.passedFeeder?old.sta-old.staFf:f.euroscopeBaseline?f.euroscopeBaseline.eta-f.euroscopeBaseline.etaFf:f.eta-f.etaFf)
+            const transfer = Math.max(0,provisionalTimings.has(f.callsign)?f.eta-f.etaFf:holdTma&&old&&!f.passedFeeder?old.sta-old.staFf:f.euroscopeBaseline?f.euroscopeBaseline.eta-f.euroscopeBaseline.etaFf:f.eta-f.etaFf)
             const feederLeader=f.distanceProfile&&!f.passedFeeder?feederLeaders.get(f.ff):undefined
             const feederMinimum=feederLeader?feederLeader.staFf+rateGap+transfer:-Infinity
             const minimumForPlan=holdTma&&f.minimumArrivalSource!=='resume'?f.runwayAvailableFrom??-Infinity:f.minimumArrival

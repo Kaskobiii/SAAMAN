@@ -1,4 +1,4 @@
-# SAAMAN 1.3.13 existing vatIRIS API adapter
+# SAAMAN 1.3.14 existing vatIRIS API adapter
 
 The default shared connection uses the existing callsign-based vatIRIS AMAN API.
 Fresh settings select shared mode and VATSIM live. Saved explicit local or

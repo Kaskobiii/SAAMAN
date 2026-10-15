@@ -1,4 +1,4 @@
-# SAAMAN native plugin, 1.3.13
+# SAAMAN native plugin, 1.3.14
 
 SAAMAN.dll is an x86 EuroScope plugin with Win32 child panels hosting the AMAN UI
 through Microsoft WebView2. The calculation engine is editable TypeScript.
@@ -145,3 +145,13 @@ The database is embedded in the existing UI/worker assets and validated once int
 IAS/Mach use the existing ISA conversions. The current GS-to-nominal-speed ratio is an observed offset incorporating unknown wind and simulator/pilot behaviour, not a wind measurement. It anchors upstream timing and tapers during terminal deceleration; the model does not accelerate slower traffic above observed GS. Distant traffic retains capture altitude until nominal descent distance. Assigned speed constrains the profile. Future vectors, radio clearances and runway changes are not forecast. The historical full-database comparison had feeder MAE 63.1→51.7 seconds (27 matched pairs) and landing MAE 123.9→127.5 seconds (30 matched pairs); the owner accepted this tradeoff. Those are development samples with later interventions and no exact initial-capture markers, not a live accuracy guarantee.
 
 Recordings preserve the optional exact `timingCaptures` and `unavailableCaptures` arrays introduced in the preview. Start recording before capture to retain exact initial inputs. These arrays remain opt-in, byte-bounded and absent from shared backend payloads. The offline replay tool can still take `--profiles <local-extraction.json>` for alternative data. Its current-model column now represents the active 1.3.13 predictor; the historical preview review remains archived in `docs/INITIAL-TIMING-REVIEW-1.3.12.md`.
+
+## Provisional Unstable scheduling (1.3.14)
+
+The buffer-mode scheduling path formerly restored every flight's captured ETA before allocation. For long-haul Unstable observations, a climbing aircraft's slow captured forecast could therefore remain an assigned time even after the public ETA improved substantially. Recording 10 reproduced a false 488-second instruction for NSZ4052 despite no remaining traffic ahead.
+
+Automatic Unstable entries now allocate from their current usable landing/feeder pair, recorded in a local per-run set. Their transfer interval and planning ETA use the same pair, avoiding a current landing estimate combined with an obsolete captured feeder interval. This also applies to the last provisional update on leaving Unstable, so the newly protected phase starts from that assignment. The original `euroscopeBaseline`, initial capture fields, and exact recording capture events remain history; no implicit Recompute or model recapture is created. Manual absolute targets, entered traffic, pending runway transitions, missed recovery and flights already in a protected phase retain their existing policies. A stale/unusable provisional observation retains the prior public ETA, feeder ETA and assigned pair instead of restoring the original capture.
+
+Ordering still uses the existing insertion rules: an earlier newly discovered Unstable or Stable arrival can enter ahead of an Unstable aircraft, after which rate/wake spacing, closures, controller intervals and runway availability are enforced. A manual sequence order remains a constraint. No dependency from scheduled time or delay into the predictor is added. The performance database, predictor, native telemetry and vatIRIS backend API are unchanged.
+
+Validation includes a minimal NSZ4052 recording-10 fixture spanning climb, acceleration and level flight, earlier-newcomer cases with free spacing or exactly 15 seconds of additional work, closure removal, manual target preservation, promotion to Stable, stale input and the existing later-phase protections. Full recording replay removes positive NSZ4052 delay after runway confirmation; the final STA-FF follows 17:57:33.868 UTC with zero delay instead of the recorded 18:05:41.405 target and 488 seconds to lose.

@@ -1,4 +1,4 @@
-# SAAMAN native plugin, 1.3.14
+# SAAMAN native plugin, 1.3.15
 
 SAAMAN.dll is an x86 EuroScope plugin with Win32 child panels hosting the AMAN UI
 through Microsoft WebView2. The calculation engine is editable TypeScript.
@@ -155,3 +155,9 @@ Automatic Unstable entries now allocate from their current usable landing/feeder
 Ordering still uses the existing insertion rules: an earlier newly discovered Unstable or Stable arrival can enter ahead of an Unstable aircraft, after which rate/wake spacing, closures, controller intervals and runway availability are enforced. A manual sequence order remains a constraint. No dependency from scheduled time or delay into the predictor is added. The performance database, predictor, native telemetry and vatIRIS backend API are unchanged.
 
 Validation includes a minimal NSZ4052 recording-10 fixture spanning climb, acceleration and level flight, earlier-newcomer cases with free spacing or exactly 15 seconds of additional work, closure removal, manual target preservation, promotion to Stable, stale input and the existing later-phase protections. Full recording replay removes positive NSZ4052 delay after runway confirmation; the final STA-FF follows 17:57:33.868 UTC with zero delay instead of the recorded 18:05:41.405 target and 488 seconds to lose.
+
+## Submenu repaint correction (1.3.15)
+
+The shared native window-position handler previously added SWP_NOREDRAW for both moves and resizes, including the first content-sized resize of a floating submenu. It now retains SWP_NOCOPYBITS for both operations, and defers redraw only when the size actually stays the same. WM_SIZE updates the WebView bounds before invalidating the host and browser descendants. The no-copy drag handling and normal radar refresh notifications remain in place.
+
+An isolated native regression checks the policy on a real floating submenu: resize redraw must be allowed, pure moves must still defer redraw, and neither may copy stale pixels. CapturePreview now completes before the test proceeds to another menu, so the Information image verifies the intended window. Layout checks require the Information title to be inside the viewport. The isolated hidden host harness did not reproduce the exact live blank-panel symptom, but caught the repaint-suppression policy. The user tested the resulting DLL in EuroScope and confirmed that Information and the other submenus display correctly immediately.

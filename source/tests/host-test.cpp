@@ -19,7 +19,7 @@ int wmain(int argc,wchar_t** argv){
     }})}};
     // Optional isolated fixtures for the real renderer's controller/interval UI.
     {std::ifstream fixtureFile(folder/L"host-test-fixture.json");if(fixtureFile){saaman::Json fixture;fixtureFile>>fixture;
-        for(const auto field:{"source","controllerPositionId","controllers","runways"})if(fixture.contains(field))context->telemetry[field]=fixture[field];}}
+        for(const auto field:{"source","controllerPositionId","controllers","runways","flights"})if(fixture.contains(field))context->telemetry[field]=fixture[field];}}
     saaman::Host host(GetModuleHandleW(nullptr),context);host.Pulse();
     for(int i=0;i<60;i++){
         Sleep(500);

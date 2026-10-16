@@ -1,6 +1,6 @@
 import {test} from 'node:test'
 import assert from 'node:assert/strict'
-import {DEFAULT_CONFIG,validateConfig,runEngine,euroscopeBufferMinutes,euroscopeFeederBufferMinutes,euroscopeInstruction,toJuhaSequence} from '../src/maestro-engine.ts'
+import {DEFAULT_CONFIG,validateConfig,runEngine,euroscopeBufferMinutes,euroscopeFeederBufferMinutes,euroscopeInstruction,toJuhaSequence,delayLabel} from '../src/maestro-engine.ts'
 import {sharedSettings,mergeSharedSettings} from '../src/maestro-settings.ts'
 import {informationRoute} from '../src/maestro-operations.ts'
 import directFixture from './fixtures/skipped-feeder-direct.json' with {type:'json'}
@@ -13,15 +13,129 @@ const config=()=>({...structuredClone(DEFAULT_CONFIG),unstableSeconds:0,minimumN
 const flight=(extra={})=>({callsign:'BUFFER',aircraft:'A320',wake:'M',departure:'EKCH',arrival:'ESSA',runway:'19R',route:[{name:'ELTOK',seconds:900}],landingSeconds:1500,distanceNm:100,groundspeed:300,altitude:25000,positionAgeSeconds:1,...extra})
 const packet=(p,t=now)=>({source:'LIVE',timestamp:t,flights:p})
 
-test('recording 8 keeps LGL Superstable and ahead of the existing slot while SDK and shared runway updates disagree',()=>{
+test('NOZ5PR retains ELTOK cutoff evidence across a reconnect with only an approach left in its route',()=>{
+ const {input,afterInput,config:c,edits,previous}=cutoffFixture
+ const first=runEngine(input,c,edits,previous),after=runEngine(afterInput,c,edits,first)
+ const original=after.flights.find(f=>f.callsign==='SAS1AB')
+ assert.equal(original.ff,'ELTOK');assert.equal(original.line0Suppressed,true)
+ const disconnected=runEngine({...afterInput,timestamp:afterInput.timestamp+1000,flights:[]},c,{},after)
+ assert.equal(disconnected.flights.length,0)
+ const rejoined={...afterInput.flights.find(f=>f.callsign==='SAS1AB'),route:afterInput.flights.find(f=>f.callsign==='SAS1AB').route.filter(p=>!['ELTOK','NILUG','XILAN','VACRA'].includes(p.name)),star:'RNPX19R'}
+ const at=afterInput.timestamp+2000,next=runEngine({...afterInput,timestamp:at,flights:[rejoined]},c,{},JSON.parse(JSON.stringify(disconnected)))
+ const f=next.flights[0]
+ assert.equal(f.ff,'ELTOK');assert.equal(f.passedFeeder,true);assert.equal(f.line0Suppressed,true);assert.equal(euroscopeInstruction(f),0)
+ const output=toJuhaSequence(next,c,{}).sequence[0]
+ assert.equal(output.ttlttg_ff,0);assert.ok(output.eet_ff<0)
+ assert.equal(f.firstSeen,at,'feeder memory must not resurrect the disconnected allocation')
+ const expired=runEngine({...afterInput,timestamp:at+301000,flights:[rejoined]},c,{},disconnected).flights[0]
+ assert.notEqual(expired.ff,'ELTOK','feeder memory expires after five minutes without an observation')
+ const different=runEngine({...afterInput,timestamp:at,flights:[{...rejoined,departure:'EGLL'}]},c,{},disconnected).flights[0]
+ assert.notEqual(different.ff,'ELTOK','a different flight must not inherit the old feeder')
+})
+
+test('MAESTRO line-0 instructions use the same whole minutes as AMAN without changing internal seconds',()=>{
+ const c=config(),s=runEngine(packet([flight()]),c,{})
+ for(const seconds of [0,0.01,1,30,59,59.99,60,105,119,120,151,-0.01,-1,-59,-60,-61]){
+  const f={...s.flights[0],delay:seconds,line0Suppressed:false},output=toJuhaSequence({...s,flights:[f]},c,{}).sequence[0]
+  assert.equal(delayLabel(output.ttlttg_ff),delayLabel(seconds))
+  assert.equal(Math.abs(output.ttlttg_ff%60),0);assert.equal(euroscopeInstruction(f),seconds);assert.equal(f.delay,seconds)
+  if(!delayLabel(seconds))assert.equal(output.ttlttg_ff,0)
+ }
+ const passed={...s.flights[0],passedFeeder:true,etaFf:s.timestamp+60000}
+ assert.ok(toJuhaSequence({...s,flights:[passed]},c,{}).sequence[0].eet_ff<0,'a passed feeder cannot be published as still ahead')
+})
+
+test('NOZ8WQ can first appear on RNP X 19R while only 19L is active in EuroScope and AMAN',()=>{
+ const c={...config(),active:['ESSA/19L'],departureRunway:'ESSA/19R'},saved=structuredClone(c)
+ const p=flight({callsign:'NOZ8WQ',runway:'19R',star:'RNPX19R',routeText:'RNP X 19R',route:[{name:'ELTOK',seconds:180},{name:'SA19R',seconds:600}],landingSeconds:600})
+ const input={...packet([p]),activeRunways:{arrivals:['ESSA/19L'],departures:[]}}
+ const first=runEngine(input,c,{}),f=first.flights[0]
+ assert.equal(f.issue,'');assert.equal(f.runway,'19R');assert.equal(f.secondaryRunwayAccepted,true)
+ assert.ok(Number.isFinite(f.sta));assert.ok(f.state>=1)
+ const next=runEngine({...input,timestamp:now+2000},c,{},JSON.parse(JSON.stringify(first)))
+ assert.equal(next.flights[0].runway,'19R');assert.equal(next.flights[0].issue,'');assert.equal(next.flights[0].sta,f.sta)
+ const published=toJuhaSequence(next,c,{})
+ assert.equal(published.sequence.find(f=>f.callsign==='NOZ8WQ').rwy,'19R')
+ assert.equal(published.runways.find(r=>r.id==='19R').active,false)
+ assert.deepEqual(c,saved);assert.deepEqual(input.activeRunways,{arrivals:['ESSA/19L'],departures:[]})
+})
+
+test('individual assignments on all supported inactive runways are sequenced separately without changing the shared plan',()=>{
+ for(const runway of ['01L','01R','08','19L','19R','26']){
+  const active=runway==='19L'?'ESSA/01R':'ESSA/19L',c={...config(),active:[active],departureRunway:active},saved=structuredClone(c)
+  const a=flight({callsign:'FIRST',runway,route:[{name:'ELTOK',seconds:180},{name:`SA${runway}`,seconds:600}],landingSeconds:600})
+  const input=packet([a,{...a,callsign:'SECOND',landingSeconds:610}]),first=runEngine(input,c,{})
+  assert.ok(first.flights.every(f=>!f.issue&&f.runway===runway&&f.secondaryRunwayAccepted))
+  const ordered=[...first.flights].sort((a,b)=>a.order-b.order)
+  assert.ok(ordered[1].sta-ordered[0].sta>=c.rates[`ESSA/${runway}`]*1000)
+  assert.deepEqual(c,saved)
+ }
+})
+
+test('an older inactive-runway diagnostic repairs itself on fresh SDK data without Recompute',()=>{
+ const c={...config(),active:['ESSA/19L'],departureRunway:'ESSA/19L'},p=flight({callsign:'NOZ8WQ',runway:'19R',route:[{name:'ELTOK',seconds:180}],landingSeconds:600})
+ const prior=runEngine(packet([p]),{...c,active:['ESSA/19R']},{})
+ prior.flights[0].issue='Assigned runway is not active at its planned arrival time';prior.flights[0].state=0
+ const next=runEngine(packet([p],now+2000),c,{},JSON.parse(JSON.stringify(prior))).flights[0]
+ assert.equal(next.issue,'');assert.equal(next.runway,'19R');assert.equal(next.secondaryRunwayAccepted,true);assert.ok(next.state>=1)
+})
+
+test('Recompute after a post-feeder reconnect resolves the phase immediately instead of waiting for the new-flight timer',()=>{
+ const frame=runwayFixture.frames[1],p={...frame.input.flights.find(f=>f.callsign==='LGL5781'),landingSeconds:480}
+ const c={...frame.config,unstableSeconds:30},at=frame.input.timestamp
+ const initial=runEngine(packet([p],at),c,{})
+ assert.equal(initial.flights[0].passedFeeder,true);assert.equal(initial.flights[0].state,0)
+ const disconnected=runEngine(packet([],at+1000),c,{},initial)
+ assert.equal(disconnected.flights.length,0)
+ const reconnected=runEngine(packet([p],at+2000),c,{},disconnected)
+ assert.equal(reconnected.flights[0].passedFeeder,true);assert.equal(reconnected.flights[0].state,0)
+ const edits={[p.callsign]:{recomputeAt:at+3000,changedAt:at+3000}}
+ const refreshed=runEngine(packet([p],at+3000),c,edits,reconnected),recomputed=refreshed.flights[0]
+ assert.equal(recomputed.issue,'');assert.ok(recomputed.state>=2,'explicit Recompute must bypass the initial settling timer for a usable post-feeder flight')
+ assert.equal(recomputed.recomputedAt,at+3000)
+ const again=runEngine(packet([p],at+4000),c,edits,JSON.parse(JSON.stringify(refreshed))).flights[0]
+ assert.ok(again.state>=2)
+})
+
+test('Recompute bypasses only the settling timer and keeps genuinely distant traffic Unstable',()=>{
+ const c={...config(),unstableSeconds:30},p=flight({route:[{name:'ELTOK',seconds:1800}],landingSeconds:2400})
+ const initial=runEngine(packet([p]),c,{})
+ const next=runEngine(packet([p],now+1000),c,{BUFFER:{recomputeAt:now+1000}},initial).flights[0]
+ assert.equal(next.state,0);assert.equal(next.issue,'');assert.equal(next.recomputedAt,now+1000)
+})
+
+test('individual SDK and AMAN changes can select a runway outside both configured runway roles',()=>{
+ const c={...config(),active:['ESSA/19L'],departureRunway:'ESSA/19R'},p=flight({runway:'19L',route:[{name:'ELTOK',seconds:180}]})
+ const initial=runEngine(packet([p]),c,{})
+ const assigned={...p,runway:'08',route:[{name:'ELTOK',seconds:180},{name:'SA08',seconds:600}],landingSeconds:600}
+ const changed=runEngine(packet([assigned],now+1000),c,{},initial)
+ assert.equal(changed.flights[0].runway,'08');assert.equal(changed.flights[0].issue,'');assert.equal(changed.flights[0].secondaryRunwayAccepted,true)
+ assert.equal(changed.flights[0].state,initial.flights[0].state)
+ const manual=runEngine(packet([p],now+1000),c,{BUFFER:{runway:'ESSA/01L',runwayAssignment:'19L',recomputeAt:now+1000}},initial).flights[0]
+ assert.equal(manual.runway,'01L');assert.equal(manual.issue,'');assert.equal(manual.secondaryRunwayAccepted,true)
+ assert.deepEqual(c.active,['ESSA/19L']);assert.equal(c.departureRunway,'ESSA/19R')
+})
+
+test('RNP approach text and retained route points remain usable for every supported ESSA runway',()=>{
+ for(const runway of ['01L','01R','08','19L','19R','26'])for(const variant of ['X','Y','Z']){
+  const approach=`RNP ${variant} · ${runway}`,route=[{name:'ELTOK',seconds:180},{name:approach,seconds:450},{name:`SA${runway}`,seconds:600}]
+  const c={...config(),active:[`ESSA/${runway}`]},p=flight({runway,star:approach,routeText:`ELTOK ${approach}`,route,landingSeconds:600})
+  const s=runEngine(JSON.parse(JSON.stringify(packet([p]))),c,{}),f=s.flights[0]
+  assert.equal(f.runway,runway);assert.equal(f.issue,'');assert.ok(Number.isFinite(f.sta))
+  assert.ok(f.amanRoute.some(point=>point.name===approach));assert.equal(f.star,approach)
+ }
+})
+
+test('recording 8 accepts the individual SDK runway before the shared bank changes and retains Superstable order',()=>{
  const {previous,frames}=runwayFixture,[mismatch,confirmed,repeated]=frames,original=structuredClone(previous)
  const old=previous.flights.find(f=>f.callsign==='LGL5781')
  const waiting=runEngine(mismatch.input,mismatch.config,mismatch.edits,previous),held=waiting.flights.find(f=>f.callsign==='LGL5781')
- assert.equal(held.state,2);assert.equal(held.order,old.order);assert.equal(held.sta,old.sta);assert.equal(held.staFf,old.staFf)
- assert.equal(held.runway,'19L');assert.equal(held.issue,'');assert.equal(held.runwayTransition.pending,true)
+ assert.equal(held.state,2);assert.equal(held.order,old.order);assert.equal(held.staFf,old.staFf)
+ assert.equal(held.runway,'01R');assert.equal(held.issue,'');assert.equal(held.runwayTransition.pending,false)
+ assert.equal(held.secondaryRunwayAccepted,true);assert.equal(held.euroscopeBaseline.at,mismatch.input.timestamp)
  const next=runEngine(confirmed.input,confirmed.config,confirmed.edits,waiting),f=next.flights.find(f=>f.callsign==='LGL5781')
  assert.equal(f.runway,'01R');assert.equal(f.state,2);assert.equal(f.order,0);assert.equal(f.issue,'')
- assert.equal(f.euroscopeBaseline.at,confirmed.input.timestamp);assert.equal(f.sta,f.liveBufferedEta)
+ assert.equal(f.euroscopeBaseline.at,held.euroscopeBaseline.at);assert.equal(f.sta,held.sta)
  assert.equal(f.staFf,old.staFf,'a feeder already crossed retains its assigned time')
  assert.ok(f.amanRoute.some(p=>p.name==='SA01R'));assert.ok(!f.amanRoute.some(p=>/19L$/.test(p.name)))
  assert.ok(f.amanRoutePassed>=1);assert.equal(f.passedFeeder,true)
@@ -59,22 +173,79 @@ test('an older checkpoint with a stale approach repairs it once when the confirm
  assert.ok(next.amanRoute.some(p=>p.name==='SA01R'));assert.ok(!next.amanRoute.some(p=>/19L$/.test(p.name)))
 })
 
-test('a withdrawn runway assignment cancels the wait without recapturing timing or approach',()=>{
- const c=config(),p=flight({route:[{name:'ELTOK',seconds:700}]}),first=runEngine(packet([p]),c,{}),waiting=runEngine(packet([{...p,runway:'01R'}],now+2000),c,{},first)
+test('a withdrawn stale runway assignment cancels the wait without recapturing timing or approach',()=>{
+ const c=config(),p=flight({route:[{name:'ELTOK',seconds:700}]}),first=runEngine(packet([p]),c,{}),waiting=runEngine(packet([{...p,runway:'01R',positionAgeSeconds:16}],now+2000),c,{},first)
  const restored=runEngine(packet([p],now+4000),c,{},waiting).flights[0]
  assert.equal(restored.runwayTransition,undefined);assert.equal(restored.euroscopeBaseline.at,first.flights[0].euroscopeBaseline.at)
  assert.equal(restored.sta,first.flights[0].sta);assert.deepEqual(restored.amanRoute,first.flights[0].amanRoute)
 })
 
-test('initial inactive assignments still report an error rather than creating a protected transition',()=>{
+test('an initial supported inactive assignment is accepted while invalid runway identifiers still report an error',()=>{
  const f=runEngine(packet([flight({runway:'01R'})]),config(),{}).flights[0]
- assert.match(f.issue,/not active/);assert.equal(f.runwayTransition,undefined)
+ assert.equal(f.issue,'');assert.equal(f.secondaryRunwayAccepted,true);assert.equal(f.runwayTransition,undefined)
+ const invalid=runEngine(packet([flight({runway:'99'})]),config(),{}).flights[0]
+ assert.equal(invalid.issue,'No valid assigned arrival runway');assert.equal(invalid.secondaryRunwayAccepted,false)
 })
 
-test('Recompute during a runway mismatch is deferred until confirmation without losing its protected phase or slot',()=>{
+test('an individual EuroScope reassignment moves a buffered flight to the departure runway without changing the arrival plan',()=>{
+ for(const feederSeconds of [600,180]){
+  const c={...config(),active:['ESSA/19L'],departureRunway:'ESSA/19R'},p=flight({runway:'19L',route:[{name:'ELTOK',seconds:feederSeconds},{name:'SA19L',seconds:1500}]})
+  const first=runEngine(packet([p]),c,{}),old=first.flights[0]
+  const assigned={...p,runway:'19R',landingSeconds:1200,route:[{name:'ELTOK',seconds:feederSeconds},{name:'SA19R',seconds:1200}]}
+  const next=runEngine(packet([assigned],now+2000),c,{},first),f=next.flights[0]
+  assert.equal(f.runway,'19R');assert.equal(f.issue,'');assert.equal(f.secondaryRunwayAccepted,true)
+  assert.equal(f.runwayTransition.pending,false);assert.equal(f.euroscopeBaseline.at,now+2000)
+  assert.equal(f.state,old.state);assert.ok(f.amanRoute.some(point=>point.name==='SA19R'))
+  if(old.passedFeeder)assert.equal(f.staFf,old.staFf)
+  const again=runEngine(packet([assigned],now+4000),c,{},JSON.parse(JSON.stringify(next))).flights[0]
+  assert.equal(again.runway,'19R');assert.equal(again.issue,'');assert.ok(!again.runwayTransition?.pending)
+  assert.equal(again.euroscopeBaseline.at,f.euroscopeBaseline.at,`baseline at feeder ${feederSeconds}`);assert.equal(again.sta,f.sta,`slot at feeder ${feederSeconds}, state ${f.state}, issue ${f.issue}`)
+  assert.deepEqual(c.active,['ESSA/19L']);assert.equal(p.runway,'19L')
+ }
+})
+
+test('a post-feeder EuroScope reassignment uses the secondary runway and retains the crossed feeder time',()=>{
+ const {previous,frames}=runwayFixture,frame=frames[1],old=previous.flights.find(f=>f.callsign==='LGL5781')
+ const c={...frame.config,active:['ESSA/19L'],departureRunway:'ESSA/01R'}
+ const next=runEngine(frame.input,c,frame.edits,previous),f=next.flights.find(f=>f.callsign==='LGL5781')
+ assert.equal(f.runway,'01R');assert.equal(f.secondaryRunwayAccepted,true);assert.equal(f.issue,'')
+ assert.equal(f.state,old.state);assert.equal(f.staFf,old.staFf);assert.equal(f.passedFeeder,true)
+ assert.equal(f.euroscopeBaseline.at,frame.input.timestamp);assert.equal(f.runwayTransition.pending,false)
+ assert.ok(f.amanRoute.some(point=>point.name==='SA01R'))
+ const again=runEngine(frames[2].input,c,frame.edits,JSON.parse(JSON.stringify(next))).flights.find(f=>f.callsign==='LGL5781')
+ assert.equal(again.runway,'01R');assert.equal(again.euroscopeBaseline.at,f.euroscopeBaseline.at)
+ assert.equal(again.sta,f.sta);assert.equal(again.staFf,old.staFf);assert.ok(!again.runwayTransition?.pending)
+})
+
+test('AMAN Change runway recalculates the slot without demoting an accepted Stable or Superstable flight',()=>{
+ for(const feederSeconds of [600,180]){
+  const c={...config(),active:['ESSA/19L'],departureRunway:'ESSA/19R'},p=flight({runway:'19L',route:[{name:'ELTOK',seconds:feederSeconds}]})
+  const first=runEngine(packet([p]),c,{}),old=first.flights[0]
+  assert.ok(old.state>=1)
+  const edits={BUFFER:{runway:'ESSA/19R',runwayAssignment:'19L',arrivalProfile:undefined,recomputeAt:now+2000,changedAt:now+2000}}
+  const assigned={...p,landingSeconds:1800,route:[{name:'ELTOK',seconds:1000}]}
+  const next=runEngine(packet([assigned],now+2000),c,edits,first).flights[0]
+  assert.equal(next.runway,'19R');assert.equal(next.issue,'');assert.equal(next.state,old.state)
+  assert.equal(next.euroscopeBaseline.at,now+2000)
+ }
+})
+
+test('a secondary-runway reassignment waits for fresh telemetry and repairs a held checkpoint',()=>{
+ const c={...config(),departureRunway:'ESSA/26'},p=flight(),first=runEngine(packet([p]),c,{})
+ const assigned={...p,runway:'26',landingSeconds:1200,route:[{name:'ELTOK',seconds:700},{name:'SA26',seconds:1200}]}
+ const waiting=runEngine(packet([{...assigned,positionAgeSeconds:16}],now+2000),c,{},first)
+ assert.equal(waiting.flights[0].runway,'19R');assert.equal(waiting.flights[0].runwayTransition.pending,true)
+ const held=JSON.parse(JSON.stringify(waiting))
+ const next=runEngine(packet([assigned],now+4000),c,{},held).flights[0]
+ assert.equal(next.runway,'26');assert.equal(next.issue,'');assert.equal(next.euroscopeBaseline.at,now+4000)
+ assert.equal(next.secondaryRunwayAccepted,true);assert.equal(next.runwayTransition.pending,false)
+})
+
+test('Recompute during a stale runway observation is deferred until confirmation without losing its protected phase or slot',()=>{
  const {previous,frames}=runwayFixture,[mismatch,confirmed]=frames,old=previous.flights.find(f=>f.callsign==='LGL5781')
  const edits={...mismatch.edits,LGL5781:{...mismatch.edits.LGL5781,recomputeAt:mismatch.input.timestamp}}
- const waiting=runEngine(mismatch.input,mismatch.config,edits,previous),f=waiting.flights.find(f=>f.callsign==='LGL5781')
+ const stale={...mismatch.input,flights:mismatch.input.flights.map(f=>({...f,positionAgeSeconds:16}))}
+ const waiting=runEngine(stale,mismatch.config,edits,previous),f=waiting.flights.find(f=>f.callsign==='LGL5781')
  assert.equal(f.sta,old.sta);assert.equal(f.order,old.order);assert.equal(f.state,old.state);assert.equal(f.recomputedAt,old.recomputedAt)
  const next=runEngine(confirmed.input,confirmed.config,edits,waiting).flights.find(f=>f.callsign==='LGL5781')
  assert.equal(next.euroscopeBaseline.at,confirmed.input.timestamp);assert.equal(next.order,old.order);assert.equal(next.state,old.state)

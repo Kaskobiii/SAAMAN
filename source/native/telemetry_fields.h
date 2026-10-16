@@ -3,8 +3,34 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <limits>
+#include <stdexcept>
+#include <windows.h>
 namespace saaman {
-inline std::string TelemetryText(const char* value,const char* fallback=""){return value&&*value?value:fallback;}
+inline std::string TelemetryUtf8(std::string text,UINT codePage=CP_ACP){
+    if(text.empty())return text;
+    if(text.size()>static_cast<size_t>((std::numeric_limits<int>::max)()))throw std::length_error("SDK text is too long");
+    const int length=static_cast<int>(text.size());
+    // SDK/sector strings may be Windows encoded. Preserve existing UTF-8;
+    // otherwise decode the process ANSI page before putting text into JSON.
+    if(std::all_of(text.begin(),text.end(),[](unsigned char c){return c<0x80;})||MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,text.data(),length,nullptr,0)>0)return text;
+    if(codePage==CP_UTF8||codePage==CP_ACP&&GetACP()==CP_UTF8)codePage=1252;
+    const int count=MultiByteToWideChar(codePage,0,text.data(),length,nullptr,0);
+    if(count<=0)throw std::runtime_error("Cannot decode EuroScope SDK text");
+    std::wstring wide(count,L'\0');
+    if(MultiByteToWideChar(codePage,0,text.data(),length,wide.data(),count)!=count)throw std::runtime_error("Cannot decode EuroScope SDK text");
+    const int bytes=WideCharToMultiByte(CP_UTF8,0,wide.data(),count,nullptr,0,nullptr,nullptr);
+    if(bytes<=0)throw std::runtime_error("Cannot encode EuroScope SDK text");
+    std::string result(bytes,'\0');
+    if(WideCharToMultiByte(CP_UTF8,0,wide.data(),count,result.data(),bytes,nullptr,nullptr)!=bytes)throw std::runtime_error("Cannot encode EuroScope SDK text");
+    return result;
+}
+inline std::string TelemetryText(const char* value,const char* fallback="",size_t maxBytes=(std::numeric_limits<size_t>::max)()){
+    auto text=TelemetryUtf8(value&&*value?value:fallback);
+    auto end=(std::min)(text.size(),maxBytes);
+    while(end>0&&end<text.size()&&(static_cast<unsigned char>(text[end])&0xc0)==0x80)--end;
+    text.resize(end);return text;
+}
 inline std::string TelemetryWake(char value){return value=='L'||value=='M'||value=='H'||value=='J'?std::string(1,value):"?";}
 inline std::string TelemetryIdentifier(const char* value){
     std::string text=TelemetryText(value);const auto first=text.find_first_not_of(" \t\r\n");if(first==std::string::npos)return {};

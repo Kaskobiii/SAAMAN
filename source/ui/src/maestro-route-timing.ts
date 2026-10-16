@@ -29,10 +29,10 @@ export function remainingRoute(p:TelemetryFlight){
  if(!Number.isFinite(distance)||distance<=0||distance>1500)return undefined
  return {distanceNm:distance,feeder}
 }
-export function predictRouteTiming(p:TelemetryFlight,config:EngineConfig,references:PhaseReferences=PHASE_REFERENCES):RouteTiming|undefined {
+export function predictRouteTiming(p:TelemetryFlight,config:EngineConfig,references:PhaseReferences=PHASE_REFERENCES,observedPath?:{distanceNm:number}):RouteTiming|undefined {
  if(p.arrival!=='ESSA'||p.assignedHeading&&p.assignedHeading>0||p.routeProblem||p.speedDataValid===false||
   !Number.isFinite(p.altitude)||p.altitude<350||p.altitude>60000||!Number.isFinite(p.groundspeed)||p.groundspeed<60||p.groundspeed>1200||!Number.isFinite(p.verticalSpeed??0)||(p.verticalSpeed??0)>300)return undefined
- const geometry=remainingRoute(p)
+ const geometry:ReturnType<typeof remainingRoute>=observedPath&&positioned(p)&&(p.positionAgeSeconds??0)<=15&&Number.isFinite(observedPath.distanceNm)&&observedPath.distanceNm>0&&observedPath.distanceNm<=200?{distanceNm:observedPath.distanceNm,feeder:undefined}:observedPath?undefined:remainingRoute(p)
  if(!geometry)return undefined
  const type=aircraftType(p.aircraft),reference=references[type]
  const profile=performanceAt(type,p.altitude,'descent',config.performanceModel)

@@ -8,6 +8,25 @@
 int RunTests(int argc,wchar_t** argv){
     const saaman::Json partial={{"aircraft",saaman::TelemetryText(nullptr,"UNKN")},{"departure",saaman::TelemetryText(nullptr,"----")},{"runway",saaman::TelemetryText(nullptr)},{"direct",saaman::TelemetryText(nullptr)},{"wake",saaman::TelemetryWake('\0')}};
     CHECK(partial["aircraft"]=="UNKN");CHECK(partial["departure"]=="----");CHECK(partial["runway"]=="");CHECK(partial["direct"]=="");CHECK(partial["wake"]=="?");
+    const auto legacyApproach=std::string(32,'A')+"\xB7 RNP X 19R";
+    const saaman::Json approachPacket={{"routeText",saaman::TelemetryText(legacyApproach.c_str())},{"route",saaman::Json::array({{{"name",saaman::TelemetryText("RNP\xB7X")},{"seconds",120}}})}};
+    CHECK(saaman::Json::parse(approachPacket.dump())==approachPacket);
+    CHECK(saaman::TelemetryUtf8("\xC5\xC4\xD6\xB7",1252)=="\xC3\x85\xC3\x84\xC3\x96\xC2\xB7");
+    CHECK(saaman::TelemetryUtf8("RNP\xB7X",CP_UTF8)=="RNP\xC2\xB7X");
+    const std::string utf8Approach="RNP \xC3\x85\xC2\xB7 X19R \xF0\x9F\x9B\xAC";
+    CHECK(saaman::TelemetryText(utf8Approach.c_str())==utf8Approach);CHECK(saaman::TelemetryText("ELTOK 19R")=="ELTOK 19R");
+    for(size_t limit=0;limit<=utf8Approach.size();limit++){
+        const auto clipped=saaman::TelemetryText(utf8Approach.c_str(),"",limit);
+        CHECK(clipped.size()<=limit);CHECK(utf8Approach.starts_with(clipped));
+        CHECK(saaman::Json::parse(saaman::Json({{"routeText",clipped}}).dump())["routeText"]==clipped);
+    }
+    const auto boundedRoute=std::string(4095,'A')+"\xC2\xB7";
+    CHECK(saaman::TelemetryText(boundedRoute.c_str(),"",4096)==std::string(4095,'A'));
+    for(const auto* runway:{"01L","01R","08","19L","19R","26"})for(const auto* variant:{"X","Y","Z"}){
+        const auto approach=std::string("RNP ")+variant+"\xB7 "+runway;
+        const saaman::Json encoded={{"star",saaman::TelemetryText(approach.c_str(),"",100)},{"routeText",saaman::TelemetryText(approach.c_str(),"",4096)},{"route",saaman::Json::array({{{"name",saaman::TelemetryText(approach.c_str(),"",40)},{"seconds",120}}})}};
+        CHECK(saaman::Json::parse(encoded.dump())==encoded);CHECK(encoded["star"].get<std::string>().ends_with(runway));
+    }
     CHECK(saaman::TelemetryAirport(" ESSA  ")=="ESSA");CHECK(saaman::TelemetryAirport("essa Arlanda")=="ESSA");CHECK(saaman::TelemetryAirport(nullptr).empty());
     CHECK(saaman::TelemetryRunway(" 01r \t")=="01R");CHECK(saaman::TelemetryRunway("1L")=="01L");CHECK(saaman::TelemetryRunway("8")=="08");CHECK(saaman::TelemetryRunway("99").empty());CHECK(saaman::TelemetryRunway(nullptr).empty());
     CHECK(!saaman::TelemetrySupportedRunway("ESSA","07"));CHECK(!saaman::TelemetrySupportedRunway("ESSA","25"));CHECK(saaman::TelemetrySupportedRunway("ESSA","08"));CHECK(saaman::TelemetrySupportedRunway("ESSA","01R"));CHECK(saaman::TelemetrySupportedRunway("ESSB","12"));

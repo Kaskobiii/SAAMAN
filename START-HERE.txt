@@ -1,33 +1,17 @@
-SAAMAN 1.3.9
-Unload the previous DLL before loading SAAMAN.dll.
+SAAMAN 1.3.22
+Unload the previous DLL before loading SAAMAN.dll in every connected instance,
+including the sequencer and proxy. Keep SAAMAN above TopSky in the plug-in list.
 
-Fresh settings default to shared vatIRIS mode and VATSIM live.
-New: Sync EuroScope in runway configuration; movable submenus outside AMAN;
-restored supervisor title bar; current-speed route-point estimates in Information.
-The landing/feeder buffers and accepted timing rules are retained.
-The connection starts automatically on load/login, even with the pane closed.
-Saved local/training choices remain available. Read docs/user-guide.html for
-the short controller guide; docs/user-guide-wiki.html is ready for wiki editing.
-
-MAESTRO > Operation mode > Shared backend > vatIRIS EuroScope callsign.
+Fresh settings use shared vatIRIS mode and VATSIM live, connecting automatically
+on load/login. Set both ARR and DEP runways in EuroScope before joining.
 Backend: https://backend.vatiris.se
-Select VATSIM live, SweatBox 1 or SweatBox 2.
-Controllers on the same network share one ESSA sequence.
-No AMAN login, ordinary CID entry, controller key or backend change is needed.
+No separate vatIRIS login or controller key is needed. Local mode is secondary.
 
-Local mode is also available. Read README.md for testing and compatibility.
+This release fixes individual inactive/departure-runway assignments, RNP text,
+post-feeder reconnect/Recompute, line-0 cutoff and rounding, Information sizing,
+coordination popups with direct/proxy connections, and recent direct-to timing
+when EuroScope restores STAR points after a heading assignment.
+No backend update is required. The DLL is identical to the live-tested test2.
 
-1.3.4: incoming coordination messages open in a separate window centered over
-EuroScope, with the sender's login callsign and UTC send time. Acknowledge uses
-the existing shared connection. Two-controller syncing has been user-confirmed.
-
-New: initial sequencer runways come from EuroScope. Gap/closure labels sit outside
-the box. ACC/ARR-W feeder coverage updates as lower sectors connect/disconnect.
-Runway and FLOW remain unfiltered. The existing drag-trail fix is retained.
-
-Save connection now keeps an unchanged session open. FMP and handover callsigns
-are supported. If runway detection still waits, use .saaman runways and send its
-output to show the actual SDK flags.
-
-1.3.3 fixes Invalid runway geometry caused by the sector file's extra ESSA 07/25
-pair. Optional unsupported geometry no longer rejects the whole telemetry update.
+Read docs/user-guide.html for the controller guide, docs/user-guide-wiki.html
+for wiki-ready content, and docs/RELEASE-NOTES-1.3.22.md for release details.

@@ -8,7 +8,7 @@
 - First opening displays an opaque loading panel until the first UI frame is ready. A red LIVE above the top-right clock appears only with a fresh shared-backend connection.
 - Dragging uses event positions rather than a delayed read of the current cursor. Pointer capture, form editing and range thumb offsets are preserved through SDK input.
 
-Validation: 358 model/relay tests, including recorded SAS864/TOM888 transitions, shared checkpoint restoration, manual overrides, closure work and Superstable protection; strict UI type checking; x86 build; native context tests. SDK-renderer smoke covers cached nonblack frames, hidden overlays, later menu paint, buttons, popup editing, sliders, pointer capture/click coordinates, 260px layout, shared zoom and coordination. Live EuroScope menu/input confirmation is required before release.
+Validation: 358 model/relay tests, including recorded SAS864/TOM888 transitions, shared checkpoint restoration, manual overrides, closure work and Superstable protection; strict UI type checking; x86 build; native context tests. SDK-renderer smoke covers cached nonblack frames, hidden overlays, later menu paint, buttons, popup editing, sliders, pointer capture/click coordinates, 260px layout, shared zoom and coordination. Live EuroScope test3 confirmed that overlapping host menus and controls work.
 
 Recording 17 replay: SAS864's one-time profile handover occurs at 09:26:29 UTC with zero artificial holding work. TOM888's direct AGILI crossing estimate is 09:22:49, against the observed VACRA crossing around 09:22:54. This recording does not reproduce the separate startup transient with established traffic.
 

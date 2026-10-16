@@ -75,6 +75,30 @@ int RunTests(int argc,wchar_t** argv){
     CHECK(restoredResume.plan["edits"]["FIN1NX"]["mode"]=="sequenced");
     auto unauthorizedModel=restoredResume.plan["config"];unauthorizedModel["performanceModel"]="openap";
     denied=false;try{restoredResume.Request("plan:update",{{"revision",restoredResume.plan["revision"]},{"config",unauthorizedModel}},false);}catch(const saaman::RequestError& e){denied=e.status==403;}CHECK(denied);
+    // Consumption prunes only the matching reservation, persists immediately
+    // and invalidates commands built against the old operational config.
+    const auto manualFolder=reloadRoot/L"manual-lifecycle";
+    saaman::Context manualContext(manualFolder);manualContext.shared=false;manualContext.plan=context.plan;
+    manualContext.Request("plan:claim",saaman::Json::object(),false);
+    const auto stamp=saaman::Now();
+    const saaman::Json used={{"callsign","CCA911"},{"aircraft","UNKN"},{"wake","?"},{"runway","ESSA/19R"},{"feeder","ELTOK"},{"eta",stamp+1200000}};
+    auto expired=used;expired["callsign"]="OLD900";expired["eta"]=stamp-60000;
+    auto keep=used;keep["callsign"]="KEEP100";keep["eta"]=stamp+1800000;
+    auto olderKeep=keep;olderKeep["eta"]=stamp+600000;
+    manualContext.plan["config"]["manualFlights"]=saaman::Json::array({used,expired,keep});
+    manualContext.plan["edits"]={{"CCA911",{{"target",stamp+1200000},{"changedAt",stamp-1000}}},{"OLD900",{{"target",stamp-60000},{"changedAt",stamp-1000}}}};
+    const auto manualRevision=manualContext.plan["revision"];
+    const auto retirement=saaman::Json{{"timestamp",stamp},{"flights",saaman::Json::array()},{"retiredManualFlights",{
+        {"CCA911",{{"reservation",used},{"at",stamp},{"reason","live"}}},
+        {"OLD900",{{"reservation",expired},{"at",stamp},{"reason","elapsed"}}},
+        {"KEEP100",{{"reservation",olderKeep},{"at",stamp},{"reason","live"}}}}}};
+    manualContext.lastSavedAt=stamp;
+    manualContext.Request("plan:snapshot",{{"revision",manualRevision},{"snapshot",retirement},{"telemetry",{{"timestamp",stamp},{"flights",saaman::Json::array()}}}},false);
+    CHECK(manualContext.plan["config"]["manualFlights"]==saaman::Json::array({keep}));
+    CHECK(manualContext.plan["revision"]==manualRevision.get<int>()+1);
+    CHECK(manualContext.plan["edits"].contains("CCA911"));CHECK(!manualContext.plan["edits"].contains("OLD900"));
+    saaman::Context manualReloaded(manualFolder);CHECK(manualReloaded.plan["config"]["manualFlights"]==saaman::Json::array({keep}));
+    denied=false;try{manualContext.Request("plan:update",{{"revision",manualRevision}},false);}catch(const saaman::RequestError& e){denied=e.status==409;}CHECK(denied);
     const auto seedFolder=reloadRoot/L"seed";std::filesystem::create_directories(seedFolder);
     saaman::Context seeded(seedFolder);seeded.shared=false;seeded.telemetry={{"source","SDK"},{"activeRunways",{{"arrivals",saaman::Json::array({"ESSA/01L"})},{"departures",saaman::Json::array({"ESSA/01R"})}}}};
     seeded.Request("plan:init",{{"config",config}},false);

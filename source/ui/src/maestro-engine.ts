@@ -1,5 +1,6 @@
 // Independent implementation of the documented MAESTRO data model.
 // All absolute times are Unix milliseconds internally; route EET inputs are seconds.
+import {manualReservationLifecycle,pruneExpiredManualEdits,type ManualRetirement} from './maestro-manual-reservations'
 import {aircraftType,performanceAt,PERFORMANCE_SOURCE} from './maestro-aircraft-performance'
 import { finalPosition, headingDifference, bearingBetween, vectoringSeconds, vectoringDistance, type GeoPoint, type RunwayGeometry } from './maestro-geometry'
 import {starPrediction,iasToTas,STAR_RUNWAYS,STAR_FEEDERS,distanceNm} from './maestro-star-prediction'
@@ -157,7 +158,7 @@ export interface EngineFlight extends TelemetryFlight {
     finalAlongNm?:number
     planKey?:string
 }
-export interface EngineSnapshot { timestamp: number; source: string; simulation?:boolean; flights: EngineFlight[];terminatedCallsigns?:string[];knownFlights?:Pick<TelemetryFlight,'callsign'|'aircraft'|'wake'|'departure'|'arrival'|'runway'>[]; diagnostics: string[]; slotsKey?: string; wind?:{direction:number;speed:number;auto:boolean}; winds?:Telemetry['winds']; landings?:{callsign:string;runway:string;time:number}[];grounded?:Record<string,number>;observedCallsigns?:string[];runways?:Telemetry['runways'];activeRunways?:Telemetry['activeRunways'];unlistedTelemetry?:TelemetryFlight[] }
+export interface EngineSnapshot { retiredManualFlights?:Record<string,ManualRetirement>; timestamp: number; source: string; simulation?:boolean; flights: EngineFlight[];terminatedCallsigns?:string[];knownFlights?:Pick<TelemetryFlight,'callsign'|'aircraft'|'wake'|'departure'|'arrival'|'runway'>[]; diagnostics: string[]; slotsKey?: string; wind?:{direction:number;speed:number;auto:boolean}; winds?:Telemetry['winds']; landings?:{callsign:string;runway:string;time:number}[];grounded?:Record<string,number>;observedCallsigns?:string[];runways?:Telemetry['runways'];activeRunways?:Telemetry['activeRunways'];unlistedTelemetry?:TelemetryFlight[] }
 const ms = (seconds: number) => seconds * 1000
 
 export function validateConfig(value: any): EngineConfig {
@@ -623,7 +624,9 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
     const traffic=input.flights.filter(f=>f.arrival==='ESSA')
     const present = new Set(traffic.map(f => f.callsign))
     const grounded:Record<string,number>={}
-    const manual=(config.manualFlights || []).filter(f=>f.runway.startsWith('ESSA/')&&!present.has(f.callsign))
+    const reservations=manualReservationLifecycle(input,config,edits,previous)
+    edits=pruneExpiredManualEdits(edits,{retiredManualFlights:reservations.retired})
+    const manual=reservations.active.filter(f=>f.runway.startsWith('ESSA/')&&!present.has(f.callsign))
     const manualCalls=new Set(manual.map(f=>f.callsign))
     const predictions:TelemetryFlight[]=[...traffic,...manual.map(f=>({callsign:f.callsign,aircraft:f.aircraft,wake:f.wake,departure:f.departure??'----',arrival:f.runway.split('/')[0],runway:f.runway.split('/')[1],
         route:f.feeder==='OTHER'?[]:[{name:f.feeder,seconds:f.feederEta!==undefined?(f.feederEta-now)/1000:(f.eta-now)/1000-(config.defaultFeederMinutes??15)*60}],landingSeconds:(f.eta-now)/1000,distanceNm:100,groundspeed:140,altitude:10000}))]
@@ -1179,7 +1182,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             if(f.state!==4)f.runwayDelay=Math.round((f.sta-f.eta)/1000)
         }
     const unlisted=input.flights.filter(f=>!visibleCalls.has(f.callsign))
-    return { timestamp: now, source: input.source,simulation:input.simulation, flights:visibleFlights,terminatedCallsigns:input.terminatedCallsigns,knownFlights:input.knownFlights, diagnostics, slotsKey, winds,grounded,observedCallsigns:input.flights.map(f=>f.callsign),runways:input.runways,activeRunways:input.activeRunways,unlistedTelemetry:unlisted.length?unlisted:undefined,
+    return { retiredManualFlights:Object.keys(reservations.retired).length?reservations.retired:undefined, timestamp: now, source: input.source,simulation:input.simulation, flights:visibleFlights,terminatedCallsigns:input.terminatedCallsigns,knownFlights:input.knownFlights, diagnostics, slotsKey, winds,grounded,observedCallsigns:input.flights.map(f=>f.callsign),runways:input.runways,activeRunways:input.activeRunways,unlistedTelemetry:unlisted.length?unlisted:undefined,
         wind:{direction:wind.surfaceWindDirection,speed:wind.surfaceWindSpeed,auto:config.surfaceWindAuto!==false},landings }
 }
 

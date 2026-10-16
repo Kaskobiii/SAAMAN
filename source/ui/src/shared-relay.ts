@@ -1,5 +1,6 @@
 import {DEFAULT_CONFIG,RUNWAYS,runEngine,validateConfig,validateEdits,validateTelemetry,validateLockedEdits,toJuhaSequence,reconcileRunwayAssignments,migrateSequenceEdits,type EngineConfig,type EngineSnapshot,type FlightEdit,type Telemetry} from './maestro-engine'
 import {OPERATIONAL_KEYS,mergeSharedSettings,settingsUnchanged} from './maestro-settings'
+import {pruneRetiredManualFlights,pruneExpiredManualEdits} from './maestro-manual-reservations'
 import {APPLICATION_BUILD} from './build'
 import {mergeCoordinationChanges} from './maestro-coordination'
 import {COORDINATION_MESSAGES,validateCoordinations} from './maestro-coordination'
@@ -148,6 +149,8 @@ export class SharedRelay {
         const results=this.commands.sort((a,b)=>a.id-b.id).map(command=>({id:command.id,...this.applyCommand(command)}))
         const previous=this.plan.snapshot?{...this.plan.snapshot,timestamp:Math.min(this.plan.snapshot.timestamp,telemetry.timestamp-1)}:undefined
         this.plan.snapshot=runEngine(telemetry,this.plan.config,this.plan.edits,previous)
+        this.plan.config=pruneRetiredManualFlights(this.plan.config,this.plan.snapshot)
+        this.plan.edits=pruneExpiredManualEdits(this.plan.edits,this.plan.snapshot)
         const keep=Object.keys(this.applied).map(Number).sort((a,b)=>b-a).slice(0,1000)
         this.applied=Object.fromEntries(keep.map(id=>[id,this.applied[String(id)]]))
         const checkpoint={schema:'saaman-1.1.9',operational:ops(this.plan.config),edits:this.plan.edits,snapshot:this.plan.snapshot,appliedCommands:this.applied}

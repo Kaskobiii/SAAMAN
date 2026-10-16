@@ -198,3 +198,21 @@ test('leaving drains an in-flight publication before releasing the sequencer',as
     assert.equal(a.view().snapshot,null)
     assert.equal((await b.tick()).relayRole,'sequencer')
 })
+
+test('shared manual placeholder is removed from the checkpoint once live telemetry takes over, including sequencer reload',async()=>{
+ const s=setup(),a=new SharedRelay(options('manual-owner'),s.deps(1396125)),first=await a.tick()
+ const reserve={callsign:'CCA911',aircraft:'UNKN',wake:'?',runway:'ESSA/19R',feeder:'ELTOK',eta:first.snapshot.timestamp+1800000}
+ let state=await a.edit(first.revision,first.edits,{...first.config,manualFlights:[reserve]})
+ assert.ok(state.snapshot.flights.some(f=>f.callsign==='CCA911'&&f.aircraft==='UNKN'))
+ s.advance(2000);s.setFlights([flight(),{...flight(),callsign:'CCA911',aircraft:'B77W',wake:'H'}])
+ state=await a.tick();assert.deepEqual(state.config.manualFlights,[])
+ assert.equal(state.snapshot.flights.filter(f=>f.callsign==='CCA911').length,1)
+ assert.equal(state.snapshot.flights.find(f=>f.callsign==='CCA911').aircraft,'B77W')
+ const published=s.requests.filter(r=>r.method==='PUT').at(-1).body
+ assert.deepEqual(published.checkpoint.operational.manualFlights,[])
+ s.advance(2000);s.setFlights([flight()]);await a.tick();await a.leave()
+ const b=new SharedRelay(options('manual-reloaded'),s.deps(1396125));s.advance(2000)
+ const restored=await b.tick();assert.deepEqual(restored.config.manualFlights,[])
+ assert.ok(!restored.snapshot.flights.some(f=>f.callsign==='CCA911'))
+ assert.ok(!restored.snapshot.diagnostics.some(message=>message.includes('CCA911')))
+})

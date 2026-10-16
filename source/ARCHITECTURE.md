@@ -1,4 +1,4 @@
-# SAAMAN native plugin, 1.3.16
+# SAAMAN native plugin, 1.3.17
 
 SAAMAN.dll is an x86 EuroScope plugin with Win32 child panels hosting the AMAN UI
 through Microsoft WebView2. The calculation engine is editable TypeScript.
@@ -169,3 +169,11 @@ The selected label now overrides the transparent-label styling with an explicit 
 Pair swaps exchange the two allocated landing-time targets and order slots, preserving intervening aircraft and existing engine constraints. Feeder-view swaps additionally require the same feeder. No new backend fields or endpoints are required.
 
 The gain-drag limit is retained for live telemetry. Only a configured manual reservation absent from observedCallsigns can move beyond its original time. Passing the active config to the operation makes this distinction explicit; a matching live flight automatically returns to the live policy. Tests cover both timing models, earlier/later moves, repeated updates and checkpoint restoration, feeder-view shifts, real-flight takeover, nonadjacent swaps and invalid destinations. Native UI smoke covers visible highlight colours, insertion arrows, preview-to-commit agreement, persisted later manual dragging, click swaps, drag swaps and Escape. Screenshots capture both preview states.
+
+## Manual reservation lifecycle (1.3.17)
+
+A configured manual flight formerly disappeared only while its callsign was present in real telemetry. After loss/removal of that real flight it was synthesized again, potentially with a negative destination EET and an Invalid destination route prediction diagnostic. A pure lifecycle helper now consumes reservations once real telemetry takes over, heals older checkpoints using observedCallsigns, and expires unused reservations once their original time, explicit target and prior assigned time have all passed. A future target or closure-delayed allocation preserves a reservation; deliberately re-adding the same callsign starts another reservation. Known-flight inventory alone does not consume a placeholder before correlated telemetry arrives.
+
+Optional retiredManualFlights metadata identifies the exact reservation and retirement time/reason in the checkpoint. The engine filters those reservations without mutating config; shared publication prunes matching operational entries, and the local MASTER snapshot handler does the same before immediately saving. Local cleanup increments the plan revision, so commands based on the old manual inventory retry rather than restore it. Elapsed reservations also retire obsolete edits, while active real-flight assignments and newer controller edits stay intact. Snapshot metadata prevents a stale config from resurrecting a consumed entry during direct replay or recovery.
+
+Regressions cover replacement by a B77W under CCA911, repeated disappearance/reload, older-checkpoint healing, elapsed entries, explicit later targets, new reservations with a reused callsign, unrelated traffic, stale-target removal, shared sequencer takeover and native config persistence/revision invalidation. Existing flight phases, ETA model and live sequencing protections are unchanged.

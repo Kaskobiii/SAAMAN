@@ -71,7 +71,7 @@ The callsign menu provides the main actions:
 - **Recompute:** deliberately refresh the aircraft's accepted planning data. Coordinate its use when it could change the shared sequence.
 - **Remove:** remove the aircraft from AMAN.
 
-Drag across an empty timeline area to select several aircraft for the available group actions. Clear an individual selection with **Escape** first, or hold **Shift** while starting the selection box. Aircraft manually added without a flight plan can be moved both earlier and later; the new time is retained. Use the shared sequence together with normal controller coordination.
+Drag across an empty timeline area to select several aircraft for the available group actions. Clear an individual selection with **Escape** first, or hold **Shift** while starting the selection box. Aircraft manually added without a flight plan can be moved both earlier and later; the new time is retained. A live flight replaces and retires its manual placeholder. An unused reservation expires after its latest assigned time has passed; add it again if needed. Use the shared sequence together with normal controller coordination.
 
 ## 6. Rates, runways and gaps
 

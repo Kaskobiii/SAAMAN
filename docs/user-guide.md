@@ -15,6 +15,8 @@ Select the active ESSA runways in EuroScope for **both ARR and DEP**, then conne
 
 SAAMAN connects automatically in the background when the plugin is loaded and EuroScope has a connected controller callsign. Opening the AMAN pane is not required. It waits for login if you load it while disconnected, and keeps syncing when the pane is hidden.
 
+With two EuroScope windows using the same callsign, keep SAAMAN loaded in the directly connected window. The proxy window follows the shared sequence and can submit edits to the sequencer; it does not start a second sequencer or replace the shared runway configuration from its own selections.
+
 A red **LIVE** above the top-right clock indicates a fresh shared-backend connection. It disappears when that connection is unavailable and is not shown in local mode.
 
 To change connection settings, open **MAESTRO → Operation mode**. Choose **Shared backend**, select **vatIRIS · EuroScope callsign**, and use `https://backend.vatiris.se`. Select **VATSIM live**, **SweatBox 1** or **SweatBox 2**, matching your session, then press **Save connection**.

@@ -68,7 +68,7 @@ public:
             Report("Active ESSA runways "+context->telemetry.value("activeRunways",Json::object()).dump()+"; SDK "+context->telemetry.value("runwayStatus",Json::object()).dump());return true;
         }
         if(text==".saaman status"){
-            std::lock_guard lock(context->mutex);Report(std::string("Guidance ")+(Now()-context->timingAt<=15000?"fresh":"missing/stale")+"; capture age "+(context->captureSuccessAt?std::to_string((Now()-context->captureSuccessAt)/1000)+"s":"no successful capture")+"; capture error "+context->captureError+"; TopSky receivers "+std::to_string(context->receivers)+"; "+(context->shared?"shared backend":"local EuroScope"));return true;
+            std::lock_guard lock(context->mutex);Report(std::string(context->telemetry.value("connectionType",0)==EuroScopePlugIn::CONNECTION_TYPE_VIA_PROXY?"Proxy connection; guidance ":"Direct/local connection; guidance ")+(Now()-context->timingAt<=15000?"fresh":"missing/stale")+"; capture age "+(context->captureSuccessAt?std::to_string((Now()-context->captureSuccessAt)/1000)+"s":"no successful capture")+"; capture error "+context->captureError+"; TopSky receivers "+std::to_string(context->receivers)+"; "+(context->shared?"shared backend":"local EuroScope"));return true;
         }
         return false;
     }

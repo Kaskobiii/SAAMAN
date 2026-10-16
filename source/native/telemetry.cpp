@@ -48,6 +48,7 @@ Json CaptureTelemetry(EuroScopePlugIn::CPlugIn& plugin,const Json& winds){
         }
         const auto connection=plugin.GetConnectionType();
         data["connected"]=connection!=EuroScopePlugIn::CONNECTION_TYPE_NO;
+        data["connectionType"]=connection;
         data["simulation"] = connection==EuroScopePlugIn::CONNECTION_TYPE_SIMULATOR_SERVER ||
             connection==EuroScopePlugIn::CONNECTION_TYPE_SIMULATOR_CLIENT || connection==EuroScopePlugIn::CONNECTION_TYPE_SWEATBOX;
         data["runways"] = runwayGeometry;

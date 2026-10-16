@@ -29,6 +29,7 @@ export class SharedRelay {
     private initializeRunways=true
     private callsign=''
     private observer=false
+    private proxy=false
     private commands:any[]=[]
     private applied:Record<string,{ok:boolean;message:string}>={}
     private history=new Map<number,Plan>()
@@ -45,7 +46,7 @@ export class SharedRelay {
         this.room=`/aman/rooms/${options.network}/ESSA/${options.session}/${options.channel}`
         this.now=deps.now||Date.now;this.id=deps.requestId||(()=>crypto.randomUUID())
     }
-    private identity(){return {instanceId:this.options.instanceId,callsign:this.callsign,engine:{name:'saaman',version:APPLICATION_BUILD.replace(/^SAAMAN /,''),schema:'saaman-1.1.9'},observer:this.observer||isTowerCallsign(this.callsign)}}
+    private identity(){return {instanceId:this.options.instanceId,callsign:this.callsign,engine:{name:'saaman',version:APPLICATION_BUILD.replace(/^SAAMAN /,''),schema:'saaman-1.1.9'},observer:this.observer||isTowerCallsign(this.callsign),...(this.proxy?{proxy:true}:{})}}
     private remember(){this.history.set(this.plan.revision,copy(this.plan));while(this.history.size>24)this.history.delete(this.history.keys().next().value!)}
     view(){return {...copy(this.plan),snapshot:this.plan.stale||this.now()-this.lastUpdated>=30000?null:copy(this.plan.snapshot)}}
     private serial<T>(action:()=>Promise<T>):Promise<T>{
@@ -89,6 +90,11 @@ export class SharedRelay {
         const callsign=String(t.source).toUpperCase()
         if(!/^[A-Z0-9_-]{1,20}$/.test(callsign)||callsign==='OFFLINE'||callsign==='DEMO')fail('Connect EuroScope before joining a shared room',503)
         this.callsign=callsign
+        // A secondary EuroScope proxy may share the direct client's callsign.
+        // It follows that sequence and submits commands without publishing telemetry.
+        const proxy=raw.connectionType===2
+        if(proxy!==this.proxy)this.pendingPublish=null
+        this.proxy=proxy
         if(isTowerCallsign(callsign)){this.pendingCommand=null;this.pendingPublish=null}
         return t
     }
@@ -164,7 +170,7 @@ export class SharedRelay {
         try{
             const telemetry=await this.telemetry()
             await this.pollRoom()
-            if(!this.observer&&!isTowerCallsign(this.callsign)&&this.plan.relayRole==='sequencer')await this.publish(telemetry)
+            if(!this.proxy&&!this.observer&&!isTowerCallsign(this.callsign)&&this.plan.relayRole==='sequencer')await this.publish(telemetry)
             if(this.pendingCommand){
                 let response:any
                 try{response=await this.deps.send('POST',this.room+'/command',this.pendingCommand)}catch(e:any){if((e.status||e.response?.status)===409)this.pendingCommand=null;throw e}

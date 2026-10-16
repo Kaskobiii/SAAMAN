@@ -17,6 +17,8 @@ export class LegacyRelay {
     private state:Envelope
     private callsign=''
     private observer=false
+    private proxy=false
+    private commandIds=new Map<number,string>()
     private role='disconnected'
     private pending=new Map<number,{from:string;requestId:string;digest:string;primary:number}>()
     private results=new Map<number,any>()
@@ -31,12 +33,16 @@ export class LegacyRelay {
         const e=sequence.saamanRelay
         if(!e||e.protocol!=='saaman-legacy-1')fail('This shared sequence belongs to another AMAN plugin. Stop that sequencer before using SAAMAN.')
         if(typeof e.epoch!=='string'||!Number.isSafeInteger(e.revision)||!Number.isSafeInteger(e.settingsRevision)||!Number.isFinite(e.publishedAt)||typeof e.owner!=='string'||typeof e.instanceId!=='string'||typeof e.lease!=='string'||!e.settings||!e.receipts||Object.keys(e.receipts).length>1000)fail('Invalid SAAMAN recovery data',502)
-        if(this.state.epoch!==e.epoch){this.results.clear();this.pending.clear()}
+        if(this.state.epoch!==e.epoch){this.results.clear();this.pending.clear();this.commandIds.clear()}
         this.state=copy(e);if(revision!==undefined)this.state.revision=revision
     }
     private async read(){
         try{this.adopt(await this.deps.send('GET',this.room))}
         catch(e:any){if((e.status||e.response?.status)!==404)throw e}
+        // Same-callsign instances share the API's destructive results queue.
+        // Recover this instance's receipts from the published checkpoint instead.
+        for(const [id,requestId] of this.commandIds){const receipt=this.state.receipts[requestId];if(receipt){this.results.set(id,{id,ok:receipt.ok===true,message:String(receipt.message||'')});this.commandIds.delete(id)}}
+        while(this.results.size>1000)this.results.delete(this.results.keys().next().value!)
         return this.state
     }
     private snapshot(role=this.role){
@@ -85,8 +91,8 @@ export class LegacyRelay {
         return commands
     }
     private async poll(body:any){
-        this.callsign=body.callsign;this.observer=body.observer===true
-        if(this.observer){await this.read();this.role='observer';return this.snapshot()}
+        this.callsign=body.callsign;this.observer=body.observer===true;this.proxy=body.proxy===true
+        if(this.observer||this.proxy){await this.read();this.role=this.observer?'observer':'editor';return this.snapshot()}
         // Empty role forces an immediate answer; the API's normal long poll is 20 s.
         const out=await this.deps.send('POST',this.room+'/poll',{callsign:this.callsign,role:'',version:body.revision||0,cmdAfter:0})
         if(!['sequencer','editor'].includes(out.role)||!Number.isSafeInteger(out.version))fail('Invalid vatIRIS AMAN response',502)
@@ -102,6 +108,7 @@ export class LegacyRelay {
         return {...this.snapshot(),commands}
     }
     private async publish(body:any){
+        if(this.proxy||body.proxy===true)fail('Proxy connections follow the direct sequencer',403)
         const local=copy(this.state)
         await this.read()
         if(this.state.publication===body.requestId)return {revision:this.state.revision}
@@ -123,7 +130,9 @@ export class LegacyRelay {
     }
     private async command(body:any){
         if(body.epoch!==this.state.epoch)fail('Shared sequence changed; reload and retry')
-        return this.deps.send('POST',this.room+'/command',{callsign:body.callsign,cmd:{op:'saaman-command',requestId:body.requestId,epoch:body.epoch,settingsRevision:this.state.settingsRevision,cid:this.deps.cid(),cmd:body.cmd}})
+        const reply=await this.deps.send('POST',this.room+'/command',{callsign:body.callsign,cmd:{op:'saaman-command',requestId:body.requestId,epoch:body.epoch,settingsRevision:this.state.settingsRevision,cid:this.deps.cid(),cmd:body.cmd}})
+        if(Number.isSafeInteger(reply.id)){this.commandIds.set(reply.id,body.requestId);while(this.commandIds.size>1000)this.commandIds.delete(this.commandIds.keys().next().value!)}
+        return reply
     }
     private async supervision(){
         if(!await this.deps.supervisor(this.deps.callsign(),this.deps.cid()??undefined))fail('Supervisor access required',403)
@@ -155,7 +164,7 @@ export class LegacyRelay {
         if(path.endsWith('/command'))return this.command(body)
         if(path.endsWith('/supervision'))return this.supervision()
         if(path.endsWith('/settings'))return this.settings(body)
-        if(path.endsWith('/leave')){if(!this.observer)return this.deps.send('POST',this.room+'/leave',{callsign:body.callsign});return {left:true}}
+        if(path.endsWith('/leave')){if(!this.observer&&!this.proxy)return this.deps.send('POST',this.room+'/leave',{callsign:body.callsign});return {left:true}}
         if(method==='PUT')return this.publish(body)
         fail('Unsupported legacy AMAN operation',400)
     }

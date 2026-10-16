@@ -1148,3 +1148,35 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
 .dialog-title,.menu-title{position:relative;box-sizing:border-box;min-height:30px;padding:6px 34px;line-height:18px;text-align:center}
 .dialog-title>button,.menu-title>button{position:absolute;right:4px;top:50%;transform:translateY(-50%);float:none;display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:22px;height:22px;min-height:0;margin:0;padding:0;line-height:1;font-size:14px}
 </style>
+
+<style scoped>
+.juha-aman{container-type:inline-size;container-name:aman}
+@container aman (max-width:620px){
+ .toolbar,.toolbar :deep(*){font-size:12px!important;line-height:1.25!important}
+ .toolbar{padding:3px;gap:3px}
+ .toolbar>button{padding:5px 6px;border-radius:8px}
+ .toolbar .configuration-button{min-width:94px}
+ .configuration-button span{font-size:13px!important}
+ .toolbar .rate-button{min-width:110px;font-size:12px!important}
+ .rate-button span{white-space:nowrap;column-gap:6px;row-gap:2px}
+ .rate-button small{font-size:10px!important}
+ .toolbar .tracks{min-width:56px;padding:4px 5px;font-size:11px!important}
+ .toolbar .updated{padding:6px;font-size:10px!important;white-space:nowrap}
+ .view-buttons{gap:4px;padding:4px 3px}
+ .view-buttons button{padding:0 6px;font-size:12px!important;min-height:25px;line-height:19px!important}
+ .view-buttons .errors-button{width:76px;min-width:76px}
+}
+@container aman (max-width:420px){
+ .toolbar,.toolbar :deep(*){font-size:11px!important;line-height:1.2!important}
+ .toolbar{min-height:44px;flex-wrap:wrap}
+ .toolbar>button{padding:4px;border-radius:7px}
+ .toolbar .configuration-button{min-width:78px}
+ .configuration-button span{font-size:12px!important}
+ .toolbar .rate-button{font-size:11px!important}
+ .toolbar .tracks{min-width:48px;padding:4px;font-size:10px!important;line-height:1.45!important}
+ .toolbar .updated{padding:4px;font-size:10px!important}
+ .view-buttons{gap:3px;padding:3px 2px}
+ .view-buttons button{padding:0 4px;font-size:11px!important;min-height:23px;line-height:17px!important;border-radius:7px}
+ .view-buttons .errors-button{width:66px;min-width:66px}
+}
+</style>

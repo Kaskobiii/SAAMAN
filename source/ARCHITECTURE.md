@@ -1,4 +1,4 @@
-# SAAMAN native plugin, 1.3.18
+# SAAMAN native plugin, 1.3.19
 
 SAAMAN.dll is an x86 EuroScope plugin with Win32 child panels hosting the AMAN UI
 through Microsoft WebView2. The calculation engine is editable TypeScript.
@@ -181,3 +181,11 @@ Regressions cover replacement by a B77W under CCA911, repeated disappearance/rel
 ## Window details (1.3.18)
 
 Dialog and menu close controls have their own centered title-bar positioning, overriding form-button margins. Group selection stores the visible plot bounds at pointer capture and clamps both endpoints, including horizontally clipped lanes; floating submenus retain their radar-wide movement. The native coordination popup uses an owned captionless window, a custom TopSky title and border, native title hit testing for dragging, and content-measured message height. Sender, UTC timestamp, explicit acknowledgement and retry behavior remain intact. Native smoke checks title alignment, selection bounds in both directions and the popup style, sizing and acknowledgement lifecycle.
+
+## Shared zoom and floating geometry (1.3.19)
+
+A native ZoomFactorChanged handler shares the current WebView zoom across non-auth AMAN, supervision and floating controllers; new controllers inherit it, while the first document can retain its saved site zoom. Programmatic updates do not depend on another ZoomFactorChanged event. Navigation loading is excluded from user-zoom synchronization. The native coordination notification recreates scaled fonts and measures its layout at the same scale.
+
+Floating surfaces retain a CSS content width independent of viewport zoom, with automatic content height rather than a viewport-height minimum. Show and resize requests carry devicePixelRatio; the host converts CSS dimensions and anchor coordinates to native pixels and fits both width and height within the radar. ResizeObserver and window zoom/resize events batch measurements after layout, with cancelled work on close. Existing no-copy move repaint and normal resize paint remain in place. Native smoke checks 125%, 80%, restoration, zoom initiated in a submenu, reopening, physical frame/content agreement and coordination scaling.
+
+Container queries at 620 and 420 CSS pixels reduce header fonts, minimum widths, button padding and gaps as the pane narrows, including when browser zoom reduces available CSS width. Narrow-pane smoke checks 360 native pixels, two navigation rows, readable control overflow limits and restoration after widening.

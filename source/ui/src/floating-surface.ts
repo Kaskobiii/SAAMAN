@@ -15,6 +15,14 @@ export function useFloatingSurface(key:string,open:Ref<string>,source:Ref<HTMLEl
   fitFrame=popup.requestAnimationFrame(()=>{fitFrame=popup!.requestAnimationFrame(()=>{
    fitFrame=0
    const panel=target.value?.querySelector<HTMLElement>('.native-dialog,.popup')
+   const table=panel?.querySelector<HTMLElement>('.information-table'),content=panel?.querySelector<HTMLElement>('.information-scroll')
+   if(panel&&table&&content){
+    const style=popup!.getComputedStyle(panel),padding=parseFloat(style.paddingLeft)+parseFloat(style.paddingRight),border=parseFloat(style.borderLeftWidth)+parseFloat(style.borderRightWidth)
+    baseWidth=Math.min(10000,Math.ceil(table.scrollWidth+padding+border))
+    target.value!.style.width=`${Math.min(baseWidth,popup!.innerWidth)}px`
+    content.style.setProperty('zoom',String(Math.min(1,Math.max(1,panel.clientWidth-padding)/Math.max(1,table.scrollWidth))))
+    popup!.document.body.style.overflowX='hidden'
+   }else if(target.value){target.value.style.width=`${baseWidth}px`;popup!.document.body.style.overflowX='auto'}
    if(panel)void request('host:floating-size',{width:baseWidth,height:Math.ceil(panel.getBoundingClientRect().height),scale:popup!.devicePixelRatio}).catch(()=>{})
   })})
  }
@@ -34,7 +42,8 @@ export function useFloatingSurface(key:string,open:Ref<string>,source:Ref<HTMLEl
    await nextTick()
    const preservePosition=!!target.value,origin=source.value,element=origin?.querySelector<HTMLElement>(selector)??target.value?.querySelector<HTMLElement>(selector),rect=element?.getBoundingClientRect()
    if(!origin||!element||!rect)return
-   const width=Math.max(180,Math.min(1100,Math.ceil(rect.width))),height=Math.max(60,Math.min(850,Math.ceil(rect.height)))
+   const table=element.querySelector<HTMLElement>('.information-table')
+   const width=Math.max(180,table?Math.min(10000,Math.ceil(table.scrollWidth+12)):Math.min(1100,Math.ceil(rect.width))),height=Math.max(60,Math.min(850,Math.ceil(rect.height)))
    baseWidth=width
    const position={x:Math.round(rect.left),y:Math.round(rect.top),width,height,scale:window.devicePixelRatio,preservePosition}
    if(!popup||popup.closed){
@@ -70,7 +79,7 @@ export function useFloatingSurface(key:string,open:Ref<string>,source:Ref<HTMLEl
    await request('host:floating-show',position)
    observer?.disconnect()
    observer=new ResizeObserver(fit)
-   const panel=root.querySelector<HTMLElement>('.native-dialog,.popup');if(panel)observer.observe(panel)
+   const panel=root.querySelector<HTMLElement>('.native-dialog,.popup');if(panel){observer.observe(panel);const table=panel.querySelector<HTMLElement>('.information-table');if(table)observer.observe(table)}
    fit()
   }catch(error){if(generation===current){target.value=null;onError(error as Error)}}
  },{flush:'post'})

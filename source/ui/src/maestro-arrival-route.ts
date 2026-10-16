@@ -1,11 +1,23 @@
-import type {TelemetryFlight,EngineFlight,EngineConfig,RoutePrediction} from './maestro-engine'
+import type {TelemetryFlight,EngineFlight,EngineConfig,RoutePrediction,Telemetry,EngineSnapshot} from './maestro-engine'
 import {FEEDERS} from './maestro-engine'
 import {STAR_FEEDERS,STAR_RUNWAYS,distanceNm} from './maestro-star-prediction'
 import {localPosition} from './maestro-geometry'
 const positioned=(p:any)=>Number.isFinite(p?.latitude)&&Number.isFinite(p?.longitude)
-export function observedFeeder(p:TelemetryFlight,old:EngineFlight|undefined,now:number,config:EngineConfig){
+export interface FeederPassage {arrival:string;departure:string;ff:string;seenAt:number;line0Suppressed:boolean}
+export function retainedFeederPassages(input:Telemetry,previous?:EngineSnapshot){
+ const retained:Record<string,FeederPassage>={}
+ if(!previous||input.source==='DEMO'||previous.source==='DEMO'||input.simulation!==previous.simulation)return retained
+ for(const [callsign,p] of Object.entries(previous.feederPassages??{}))
+  if(p&&p.arrival==='ESSA'&&p.ff in STAR_FEEDERS&&Number.isFinite(p.seenAt)&&input.timestamp-p.seenAt>=0&&input.timestamp-p.seenAt<=300000)retained[callsign]={...p}
+ for(const f of previous.flights)
+  if(f.bufferedFeederVerified&&f.passedFeeder&&f.ff in STAR_FEEDERS&&f.state!==4&&f.mode==='sequenced'&&input.timestamp-f.lastSeen>=0&&input.timestamp-f.lastSeen<=300000)
+   retained[f.callsign]={arrival:f.arrival,departure:f.departure,ff:f.ff,seenAt:f.lastSeen,line0Suppressed:!!f.line0Suppressed}
+ return Object.fromEntries(Object.entries(retained).sort((a,b)=>b[1].seenAt-a[1].seenAt).slice(0,500))
+}
+export function observedFeeder(p:TelemetryFlight,old:EngineFlight|undefined,now:number,config:EngineConfig,remembered?:FeederPassage){
  const names:string[]=FEEDERS.filter(f=>f.airport===p.arrival).flatMap(f=>[...f.fixes])
- const name=old?.amanRoute?.find(point=>names.includes(point.name))?.name??(old?.ff&&names.includes(old.ff)?old.ff:p.route.find(point=>names.includes(point.name))?.name)
+ const star=(p.star??'').toUpperCase().replace(/[^A-Z0-9]/g,'')
+ const name=old?.amanRoute?.find(point=>names.includes(point.name))?.name??(old?.ff&&names.includes(old.ff)?old.ff:p.route.find(point=>names.includes(point.name))?.name??names.find(name=>star.startsWith(name))??remembered?.ff)
  const raw=p.route.find(point=>point.name===name),fix=old?.amanRoute?.find(point=>point.name===name)??raw??STAR_FEEDERS[name??'']
  let crossed=false
  if(positioned(p)&&positioned(fix)){

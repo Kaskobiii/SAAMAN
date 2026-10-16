@@ -7,6 +7,23 @@ const config=()=>({...structuredClone(DEFAULT_CONFIG),unstableSeconds:0,minimumN
 const p=(extra={})=>({callsign:'APPROACH',aircraft:'A320',wake:'M',departure:'EKCH',arrival:'ESSA',runway:'19R',latitude:60,longitude:18,altitude:18000,groundspeed:400,heading:190,positionAgeSeconds:0,
  route:[{name:'SA19R',seconds:600,latitude:59.6664,longitude:17.92377},{name:'ESSA',seconds:660,latitude:59.65194,longitude:17.91861}],landingSeconds:660,distanceNm:21,...extra})
 
+test('a heading after direct ERXEC does not restore the skipped STAR into the landing prediction or Recompute',()=>{
+ const now=5_000_000,c=config(),near=p({callsign:'FIN1TC',direct:'ERXEC',latitude:59.95,longitude:18.2,altitude:6000,groundspeed:230,heading:200,
+  route:[{name:'ELTOK',seconds:-60,latitude:59.824444,longitude:16.989917},{name:'ERXEC',seconds:180,latitude:59.85,longitude:18.02},{name:'SA19R',seconds:600,latitude:59.6664,longitude:17.92377}]})
+ const far=p({callsign:'ELTOK_FAR',latitude:60.4,longitude:16.5,groundspeed:270,route:[{name:'ELTOK',seconds:900,latitude:59.824444,longitude:16.989917},...near.route.slice(-1)],landingSeconds:1800})
+ const first=runEngine({source:'ESSA_FMP',timestamp:now,flights:[near,far]},c,{})
+ const restored={...near,direct:'',assignedHeading:210,route:near.route.map(q=>({...q,seconds:q.seconds<0?900:q.seconds+1800})),landingSeconds:2460}
+ const input={source:'ESSA_FMP',timestamp:now+2000,flights:[restored,far]},edits={FIN1TC:{recomputeAt:now+2000,changedAt:now+2000}}
+ const next=runEngine(input,c,edits,JSON.parse(JSON.stringify(first))),f=next.flights.find(f=>f.callsign==='FIN1TC'),other=next.flights.find(f=>f.callsign==='ELTOK_FAR')
+ assert.equal(f.landingPrediction.method,'vector-position');assert.equal(f.issue,'');assert.ok(f.state>=2)
+ assert.ok(f.eta<other.eta);assert.ok(f.sta<other.sta);assert.ok(f.landingPrediction.seconds<restored.landingSeconds)
+ const again=predictLanding({...restored,landingSeconds:6000,route:restored.route.map(q=>({...q,seconds:q.seconds+3000}))},c,1,f.landingPrediction,now+4000)
+ assert.equal(again.method,'vector-position');assert.equal(again.seconds,f.landingPrediction.seconds,'restored SDK STAR EET does not change the geometric forecast')
+ assert.equal(again.directClearance.at,now,'a heading does not renew the prior direct-clearance evidence')
+ assert.notEqual(predictLanding({...restored,positionAgeSeconds:16},c,1,f.landingPrediction,now+4000).method,'vector-position')
+ assert.notEqual(predictLanding(restored,c,1,f.landingPrediction,now+601000).method,'vector-position')
+})
+
 test('landing reference is the assigned threshold instead of the later airport endpoint',()=>{
  const f=p(),a=predictLanding(f,config(),1),b=predictLanding({...f,landingSeconds:1800,route:[f.route[0],{...f.route[1],seconds:1800}]},config(),1)
  assert.equal(a.reference,'threshold');assert.equal(a.rawSeconds,600);assert.deepEqual(a,b)

@@ -46,17 +46,18 @@ void CoordinationPopup::Update(HWND owner,const Json& data,std::function<void(co
         const int x=std::max(static_cast<int>(monitor.rcWork.left),std::min(static_cast<int>((area.left+area.right-width)/2),static_cast<int>(monitor.rcWork.right)-width));
         const int y=std::max(static_cast<int>(monitor.rcWork.top),std::min(static_cast<int>((area.top+area.bottom-height)/2),static_cast<int>(monitor.rcWork.bottom)-height));
         SetWindowPos(hwnd,HWND_TOP,x,y,0,0,SWP_NOSIZE|SWP_NOACTIVATE);
-        if(!test&&!sdk&&hostUiAllowed){ShowWindow(hwnd,SW_SHOWNORMAL);SetForegroundWindow(hwnd);SetFocus(button);FlashWindow(hwnd,TRUE);}
+        if(!test&&!sdk&&hostUiAllowed&&!busy){ShowWindow(hwnd,SW_SHOWNORMAL);SetForegroundWindow(hwnd);SetFocus(button);FlashWindow(hwnd,TRUE);}
     }
+    if(hwnd&&!test)ShowWindow(hwnd,hostUiAllowed&&!sdk&&!busy?SW_SHOWNOACTIVATE:SW_HIDE);
 }
 void CoordinationPopup::Acknowledge(){
     if(!enabled||busy||current.is_null())return;
-    const auto id=current.at("id").get<std::string>();busy=true;EnableWindow(button,FALSE);SetWindowTextW(button,L"Acknowledging\u2026");status=L"Waiting for confirmation\u2026";Layout();InvalidateRect(hwnd,nullptr,FALSE);
+    const auto id=current.at("id").get<std::string>();busy=true;EnableWindow(button,FALSE);ShowWindow(hwnd,SW_HIDE);
     if(acknowledge)acknowledge(id);
 }
 void CoordinationPopup::AllowHostUi(bool allowed){
     if(hostUiAllowed==allowed)return;hostUiAllowed=allowed;
-    if(hwnd&&!test)ShowWindow(hwnd,allowed&&!sdk&&!current.is_null()?SW_SHOWNOACTIVATE:SW_HIDE);
+    if(hwnd&&!test)ShowWindow(hwnd,allowed&&!sdk&&!busy&&!current.is_null()?SW_SHOWNOACTIVATE:SW_HIDE);
 }
 void CoordinationPopup::Fonts(){
     if(messageFont)DeleteObject(messageFont);if(headingFont)DeleteObject(headingFont);if(bodyFont)DeleteObject(bodyFont);
@@ -107,7 +108,7 @@ Json CoordinationPopup::Inspect(bool click){
     if(click&&button)SendMessageW(button,BM_CLICK,0,0);
     RECT rect{},area{},buttonRect{},client{};if(hwnd){GetWindowRect(hwnd,&rect);GetWindowRect(GetWindow(hwnd,GW_OWNER),&area);GetClientRect(hwnd,&client);}if(button){GetWindowRect(button,&buttonRect);MapWindowPoints(HWND_DESKTOP,hwnd,reinterpret_cast<POINT*>(&buttonRect),2);}
     POINT titlePoint{Px(12),Px(12)};if(hwnd)ClientToScreen(hwnd,&titlePoint);
-    return {{"systemCaption",hwnd&&(GetWindowLongPtrW(hwnd,GWL_STYLE)&WS_CAPTION)!=0},{"titleDraggable",hwnd&&SendMessageW(hwnd,WM_NCHITTEST,0,MAKELPARAM(titlePoint.x,titlePoint.y))==HTCAPTION},{"dpi",dpi},{"buttonBottom",buttonRect.bottom},{"message",current},{"sender",Utf8(sender)},{"sent",Utf8(sent)},{"status",Utf8(status)},{"buttonCenterX",(buttonRect.left+buttonRect.right)/2},{"clientCenterX",client.right/2},{"busy",busy},{"enabled",button&&IsWindowEnabled(button)},{"visible",hwnd&&IsWindowVisible(hwnd)},{"topLevel",hwnd&&(GetWindowLongPtrW(hwnd,GWL_STYLE)&WS_CHILD)==0},{"owned",hwnd&&GetWindow(hwnd,GW_OWNER)!=nullptr},{"x",rect.left},{"y",rect.top},{"width",rect.right-rect.left},{"height",rect.bottom-rect.top},{"ownerX",area.left},{"ownerY",area.top},{"ownerWidth",area.right-area.left},{"ownerHeight",area.bottom-area.top}};
+    return {{"presented",hwnd&&!current.is_null()&&!busy},{"systemCaption",hwnd&&(GetWindowLongPtrW(hwnd,GWL_STYLE)&WS_CAPTION)!=0},{"titleDraggable",hwnd&&SendMessageW(hwnd,WM_NCHITTEST,0,MAKELPARAM(titlePoint.x,titlePoint.y))==HTCAPTION},{"dpi",dpi},{"buttonBottom",buttonRect.bottom},{"message",current},{"sender",Utf8(sender)},{"sent",Utf8(sent)},{"status",Utf8(status)},{"buttonCenterX",(buttonRect.left+buttonRect.right)/2},{"clientCenterX",client.right/2},{"busy",busy},{"enabled",button&&IsWindowEnabled(button)},{"visible",hwnd&&IsWindowVisible(hwnd)},{"topLevel",hwnd&&(GetWindowLongPtrW(hwnd,GWL_STYLE)&WS_CHILD)==0},{"owned",hwnd&&GetWindow(hwnd,GW_OWNER)!=nullptr},{"x",rect.left},{"y",rect.top},{"width",rect.right-rect.left},{"height",rect.bottom-rect.top},{"ownerX",area.left},{"ownerY",area.top},{"ownerWidth",area.right-area.left},{"ownerHeight",area.bottom-area.top}};
 }
 void CoordinationPopup::Capture(const std::filesystem::path& file){
     if(!hwnd)return;RECT rect{};GetClientRect(hwnd,&rect);const int width=rect.right,height=rect.bottom;
@@ -118,7 +119,7 @@ void CoordinationPopup::Capture(const std::filesystem::path& file){
     SelectObject(dc,old);DeleteObject(bitmap);DeleteDC(dc);
 }
 RadarSurface CoordinationPopup::Surface(HWND parent){
-    RadarSurface result;result.id=0xFFFFFFFFu;result.visible=hwnd&&!current.is_null();if(!result.visible)return result;
+    RadarSurface result;result.id=0xFFFFFFFFu;result.visible=hwnd&&!current.is_null()&&!busy;if(!result.visible)return result;
     GetWindowRect(hwnd,&result.bounds);MapWindowPoints(HWND_DESKTOP,parent,reinterpret_cast<POINT*>(&result.bounds),2);RECT client{};GetClientRect(hwnd,&client);result.width=client.right;result.height=client.bottom;
     if(!result.width||!result.height||result.width>4096||result.height>4096){result.visible=false;return result;}
     HDC dc=CreateCompatibleDC(nullptr);BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=result.width;info.bmiHeader.biHeight=-static_cast<LONG>(result.height);info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;

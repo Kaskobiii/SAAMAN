@@ -226,7 +226,7 @@ struct Host::Impl {
                                     candidate->havePreviousBounds=false;
                                     self->Reply(id,{{"resizeRedrawAllowed",(resize.flags&SWP_NOREDRAW)==0},{"resizeDiscardsOldPixels",(resize.flags&SWP_NOCOPYBITS)!=0},{"moveDefersRedraw",(move.flags&SWP_NOREDRAW)!=0},{"moveDiscardsOldPixels",(move.flags&SWP_NOCOPYBITS)!=0}});return S_OK;
                                 }
-                                if(data.value("capture",false)){ComPtr<IStream> stream;const auto file=self->host.context->directory/Wide("floating-"+key+".png");if(SUCCEEDED(SHCreateStreamOnFileEx(file.c_str(),STGM_CREATE|STGM_WRITE,FILE_ATTRIBUTE_NORMAL,TRUE,nullptr,&stream))){candidate->browser->CapturePreview(COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG,stream.Get(),Callback<ICoreWebView2CapturePreviewCompletedHandler>([stream,weak,id](HRESULT error)->HRESULT{if(auto owner=weak.lock())owner->Reply(id,SUCCEEDED(error));return S_OK;}).Get());return S_OK;}}
+                                if(data.value("capture",false)){ComPtr<IStream> stream;const auto file=self->host.context->directory/Wide("floating-"+key+(data.value("informationCapture",false)?"-information":"")+".png");if(SUCCEEDED(SHCreateStreamOnFileEx(file.c_str(),STGM_CREATE|STGM_WRITE,FILE_ATTRIBUTE_NORMAL,TRUE,nullptr,&stream))){candidate->browser->CapturePreview(COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG,stream.Get(),Callback<ICoreWebView2CapturePreviewCompletedHandler>([stream,weak,id](HRESULT error)->HRESULT{if(auto owner=weak.lock())owner->Reply(id,SUCCEEDED(error));return S_OK;}).Get());return S_OK;}}
                                 if(data.value("close",false))SendMessageW(candidate->hwnd,WM_CLOSE,0,0);
                                 double zoom=1;candidate->controller->get_ZoomFactor(&zoom);RECT r{};GetWindowRect(candidate->hwnd,&r);MapWindowPoints(HWND_DESKTOP,self->host.parent,reinterpret_cast<POINT*>(&r),2);self->Reply(id,{{"zoom",zoom},{"x",r.left},{"y",r.top},{"width",r.right-r.left},{"height",r.bottom-r.top},{"visible",candidate->floatingVisible},{"parentIsRadar",GetParent(candidate->hwnd)==self->host.parent},{"dragging",candidate->dragging}});return S_OK;
                             }throw RequestError(400,"No submenu window");
@@ -235,12 +235,14 @@ struct Host::Impl {
                         if(method=="host:coordination"){
                             if(self->auth||self->supervisor)throw RequestError(403,"Coordination belongs to the AMAN worker");
                             if(!self->host.coordination)self->host.coordination=std::make_unique<CoordinationPopup>(self->host.module,self->host.context->test,self->host.context->sdkSurfaces);
+                            auto notification=data;{std::lock_guard lock(self->host.context->mutex);if(self->host.context->telemetry.value("connectionType",0)==2)notification["message"]=nullptr;}
                             std::weak_ptr<Window> owner=self;
-                            self->host.coordination->SetZoom(self->host.uiZoom);self->host.coordination->Update(GetAncestor(self->host.parent,GA_ROOT),data,[owner](const std::string& messageId){
+                            self->host.coordination->SetZoom(self->host.uiZoom);self->host.coordination->Update(GetAncestor(self->host.parent,GA_ROOT),notification,[owner](const std::string& messageId){
                                 if(auto window=owner.lock())if(window->browser&&!window->destroying){const auto event=Wide(Json({{"event","coordination-ack"},{"messageId",messageId}}).dump());window->browser->PostWebMessageAsJson(event.c_str());}
                             });self->host.SyncCoordination();self->Reply(id,true);return S_OK;
                         }
                         if(method=="host:test-coordination"&&self->host.context->test){
+                            if(data.contains("connectionType")){std::lock_guard lock(self->host.context->mutex);self->host.context->telemetry["connectionType"]=data.at("connectionType");}
                             if(!self->host.coordination)throw RequestError(400,"No coordination popup");
                             if(data.contains("hostUiAllowed"))self->host.coordination->AllowHostUi(data.at("hostUiAllowed").get<bool>());
                             if(data.value("capture",false))self->host.coordination->Capture(self->host.context->directory/L"coordination-preview.bmp");
@@ -402,8 +404,18 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     title.dispatchEvent(new popWindow.PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:82,screenX:200,screenY:200}));popWindow.dispatchEvent(new popWindow.PointerEvent('pointermove',{bubbles:true,pointerId:82,screenX:-800,screenY:200}));popWindow.dispatchEvent(new popWindow.PointerEvent('pointerup',{bubbles:true,pointerId:82,screenX:-800,screenY:200}));await wait(100);
                     const afterDialog=await rpc('host:test-floating',{key:'dialog'});result.draggableDialog=afterDialog.x===0&&afterDialog.x<frameAfter.x&&!afterDialog.dragging;if(!result.draggableDialog)throw Error('Information cannot move outside AMAN');
                     result.shortRunwayHeader=[...info.querySelectorAll('th')].some(h=>/^(01[LR]|19[LR]|08|26)$/.test(h.innerText))&&![...info.querySelectorAll('th')].some(h=>/^Runway /.test(h.innerText));if(!result.shortRunwayHeader)throw Error('Information runway header was not shortened');
-                    await rpc('host:test-floating',{key:'dialog',capture:true});
+                    await rpc('host:test-floating',{key:'dialog',capture:true,informationCapture:true});
                     result.informationRows=findAll('.information-table tr').length;if(result.informationRows!==3)throw Error('Information layout must have three rows');
+                    const infoTable=info.querySelector('.information-table'),infoScroll=info.querySelector('.information-scroll');
+                    result.informationNoHorizontalScroll=info.ownerDocument.body.scrollWidth<=info.ownerDocument.documentElement.clientWidth+1&&infoTable.getBoundingClientRect().right<=popWindow.innerWidth+1&&!['auto','scroll'].includes(popWindow.getComputedStyle(infoScroll).overflowX);
+                    if(!result.informationNoHorizontalScroll)throw Error('Information did not fit its full table without a horizontal scrollbar');
+                    const infoOriginalZoom=await rpc('host:test-zoom');
+                    for(const factor of [1.25,0.8,infoOriginalZoom.zoom]){
+                        await rpc('host:test-zoom',{factor});await wait(180);
+                        const box=infoTable.getBoundingClientRect(),frame=await rpc('host:test-floating',{key:'dialog'}),panel=info.getBoundingClientRect(),scale=popWindow.devicePixelRatio;
+                        if(box.right>popWindow.innerWidth+1||info.ownerDocument.body.scrollWidth>info.ownerDocument.documentElement.clientWidth+1||Math.abs(frame.width-panel.width*scale)>2||Math.abs(frame.height-panel.height*scale)>2)throw Error('Information zoom clipped content or left old-size frame space');
+                    }
+                    result.informationZoomFits=true;
                     find('.dialog-title button').click();await wait(40);
                     flight.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,button:2,clientX:rect.left+5,clientY:rect.top+5}));await wait(40);
                     [...findAll('.flight-menu button')].find(b=>b.innerText.includes('Maximum delay')).click();await floatingReady('dialog','[data-dialog=maximum-delay]');
@@ -466,7 +478,7 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     if(!result.coordinationLayout)throw Error('Coordination button must be centered without receipt instructions');
                     const occludedCoordination=await rpc('host:test-coordination',{hostUiAllowed:false});if(occludedCoordination.message.id!==notification.id||!occludedCoordination.enabled)throw Error('Yielding to EuroScope discarded coordination');await rpc('host:test-coordination',{hostUiAllowed:true});result.coordinationHostYield=true;
                     await rpc('host:test-coordination',{click:true});await wait(50);await rpc('host:test-coordination',{click:true});await wait(50);
-                    const awaiting=await rpc('host:test-coordination');result.coordinationAck=receivedAcks.length===1&&receivedAcks[0]===notification.id&&!awaiting.enabled&&awaiting.busy;
+                    const awaiting=await rpc('host:test-coordination');result.coordinationAck=receivedAcks.length===1&&receivedAcks[0]===notification.id&&!awaiting.enabled&&awaiting.busy&&!awaiting.presented;
                     if(!result.coordinationAck)throw Error('Coordination acknowledgement did not forward exactly once');
                     await rpc('host:coordination',{message:notification,enabled:true,busy:false,status:'Connection interrupted; retry acknowledgement.'});
                     if(!(await rpc('host:test-coordination')).enabled)throw Error('Failed acknowledgement cannot be retried');
@@ -475,6 +487,11 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     if(!result.coordinationLegacy)throw Error('Legacy sender must be unavailable, not the internal instance ID');
                     await rpc('host:coordination',{message:null});window.removeEventListener('saaman-coordination-ack',onAck);
                     if((await rpc('host:test-coordination')).message!==null)throw Error('Acknowledged coordination popup was not cleared');
+                    await rpc('host:test-coordination',{connectionType:2});await rpc('host:coordination',{message:notification,enabled:true,busy:false});
+                    if((await rpc('host:test-coordination')).message!==null)throw Error('Proxy instance duplicated the coordination popup');
+                    await rpc('host:test-coordination',{connectionType:1});await rpc('host:coordination',{message:notification,enabled:true,busy:false});
+                    if((await rpc('host:test-coordination')).message?.id!==notification.id)throw Error('Direct instance did not receive coordination');
+                    await rpc('host:coordination',{message:null});result.coordinationPrimaryOnly=true;result.coordinationImmediateClose=true;
                     find('[data-action=rates]').click();await wait(60);
                     const rateSlider=find('[data-input=arrival-rate-slider]');result.rateBounds=rateSlider?.min==='60'&&rateSlider?.max==='600';if(!result.rateBounds)throw Error('Arrival rate must allow only 6–60 per hour');
                     const slider=find('[data-input=apply-time-slider]');slider.value='10';slider.dispatchEvent(new Event('input',{bubbles:true}));await wait(80);
@@ -589,6 +606,23 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     result.configurationPreservesViewport=true;result.ratePreservesViewport=true;
                     find('.time-overview').dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true}));findAll('.view-buttons button').find(b=>b.textContent.trim()==='Runway').click();await rpc('host:test-frame',{width:originalFrame.width});await wait(100);
 
+                    // Individual runway choices must reveal an otherwise inactive lane.
+                    const priorRunwayPlan=await rpc('plan:get'),priorRunway=priorRunwayPlan.snapshot.flights.find(f=>f.callsign==='SAAMAN_TEST').runway;
+                    const inactiveRunway=['01L','01R','08','19L','19R','26'].find(r=>!priorRunwayPlan.config.active.includes('ESSA/'+r)&&priorRunwayPlan.config.departureRunway!=='ESSA/'+r);
+                    const pickIndividualRunway=async runway=>{
+                        const label=find('.flight[data-callsign=SAAMAN_TEST]'),bounds=label.getBoundingClientRect();
+                        label.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,button:2,clientX:bounds.left+5,clientY:bounds.top+5}));await wait(40);
+                        find('[data-menu=runway]').click();await floatingReady('dialog','[data-dialog=runway]');
+                        const choices=findAll('[data-dialog=runway] button').filter(b=>/^(01[LR]|19[LR]|08|26)$/.test(b.textContent.trim()));
+                        if(choices.length!==6)throw Error('Individual runway choices exclude inactive runways');
+                        choices.find(b=>b.textContent.trim()===runway).click();await wait(300);
+                    };
+                    await pickIndividualRunway(inactiveRunway);
+                    const inactivePlan=await rpc('plan:get'),inactiveFlight=inactivePlan.snapshot.flights.find(f=>f.callsign==='SAAMAN_TEST'),inactiveLabel=find('.flight[data-callsign=SAAMAN_TEST]');
+                    if(inactiveFlight.runway!==inactiveRunway||inactiveFlight.issue||!inactiveFlight.secondaryRunwayAccepted||!inactiveLabel?.closest('.timeline-column')||JSON.stringify(inactivePlan.config)!==JSON.stringify(priorRunwayPlan.config))throw Error('Individual inactive runway is missing from the timeline or altered the shared plan');
+                    result.inactiveRunwayLane=true;result.individualRunwayChoices=6;
+                    await pickIndividualRunway(priorRunway);
+                    if((await rpc('plan:get')).snapshot.flights.find(f=>f.callsign==='SAAMAN_TEST').runway!==priorRunway)throw Error('Individual runway cannot be restored');
                     result.ok=true;
                 }catch(error){result.error=String(error.message||error)}
                 window.chrome.webview.postMessage({id:999999,method:'host:test-operations',data:result});

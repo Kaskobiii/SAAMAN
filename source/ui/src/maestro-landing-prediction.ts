@@ -1,14 +1,15 @@
 import type {TelemetryFlight,EngineConfig} from './maestro-engine'
 import {distanceNm,STAR_RUNWAYS} from './maestro-star-prediction'
-import {finalPosition,headingDifference} from './maestro-geometry'
+import {finalPosition,headingDifference,vectoringDistance} from './maestro-geometry'
 import {predictRouteTiming,type RouteTiming} from './maestro-route-timing'
 
 export interface LandingPrediction {
  seconds:number;rawSeconds:number;correctionSeconds:number
- reference:'threshold'|'airport';method:'aircraft-profile'|'route-slowdown'|'retained-slowdown'|'final-position'|'fallback'
+ reference:'threshold'|'airport';method:'aircraft-profile'|'route-slowdown'|'retained-slowdown'|'final-position'|'vector-position'|'fallback'
  routeTiming?:RouteTiming
  distanceNm?:number;establishedFinal:boolean
  continuity?:{runway:string;seconds:number;at:number}
+ directClearance?:{runway:string;point:string;at:number}
 }
 const positioned=(p:any)=>Number.isFinite(p?.latitude)&&Math.abs(p.latitude)<=90&&Number.isFinite(p?.longitude)&&Math.abs(p.longitude)<=180
 // Nominal groundspeeds along the remaining approach, not aircraft performance
@@ -35,6 +36,10 @@ export function routeSlowdownSeconds(distance:number,groundspeed:number){
  return seconds
 }
 export function predictLanding(p:TelemetryFlight,config:EngineConfig,baseMinutes:number,previous?:LandingPrediction,timestamp=0):LandingPrediction {
+ const priorDirect=previous?.directClearance
+ const recentDirect=priorDirect&&priorDirect.runway===`${p.arrival}/${p.runway}`&&timestamp>=priorDirect.at&&timestamp-priorDirect.at<=10*60000?priorDirect:undefined
+ const directClearance=p.direct&&!(p.assignedHeading??0)&&positioned(p)&&(p.positionAgeSeconds??0)<=15&&p.route.some(point=>point.name===p.direct&&point.seconds>=0)?{runway:`${p.arrival}/${p.runway}`,point:p.direct,at:timestamp}:recentDirect
+ const result=(value:LandingPrediction):LandingPrediction=>({...value,directClearance})
  const index=p.route.findIndex(point=>point.name===`SA${p.runway}`),point=p.route[index]
  const threshold=p.threshold??STAR_RUNWAYS[p.runway]
  const rawThreshold=point&&Number.isFinite(point.seconds)&&point.seconds>=0
@@ -47,14 +52,25 @@ export function predictLanding(p:TelemetryFlight,config:EngineConfig,baseMinutes
  const establishedFinal=alignedApproach&&relative!.along<=4
  if(establishedFinal){
   const distance=Math.max(0,relative!.along),seconds=Math.max(0,distance/p.groundspeed*3600-Math.max(0,p.positionAgeSeconds??0))
-  return {seconds,rawSeconds,correctionSeconds:seconds-rawSeconds,reference:'threshold',method:'final-position',distanceNm:distance,establishedFinal}
+  return result({seconds,rawSeconds,correctionSeconds:seconds-rawSeconds,reference:'threshold',method:'final-position',distanceNm:distance,establishedFinal})
+ }
+ // A heading assignment can make the SDK restore waypoints skipped by a
+ // direct clearance. In that case the old STAR EET is not a landing forecast.
+ // Use the current track's turn/intercept path to the configured final instead.
+ if(directClearance&&(p.assignedHeading??0)>0&&positionFresh&&positioned(threshold)&&p.altitude<=18000&&p.groundspeed>=60&&Number.isFinite(p.heading)){
+  const path=vectoringDistance(p as any,p.heading!,threshold!,config.finalLengths?.[`${p.arrival}/${p.runway}`]??10,p.groundspeed)
+  const distance=path.turnNm+path.finalNm
+  const timing=predictRouteTiming({...p,assignedHeading:0,routeProblem:''},config,undefined,{distanceNm:distance})
+  const seconds=timing?.seconds??routeSlowdownSeconds(distance,p.groundspeed)
+  if(Number.isFinite(distance)&&distance>0&&distance<=200&&seconds!==undefined&&Number.isFinite(seconds))
+   return result({seconds,rawSeconds,correctionSeconds:seconds-rawSeconds,reference:'threshold',method:'vector-position',distanceNm:distance,routeTiming:timing,establishedFinal:false})
  }
  const routeTiming=predictRouteTiming(p,config)
  if(routeTiming){
   const correctionSeconds=routeTiming.seconds-rawSeconds
-  return {seconds:routeTiming.seconds,rawSeconds,correctionSeconds,reference:'threshold',method:'aircraft-profile',routeTiming,
+  return result({seconds:routeTiming.seconds,rawSeconds,correctionSeconds,reference:'threshold',method:'aircraft-profile',routeTiming,
    distanceNm:routeTiming.distanceNm,establishedFinal:false,
-   continuity:{runway:`${p.arrival}/${p.runway}`,seconds:Math.max(0,correctionSeconds),at:timestamp}}
+   continuity:{runway:`${p.arrival}/${p.runway}`,seconds:Math.max(0,correctionSeconds),at:timestamp}})
  }
  let distance:number|undefined
  if(alignedApproach)distance=Math.max(0,relative!.along)
@@ -79,8 +95,8 @@ export function predictLanding(p:TelemetryFlight,config:EngineConfig,baseMinutes
   // Account for slowdown already present in EuroScope's EET. The correction
   // is the missing time, rather than another full speed buffer on top of it.
   const correctionSeconds=Math.max(0,Math.min(limit,Math.max(quantization,modeled-rawSeconds)))
-  return {seconds:rawSeconds+correctionSeconds,rawSeconds,correctionSeconds,reference,method:'route-slowdown',distanceNm:distance,establishedFinal:false,
-   continuity:{runway:`${p.arrival}/${p.runway}`,seconds:correctionSeconds,at:timestamp}}
+  return result({seconds:rawSeconds+correctionSeconds,rawSeconds,correctionSeconds,reference,method:'route-slowdown',distanceNm:distance,establishedFinal:false,
+   continuity:{runway:`${p.arrival}/${p.runway}`,seconds:correctionSeconds,at:timestamp}})
  }
  // A vector does not undo the slowdown already predicted. Carry only the
  // last model correction, never STA, accepted delay or a holding instruction.
@@ -91,5 +107,5 @@ export function predictLanding(p:TelemetryFlight,config:EngineConfig,baseMinutes
  const fallback=Math.min(15*60,quantization+Math.min(Math.max(0,baseMinutes)*60,rawSeconds*.5))
  const retained=positionFresh&&rawSeconds>0&&continuity?Math.min(limit,continuity.seconds):0
  const correctionSeconds=Math.max(fallback,retained)
- return {seconds:rawSeconds+correctionSeconds,rawSeconds,correctionSeconds,reference,method:retained>fallback?'retained-slowdown':'fallback',establishedFinal:false,continuity}
+ return result({seconds:rawSeconds+correctionSeconds,rawSeconds,correctionSeconds,reference,method:retained>fallback?'retained-slowdown':'fallback',establishedFinal:false,continuity})
 }

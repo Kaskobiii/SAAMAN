@@ -302,7 +302,7 @@ test('native TopSky feed has documented units and excludes quarantined flights',
     const s = runEngine(packet(time, [plane('SAS1', 1200), plane('SAS2', 1210)]), config(), {})
     const data = toJuhaSequence(s, config(), {})
     assert.equal(data.data.timestamp, time / 1000)
-    assert.equal(data.sequence[1].ttlttg_ff, 105)
+    assert.equal(data.sequence[1].ttlttg_ff, 60,'TopSky receives the same whole minute displayed by AMAN')
     assert.equal(data.sequence[1].eet_ff, 610 / 60)
     assert.equal(data.sequence[1].sta_ff, (s.flights[1].staFf / 1000))
     s.flights[0].issue = 'Bad prediction'
@@ -607,7 +607,8 @@ test('arrival and departure roles migrate separately and change together at the 
     assert.deepEqual(next.active,['ESSA/01R']);assert.equal(next.departureRunway,'ESSA/01L')
     assert.equal(next.rates['ESSA/01R'],150)
     const sequence=runEngine(packet(time+60000,[plane('DEPONLY',1200,{runway:'01L'})]),checked,{})
-    assert.match(sequence.flights[0].issue,/not active/)
+    assert.equal(sequence.flights[0].issue,'');assert.equal(sequence.flights[0].secondaryRunwayAccepted,true)
+    assert.equal(sequence.flights[0].runway,'01L');assert.deepEqual(next.active,['ESSA/01R'])
 })
 
 test('a white reorder recomputes work for the actual new leader and follower',()=>{
@@ -626,7 +627,7 @@ test('a white reorder recomputes work for the actual new leader and follower',()
         assert.equal(moved.flights.find(f=>f.callsign==='DLH2JT').delay,0)
         assert.equal(moved.flights.find(f=>f.callsign==='FIN6X').delay,235)
     }
-    assert.equal(toJuhaSequence(moved,c,edits).sequence.find(f=>f.callsign==='FIN6X').ttlttg_ff,235)
+    assert.equal(toJuhaSequence(moved,c,edits).sequence.find(f=>f.callsign==='FIN6X').ttlttg_ff,180)
     c.slots=[{id:'close',runway:'ESSA/19R',begin:time+530000,end:time+640000}]
     const closed=runEngine(packet(time+20000,inputs.map(f=>({...f,landingSeconds:f.landingSeconds-20}))),c,edits,moved)
     assert.ok(closed.flights.some(f=>f.delay>0),'closure delays remain visible')
@@ -971,7 +972,7 @@ test('an explicit two-minute manual time survives an order change without an una
     assert.equal(new Date(nsz.sta).getUTCMinutes(),54)
     assert.equal(nsz.delay,assignedFlight.delay);assert.equal(delayLabel(nsz.delay),delayLabel(assignedFlight.delay))
     assert.equal(nsz.tmaTiming.instructionSource,'manual')
-    assert.equal(toJuhaSequence(moved,ssConfig,swap).sequence.find(f=>f.callsign==='NSZ38K').ttlttg_ff,assignedFlight.delay)
+    assert.equal(delayLabel(toJuhaSequence(moved,ssConfig,swap).sequence.find(f=>f.callsign==='NSZ38K').ttlttg_ff),delayLabel(assignedFlight.delay))
 })
 
 

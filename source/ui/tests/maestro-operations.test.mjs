@@ -182,7 +182,8 @@ test('explicit individual secondary-runway assignments are sequenced without cha
  next=runEngine(changed,c,{},first);assert.equal(next.flights[0].issue,'')
  next=runEngine({...changed,timestamp:now+3000},c,{},next);assert.equal(next.flights[0].issue,'')
  const cold=runEngine(changed,c,{})
- assert.match(cold.flights[0].issue,/not active/,'an unexplained cold departure-only arrival remains a diagnostic')
+ assert.equal(cold.flights[0].issue,'','a first-seen SDK assignment can land on the departure runway')
+ assert.equal(cold.flights[0].secondaryRunwayAccepted,true);assert.equal(cold.flights[0].runway,'26')
 })
 test('a manual future-runway choice waits for its activation and uses the planned arrival rate',()=>{
  const c=config();c.frozenMinutes=0;c.pending={at:now+600000,active:['ESSA/01R'],departureRunway:'ESSA/01L',rates:{...c.rates,'ESSA/01R':150}}

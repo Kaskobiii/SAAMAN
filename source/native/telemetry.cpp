@@ -22,7 +22,7 @@ Json CaptureTelemetry(EuroScopePlugIn::CPlugIn& plugin,const Json& winds){
             runwayStatus["sectorRunways"]=runwayStatus["sectorRunways"].get<int>()+1;
             const auto airport = TelemetryAirport(runway.GetAirportName());
             const auto element=TelemetryText(runway.GetName());
-            if(runwayStatus["airportSamples"].size()<8||element.find("ESSA")!=std::string::npos)runwayStatus["airportSamples"].push_back({{"airport",TelemetryText(runway.GetAirportName()).substr(0,24)},{"element",element.substr(0,48)}});
+            if(runwayStatus["airportSamples"].size()<8||element.find("ESSA")!=std::string::npos)runwayStatus["airportSamples"].push_back({{"airport",TelemetryText(runway.GetAirportName(),"",24)},{"element",TelemetryText(element.c_str(),"",48)}});
             if(airport=="ESSA")runwayStatus["essaRunways"]=runwayStatus["essaRunways"].get<int>()+1;
             if (airport != "ESSA" && airport != "ESSB") continue;
             for (int end = 0; end < 2; end++) {
@@ -31,7 +31,7 @@ Json CaptureTelemetry(EuroScopePlugIn::CPlugIn& plugin,const Json& winds){
                 const bool supported=TelemetrySupportedRunway(airport,name);
                 if(airport=="ESSA"){
                     const bool arrival=runway.IsElementActive(false,end),departure=runway.IsElementActive(true,end);
-                    runwayStatus["sdk"].push_back({{"airport",TelemetryText(runway.GetAirportName()).substr(0,24)},{"runway",TelemetryText(runway.GetRunwayName(end)).substr(0,12)},{"arr",arrival},{"dep",departure}});
+                    runwayStatus["sdk"].push_back({{"airport",TelemetryText(runway.GetAirportName(),"",24)},{"runway",TelemetryText(runway.GetRunwayName(end),"",12)},{"arr",arrival},{"dep",departure}});
                     if(supported){if(arrival)arrivalRunways.push_back(airport+"/"+name);if(departure)departureRunways.push_back(airport+"/"+name);}
                 }
                 if(!supported){if(!name.empty())runwayStatus["ignoredGeometry"].push_back({{"runway",airport+"/"+name},{"reason","outside AMAN runway configuration"}});continue;}
@@ -61,16 +61,16 @@ Json CaptureTelemetry(EuroScopePlugIn::CPlugIn& plugin,const Json& winds){
                 try{
                 const auto fpd = fp.GetFlightPlanData();
                 if (!fpd.IsReceived() || !fpd.GetDestination()) continue;
-                const std::string arrival = fpd.GetDestination();
+                const auto arrival = TelemetryText(fpd.GetDestination());
                 if (arrival != "ESSA") continue;
                 // Explicit SDK termination is distinct from tracking release or target loss.
                 if(fp.GetFPState()==EuroScopePlugIn::FLIGHT_PLAN_STATE_TERMINATED){
                     const auto name=fp.GetCallsign();
-                    if(name&&strlen(name)>=2&&strlen(name)<=16)data["terminatedCallsigns"].push_back(name);
+                    if(name&&strlen(name)>=2&&strlen(name)<=16)data["terminatedCallsigns"].push_back(TelemetryText(name));
                 }
                 const auto knownName=fp.GetCallsign();
                 if(fp.GetFPState()!=EuroScopePlugIn::FLIGHT_PLAN_STATE_TERMINATED&&knownName&&strlen(knownName)>=2&&strlen(knownName)<=16&&data["knownFlights"].size()<1000)
-                    data["knownFlights"].push_back({{"callsign",knownName},{"aircraft",TelemetryText(fpd.GetAircraftFPType(),"UNKN")},{"wake",TelemetryWake(fpd.GetAircraftWtc())},{"departure",TelemetryText(fpd.GetOrigin(),"----")},{"arrival",arrival},{"runway",TelemetryText(fpd.GetArrivalRwy())}});
+                    data["knownFlights"].push_back({{"callsign",TelemetryText(knownName)},{"aircraft",TelemetryText(fpd.GetAircraftFPType(),"UNKN")},{"wake",TelemetryWake(fpd.GetAircraftWtc())},{"departure",TelemetryText(fpd.GetOrigin(),"----")},{"arrival",arrival},{"runway",TelemetryText(fpd.GetArrivalRwy())}});
                 const auto target = fp.GetCorrelatedRadarTarget();
                 if (!target.IsValid()) continue;
                 const auto position = target.GetPosition();
@@ -84,7 +84,7 @@ Json CaptureTelemetry(EuroScopePlugIn::CPlugIn& plugin,const Json& winds){
                     const char *name = route.GetPointName(i);
                     if (!name || strlen(name) > 40) continue;
                     const auto point = route.GetPointPosition(i);
-                    Json routePoint={{"name",name},{"seconds",route.GetPointDistanceInMinutes(i)*60}};
+                    Json routePoint={{"name",TelemetryText(name,"",40)},{"seconds",route.GetPointDistanceInMinutes(i)*60}};
                     if(std::isfinite(point.m_Latitude)&&std::isfinite(point.m_Longitude)){routePoint["latitude"]=point.m_Latitude;routePoint["longitude"]=point.m_Longitude;}
                     prediction.push_back(std::move(routePoint));
                 }
@@ -96,10 +96,10 @@ Json CaptureTelemetry(EuroScopePlugIn::CPlugIn& plugin,const Json& winds){
                 const auto callsign = fp.GetCallsign();
                 if (!callsign || strlen(callsign)<2 || strlen(callsign) > 16) continue;
                 const auto coordinates = position.GetPosition();
-                data["flights"].push_back({ {"callsign", callsign}, {"aircraft", TelemetryText(fpd.GetAircraftFPType(),"UNKN")},
+                data["flights"].push_back({ {"callsign", TelemetryText(callsign)}, {"aircraft", TelemetryText(fpd.GetAircraftFPType(),"UNKN")},
                     {"wake", TelemetryWake(fpd.GetAircraftWtc())}, {"departure", TelemetryText(fpd.GetOrigin(),"----")}, {"arrival", arrival},
                     {"runway", TelemetryText(fpd.GetArrivalRwy())}, {"route", prediction},
-                    {"star",fpd.GetStarName()?fpd.GetStarName():""}, {"routeText",std::string(fpd.GetRoute()?fpd.GetRoute():"").substr(0,4096)},
+                    {"star",TelemetryText(fpd.GetStarName(),"",100)}, {"routeText",TelemetryText(fpd.GetRoute(),"",4096)},
                     {"assignedSpeed",ctr.GetAssignedSpeed()}, {"verticalSpeed",target.GetVerticalSpeed()},
                     {"clearedAltitude",ctr.GetClearedAltitude()}, {"finalAltitude",ctr.GetFinalAltitude()>0?ctr.GetFinalAltitude():fpd.GetFinalAltitude()},
                     {"assignedMach",ctr.GetAssignedMach()},
@@ -117,7 +117,7 @@ Json CaptureTelemetry(EuroScopePlugIn::CPlugIn& plugin,const Json& winds){
                 count++;
                 }catch(const std::exception& error){
                     while(data["flights"].size()>before)data["flights"].erase(data["flights"].end()-1);
-                    if(data["captureErrors"].size()<20)data["captureErrors"].push_back({{"callsign",TelemetryText(fp.GetCallsign(),"UNKNOWN")},{"error",std::string(error.what()).substr(0,160)}});
+                    if(data["captureErrors"].size()<20)data["captureErrors"].push_back({{"callsign",TelemetryText(fp.GetCallsign(),"UNKNOWN")},{"error",TelemetryText(error.what(),"",160)}});
                 }
             }
         }

@@ -72,7 +72,7 @@ The callsign menu provides the main actions:
 
 - **Information:** inspect the aircraft's times and remaining route.
 - **Insert arrival → Before / After:** place an aircraft relative to another arrival.
-- **Change Runway:** assign the aircraft to another available runway.
+- **Change Runway:** assign the aircraft to any supported runway, including an inactive or departure-only runway. This adds its timeline column without changing the shared runway configuration.
 - **De-sequence:** temporarily take an aircraft out of the sequence. Use **Desequenced** to select it and **Resume** when ready.
 - **Missed approach:** mark a go-around. Use **Missed Approach** to manage the affected aircraft and place it back when appropriate.
 - **Mark landed:** correct an aircraft that has landed but remains active in the sequence.
@@ -89,7 +89,7 @@ In Runway view, right-click an empty timeline area and select **Insert closure**
 
 ## 7. Send and acknowledge coordination
 
-Click **Coordinations** and choose one of the listed messages. Incoming messages appear in a separate window centered over EuroScope, showing the sender's login callsign and UTC send time. Click **Acknowledge** when received. If several messages are waiting, acknowledge them in turn. These messages also appear while the AMAN pane is hidden.
+Click **Coordinations** and choose one of the listed messages. Incoming messages appear in a separate window centered over EuroScope, showing the sender's login callsign and UTC send time. With a direct and proxy connection, the popup appears only in the direct instance. Click **Acknowledge** to close it immediately. If several messages are waiting, acknowledge them in turn. These messages also appear while the AMAN pane is hidden.
 
 ## 8. If something looks wrong
 

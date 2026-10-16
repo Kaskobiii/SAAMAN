@@ -289,8 +289,22 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,button:0,pointerId:81,clientX:dragX,clientY:dragY+45}));await wait(350);
                     dragged=find('.flight[data-callsign]');result.reactiveDrag=!!dragged&&dragged.dataset.state!=='UNSTABLE';if(!result.reactiveDrag)throw Error('Reactive aircraft drag was not accepted');
                     }else result.reactiveDrag='separate-default-fixture';
+                    // Captured drags must stop at the visible plot in both directions.
+                    const strip=find('.timeline-strip'),plot=find('.time-area').getBoundingClientRect(),viewport=find('.horizontal-scroll').getBoundingClientRect();
+                    const boxX=Math.min(viewport.right-10,Math.max(viewport.left+10,plot.left+plot.width/2+35)),boxY=(plot.top+plot.bottom)/2;
+                    result.selectionBounds=true;
+                    for(const direction of [-1,1]){
+                        strip.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:89,clientX:boxX,clientY:boxY}));
+                        window.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,buttons:1,pointerId:89,clientX:direction<0?viewport.left-500:viewport.right+500,clientY:direction<0?plot.top-500:plot.bottom+500}));await wait(20);
+                        const box=find('.recompute-box')?.getBoundingClientRect();
+                        result.selectionBounds&&=!!box&&box.left>=viewport.left-1&&box.right<=viewport.right+1&&box.top>=plot.top-1&&box.bottom<=plot.bottom+1;
+                        window.dispatchEvent(new PointerEvent('pointercancel',{bubbles:true,pointerId:89}));await wait(20);
+                    }
+                    if(!result.selectionBounds)throw Error('Selection box escaped the visible timeline');
+                    const checkTitleClose=title=>{const a=title.getBoundingClientRect(),b=title.querySelector('button').getBoundingClientRect();return b.top>=a.top&&b.bottom<=a.bottom&&Math.abs((a.top+a.bottom-b.top-b.bottom)/2)<=1;};
                     const rect=dragged.getBoundingClientRect();dragged.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,button:2,clientX:rect.left+5,clientY:rect.top+5}));await wait(0);find('.flight-menu .menu-title button')?.click();await wait(20);dragged.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,button:2,clientX:rect.left+5,clientY:rect.top+5}));await wait(80);result.rapidSubmenuReopen=true;
                     await floatingReady('menu','.flight-menu');const popup=find('.flight-menu');if(!popup)throw Error('Right-click menu missing');
+                    result.menuCloseAligned=checkTitleClose(popup.querySelector('.menu-title'));if(!result.menuCloseAligned)throw Error('Menu close button is outside title bar');
                     const menuWindow=popup.ownerDocument.defaultView;popup.querySelector('.menu-title').dispatchEvent(new menuWindow.PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:83,screenX:100,screenY:100}));menuWindow.dispatchEvent(new menuWindow.PointerEvent('pointermove',{bubbles:true,pointerId:83,screenX:-900,screenY:100}));menuWindow.dispatchEvent(new menuWindow.PointerEvent('pointerup',{bubbles:true,pointerId:83,screenX:-900,screenY:100}));await wait(80);const menuFrame=await rpc('host:test-floating',{key:'menu'});result.draggableMenu=menuFrame.parentIsRadar&&menuFrame.x===0&&!menuFrame.dragging;if(!result.draggableMenu)throw Error('Callsign menu cannot move outside AMAN');
                     const text=popup.innerText;for(const action of ['Refresh delay','Change ETA-FF','Maximum delay','Insert arrival','Insert closure','Insert gap'])if(!text.includes(action))throw Error('Missing action '+action);
                     result.removedMenus=!popup.querySelector('[data-menu=slot]')&&!text.includes('Extra flight');if(!result.removedMenus)throw Error('Removed callsign actions still present');
@@ -302,6 +316,7 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     const title=info.querySelector('.dialog-title'),popWindow=info.ownerDocument.defaultView;
                     const boxOf=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,scrollTop:e.scrollTop,scrollLeft:e.scrollLeft,scrollHeight:e.scrollHeight,display:e.ownerDocument.defaultView.getComputedStyle(e).display}};
                     result.informationLayout={viewport:[popWindow.innerWidth,popWindow.innerHeight],root:boxOf(info.ownerDocument.getElementById('floating-root')),panel:boxOf(info),title:boxOf(title),table:boxOf(info.querySelector('table')),body:boxOf(info.ownerDocument.body)};
+                    result.dialogCloseAligned=checkTitleClose(title);if(!result.dialogCloseAligned)throw Error('Information close button is outside title bar');
                     const topOfTitle=title.getBoundingClientRect();if(topOfTitle.top<0||topOfTitle.bottom>popWindow.innerHeight||topOfTitle.width<100)throw Error('Information title is clipped');
 
                     title.dispatchEvent(new popWindow.PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:82,screenX:200,screenY:200}));popWindow.dispatchEvent(new popWindow.PointerEvent('pointermove',{bubbles:true,pointerId:82,screenX:-800,screenY:200}));popWindow.dispatchEvent(new popWindow.PointerEvent('pointerup',{bubbles:true,pointerId:82,screenX:-800,screenY:200}));await wait(100);
@@ -338,7 +353,7 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                         window.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:clickX,clientY:clickY}));await wait(30);
                         const clickPreview=find('[data-placement=insert]');if(!clickPreview)throw Error('Selected aircraft hover arrow missing');const previewTime=Number(clickPreview.dataset.time);
                         area.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:clickX,clientY:clickY}));await wait(250);
-                        const inserted=await planFlight('RESERVE_TEST');result.selectionInsertion=Math.abs(inserted.sta-previewTime)<1000&&Math.abs(inserted.sta-(laterManual.sta-60000))<5000;if(!result.selectionInsertion)throw Error('Selected aircraft insertion click did not set the proposed time');
+                        const inserted=await planFlight('RESERVE_TEST');result.insertionTimes={preview:previewTime,inserted:inserted.sta,previous:laterManual.sta};result.selectionInsertion=Math.abs(inserted.sta-previewTime)<1000&&Math.abs(inserted.sta-(laterManual.sta-60000))<5000;if(!result.selectionInsertion)throw Error('Selected aircraft insertion click did not set the proposed time');
                         manual=find('.flight[data-callsign=RESERVE_TEST]');manual.click();await wait(30);
                         const live=find('.flight[data-callsign=SAAMAN_TEST]'),liveRect=live.getBoundingClientRect(),liveBefore=await planFlight('SAAMAN_TEST');
                         window.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:liveRect.left+15,clientY:liveRect.top+liveRect.height/2}));await wait(30);
@@ -367,6 +382,7 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     result.coordinationMetadata=separate.sender==='ESOS_1__CTR'&&separate.sent.includes('12:34:56 UTC')&&separate.message.at===notification.at;
                     if(!result.coordinationExternal||!result.coordinationMetadata)throw Error('Coordination popup position or sender/time incorrect');
                     result.coordinationLayout=separate.status===''&&Math.abs(separate.buttonCenterX-separate.clientCenterX)<=1;
+                    result.coordinationTopSky=!separate.systemCaption&&separate.titleDraggable&&separate.width<=400*separate.dpi/96+1&&separate.height<=200*separate.dpi/96+1&&separate.buttonBottom<separate.height;if(!result.coordinationTopSky)throw Error('Coordination must have a compact draggable TopSky frame without a system caption');
                     if(!result.coordinationLayout)throw Error('Coordination button must be centered without receipt instructions');
                     await rpc('host:test-coordination',{click:true});await wait(50);await rpc('host:test-coordination',{click:true});await wait(50);
                     const awaiting=await rpc('host:test-coordination');result.coordinationAck=receivedAcks.length===1&&receivedAcks[0]===notification.id&&!awaiting.enabled&&awaiting.busy;
@@ -384,6 +400,7 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     const line=find('.change-time-marker.preview');if(!line||getComputedStyle(line).borderTopStyle!=='solid')throw Error('Draft time marker must be solid');
                     result.solidTimeMarker=true;find('.dialog-title button').click();
                     await rpc('host:test-runways');find('[data-action=configuration]').click();await floatingReady('dialog','[data-dialog=configuration]');
+                    result.configurationCloseAligned=checkTitleClose(find('[data-dialog=configuration] .dialog-title'));if(!result.configurationCloseAligned)throw Error('Configuration close button is outside title bar');await rpc('host:test-floating',{key:'dialog',capture:true});
                     const sync=find('[data-action=sync-euroscope]');if(!sync||sync.disabled)throw Error('Sync EuroScope unavailable for the local sequencer');sync.click();await wait(500);
                     result.runwaySync=/01R\s*\/\s*01L/.test(find('[data-action=configuration]').innerText);if(!result.runwaySync)throw Error('Sync EuroScope did not apply ARR/DEP selections');
                     // Saving an unchanged connection must not leave/reload the current pane.

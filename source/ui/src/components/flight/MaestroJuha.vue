@@ -63,7 +63,7 @@ const placementSelection=ref('')
 type PlacementPreview={kind:'insert'|'swap';callsign:string;other?:string;time:number;top:number;group:string;right:boolean}
 const placementPreview=ref<PlacementPreview|null>(null)
 const recomputeSelection=ref<string[]>([])
-const selectionDrag=ref<{startX:number;startY:number;x:number;y:number;left:number;right:number;moved:boolean}|null>(null)
+const selectionDrag=ref<{startX:number;startY:number;x:number;y:number;left:number;right:number;top:number;bottom:number;moved:boolean}|null>(null)
 const selectionBox=computed(()=>{
     const a=selectionDrag.value,root=rootElement.value?.getBoundingClientRect();if(!a?.moved||!root)return null
     return {left:`${a.left-root.left}px`,top:`${Math.min(a.startY,a.y)-root.top}px`,width:`${a.right-a.left}px`,height:`${Math.abs(a.y-a.startY)}px`}
@@ -544,14 +544,17 @@ function startSelection(event:PointerEvent){
     if(placementSelection.value&&!event.shiftKey)return
     event.preventDefault();closeFieldMenu();selected.value='';placementSelection.value='';placementPreview.value=null;error.value=''
     try{(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)}catch{ /* Synthetic events have no capture. */ }
-    const timeline=(event.currentTarget as HTMLElement).getBoundingClientRect(),width=columnWidth.value,total=groups.value.length*width
-    const lane=Math.floor((event.clientX-timeline.left-width/2)/width)
-    const left=timeline.left+Math.max(0,width/2+lane*width),right=timeline.left+Math.min(total,width/2+(lane+1)*width)
-    selectionDrag.value={startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,left,right,moved:false}
+    const strip=event.currentTarget as HTMLElement,timeline=strip.getBoundingClientRect(),viewport=strip.parentElement!.getBoundingClientRect(),plot=strip.querySelector<HTMLElement>('.time-area')?.getBoundingClientRect()
+    if(!plot||event.clientY<plot.top||event.clientY>plot.bottom)return
+    const width=columnWidth.value,total=groups.value.length*width,lane=Math.floor((event.clientX-timeline.left-width/2)/width)
+    const left=Math.max(viewport.left,timeline.left+Math.max(0,width/2+lane*width)),right=Math.min(viewport.right,timeline.left+Math.min(total,width/2+(lane+1)*width))
+    if(left>=right)return
+    const x=Math.max(left,Math.min(right,event.clientX)),y=Math.max(plot.top,Math.min(plot.bottom,event.clientY))
+    selectionDrag.value={startX:x,startY:y,x,y,left,right,top:plot.top,bottom:plot.bottom,moved:false}
 }
 function updateSelection(event:PointerEvent){
     const area=selectionDrag.value;if(!area)return
-    area.x=event.clientX;area.y=event.clientY
+    area.x=Math.max(area.left,Math.min(area.right,event.clientX));area.y=Math.max(area.top,Math.min(area.bottom,event.clientY))
     if(Math.hypot(area.x-area.startX,area.y-area.startY)>4)area.moved=true
     if(!area.moved)return
     const left=area.left,right=area.right,top=Math.min(area.startY,area.y),bottom=Math.max(area.startY,area.y)
@@ -1138,4 +1141,10 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
 .placement-marker.right:not(.swap){transform:translateY(-50%) scaleX(-1)}
 .placement-marker svg{width:100%;height:100%;fill:currentColor}
 .placement-marker.swap svg{fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+</style>
+
+<style scoped>
+/* Keep close controls in the title bar, independent of form-button spacing. */
+.dialog-title,.menu-title{position:relative;box-sizing:border-box;min-height:30px;padding:6px 34px;line-height:18px;text-align:center}
+.dialog-title>button,.menu-title>button{position:absolute;right:4px;top:50%;transform:translateY(-50%);float:none;display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:22px;height:22px;min-height:0;margin:0;padding:0;line-height:1;font-size:14px}
 </style>

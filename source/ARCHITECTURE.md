@@ -1,4 +1,4 @@
-# SAAMAN native plugin, 1.3.17
+# SAAMAN native plugin, 1.3.18
 
 SAAMAN.dll is an x86 EuroScope plugin with Win32 child panels hosting the AMAN UI
 through Microsoft WebView2. The calculation engine is editable TypeScript.
@@ -177,3 +177,7 @@ A configured manual flight formerly disappeared only while its callsign was pres
 Optional retiredManualFlights metadata identifies the exact reservation and retirement time/reason in the checkpoint. The engine filters those reservations without mutating config; shared publication prunes matching operational entries, and the local MASTER snapshot handler does the same before immediately saving. Local cleanup increments the plan revision, so commands based on the old manual inventory retry rather than restore it. Elapsed reservations also retire obsolete edits, while active real-flight assignments and newer controller edits stay intact. Snapshot metadata prevents a stale config from resurrecting a consumed entry during direct replay or recovery.
 
 Regressions cover replacement by a B77W under CCA911, repeated disappearance/reload, older-checkpoint healing, elapsed entries, explicit later targets, new reservations with a reused callsign, unrelated traffic, stale-target removal, shared sequencer takeover and native config persistence/revision invalidation. Existing flight phases, ETA model and live sequencing protections are unchanged.
+
+## Window details (1.3.18)
+
+Dialog and menu close controls have their own centered title-bar positioning, overriding form-button margins. Group selection stores the visible plot bounds at pointer capture and clamps both endpoints, including horizontally clipped lanes; floating submenus retain their radar-wide movement. The native coordination popup uses an owned captionless window, a custom TopSky title and border, native title hit testing for dragging, and content-measured message height. Sender, UTC timestamp, explicit acknowledgement and retry behavior remain intact. Native smoke checks title alignment, selection bounds in both directions and the popup style, sizing and acknowledgement lifecycle.

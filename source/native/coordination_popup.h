@@ -15,6 +15,7 @@ class CoordinationPopup {
     std::wstring message,sender,sent,status;
     std::function<void(const std::string&)> acknowledge;
     int Px(int value)const{return MulDiv(value,dpi,96);}
+    void Layout();
     void Paint(HDC dc);
     void Acknowledge();
     static LRESULT CALLBACK Procedure(HWND,UINT,WPARAM,LPARAM);

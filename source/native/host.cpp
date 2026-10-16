@@ -46,6 +46,7 @@ struct Host::Impl {
         void Create(bool show=true){
             if(!auth){
                 if(!IsWindow(host.parent)){destroying=true;return;}
+                hostOcclusion.Bind(host.parent);
                 const auto area=host.radar;const int width=std::min(supervisor?1050:780,static_cast<int>(area.right-area.left-90)),height=std::min(760,static_cast<int>(area.bottom-area.top-30));
                 const int panelWidth=std::min(std::max(360,width),static_cast<int>(area.right-area.left)),panelHeight=std::min(std::max(380,height),static_cast<int>(area.bottom-area.top));
                 const int x=area.left+std::min(85,std::max(0,static_cast<int>(area.right-area.left)-panelWidth)),y=area.top+std::min(25,std::max(0,static_cast<int>(area.bottom-area.top)-panelHeight));
@@ -610,7 +611,7 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
         self.uiObserver=CreateWindowExW(0,observer.lpszClassName,L"SAAMAN host UI observer",0,0,0,0,0,HWND_MESSAGE,nullptr,self.module,&self);SetTimer(self.uiObserver,1,100,nullptr);
         MSG msg{};PeekMessageW(&msg,nullptr,WM_USER,WM_USER,PM_NOREMOVE);SetEvent(self.ready);
         while(GetMessageW(&msg,nullptr,0,0)>0){
-            if(!msg.hwnd&&msg.message==AttachMessage){std::unique_ptr<Attachment> data(reinterpret_cast<Attachment*>(msg.lParam));self.parent=data->parent;self.radar=data->radar;for(const auto& window:self.windows)if(!window->auth&&window->hwnd&&GetParent(window->hwnd)!=self.parent)SetParent(window->hwnd,self.parent);self.EnsureBackground();}
+            if(!msg.hwnd&&msg.message==AttachMessage){std::unique_ptr<Attachment> data(reinterpret_cast<Attachment*>(msg.lParam));self.parent=data->parent;self.radar=data->radar;for(const auto& window:self.windows)if(!window->auth&&window->hwnd&&GetParent(window->hwnd)!=self.parent){window->hostOcclusion.Bind(self.parent);SetParent(window->hwnd,self.parent);}self.EnsureBackground();}
             else if(!msg.hwnd&&(msg.message==ShowMessage||msg.message==ToggleMessage)){const bool supervisor=msg.wParam!=0;std::shared_ptr<Window> existing;
                 for(const auto& window:self.windows)if(!window->auth&&!window->floating&&window->supervisor==supervisor&&!window->destroying){existing=window;break;}
                 if(existing){const bool show=msg.message!=ToggleMessage||!self.visible[supervisor?1:0].load();self.visible[supervisor?1:0].store(show);if(show&&existing->supervisor&&existing->browser)existing->browser->Reload();existing->Present(show);}

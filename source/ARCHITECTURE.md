@@ -13,11 +13,14 @@ native/radar_screen.cpp manages the COTS launcher and radar redraw notification.
 native/host.cpp owns the STA/WebView thread and embedded TopSky-style panes.
 native/context.cpp shares telemetry, plan, revision and guidance behind a mutex.
 
-native/host_ui_occlusion.h removes overlapping host child controls from the
-AMAN paint/input region. The host observer suspends AMAN panes and coordination
-notifications while the EuroScope GUI thread has an active native menu or mouse
-capture, then restores their logical visibility. Tests exercise moving/hidden
-overlapping child controls; EuroScope's own custom menus require a live check.
+native/host_ui_occlusion.h snapshots visible host layout controls before creating
+a pane. Only subsequently shown controls can remove paint/input space; permanent
+radar containers are ignored, and a late container enclosing the whole pane or
+combined exclusions producing an empty region are rejected. The host observer
+suspends AMAN panes and coordination notifications only while the EuroScope GUI
+thread reports a native menu. Ordinary mouse capture never hides them. Tests
+cover permanent inset containers, late containers covering both panes, hidden/
+moving popups and native menu flags; custom EuroScope menus require a live check.
 
 ui/src/maestro-initial-profile.ts tracks a provisional initial climbing capture.
 A fresh aircraft profile must remain usable for 15 seconds before its one-time

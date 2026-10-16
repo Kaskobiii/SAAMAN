@@ -1,8 +1,14 @@
 #include "host.h"
+#include "host_ui_occlusion.h"
 #include <iostream>
 #include <fstream>
 int wmain(int argc,wchar_t** argv){
     if(argc!=2)return 2;
+    GUITHREADINFO radarCapture{sizeof(GUITHREADINFO)};radarCapture.hwndCapture=GetDesktopWindow();
+    if(saaman::HostMenuState(radarCapture)){std::cerr<<"Ordinary radar mouse capture suppressed AMAN\n";return 1;}
+    for(const DWORD flags:{GUI_INMENUMODE,GUI_POPUPMENUMODE,GUI_SYSTEMMENUMODE}){
+        radarCapture.flags=flags;if(!saaman::HostMenuState(radarCapture)){std::cerr<<"Native host menu was not detected\n";return 1;}
+    }
     const auto folder=std::filesystem::absolute(argv[1]);std::filesystem::create_directories(folder);
     const auto started=std::filesystem::file_time_type::clock::now();
     auto context=std::make_shared<saaman::Context>(folder);context->test=true;context->shared=false;context->profile=folder/L"webview-profile";
@@ -55,7 +61,29 @@ int wmain(int argc,wchar_t** argv){
             // A reused EuroScope control can be BELOW the embedded pane.
             // Its native region must still receive painting and mouse input.
             RECT occlusionBounds{};GetWindowRect(panel,&occlusionBounds);MapWindowPoints(HWND_DESKTOP,GetParent(panel),reinterpret_cast<POINT*>(&occlusionBounds),2);
-            HWND hostMenu=CreateWindowExW(0,L"STATIC",L"Host settings menu",WS_CHILD|WS_VISIBLE,occlusionBounds.left+70,occlusionBounds.top+30,160,180,GetParent(panel),nullptr,GetModuleHandleW(nullptr),nullptr);
+            // A permanent inset radar container must not be mistaken for a
+            // menu. Exercise both panes with that layout already present.
+            HWND canvas=CreateWindowExW(0,L"STATIC",L"Inset radar canvas",WS_CHILD|WS_VISIBLE,3,22,1180,940,GetParent(panel),nullptr,GetModuleHandleW(nullptr),nullptr);
+            saaman::HostUiOcclusion permanentLayout;permanentLayout.Bind(GetParent(panel));
+            HRGN permanentClip=CreateRectRgn(0,0,0,0);
+            for(const HWND pane:{panel,host.PanelHandle(true)}){
+                permanentLayout.Apply(pane,GetParent(panel),true);
+                if(GetWindowRgn(pane,permanentClip)!=ERROR){std::cerr<<"Permanent radar layout clipped an AMAN window\n";return 1;}
+            }
+            SetWindowPos(canvas,HWND_BOTTOM,occlusionBounds.left+70,occlusionBounds.top+30,160,180,SWP_NOACTIVATE);
+            permanentLayout.Apply(panel,GetParent(panel),true);
+            if(GetWindowRgn(panel,permanentClip)!=ERROR){std::cerr<<"An existing host layout control was treated as a new popup\n";return 1;}
+            SetWindowPos(canvas,HWND_BOTTOM,3,22,1180,940,SWP_NOACTIVATE);
+            // The production observer also has to fail open for a canvas
+            // created after startup that completely covers either pane.
+            host.RefreshHostUi();
+            for(const HWND pane:{panel,host.PanelHandle(true)})if(GetWindowRgn(pane,permanentClip)!=ERROR){std::cerr<<"Late radar canvas made a pane disappear\n";return 1;}
+            DestroyWindow(canvas);host.RefreshHostUi();
+            HWND hostMenu=CreateWindowExW(0,L"STATIC",L"Host settings menu",WS_CHILD,occlusionBounds.left+70,occlusionBounds.top+30,160,180,GetParent(panel),nullptr,GetModuleHandleW(nullptr),nullptr);
+            host.RefreshHostUi();
+            if(GetWindowRgn(panel,permanentClip)!=ERROR){std::cerr<<"A hidden popup clipped AMAN\n";return 1;}
+            DeleteObject(permanentClip);
+            ShowWindow(hostMenu,SW_SHOWNOACTIVATE);
             SetWindowPos(hostMenu,HWND_BOTTOM,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);host.RefreshHostUi();
             HRGN clip=CreateRectRgn(0,0,0,0);const int cut=GetWindowRgn(panel,clip);
             if(cut==ERROR||PtInRegion(clip,80,40)||!PtInRegion(clip,20,100)){std::cerr<<"AMAN obscured the underlying host control\n";return 1;}

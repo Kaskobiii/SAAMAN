@@ -215,8 +215,10 @@ struct Host::Impl {
                         if(method=="host:test-runways"&&self->host.context->test){std::lock_guard lock(self->host.context->mutex);self->host.context->telemetry["activeRunways"]={{"arrivals",Json::array({"ESSA/01R"})},{"departures",Json::array({"ESSA/01L"})}};self->host.context->telemetry["timestamp"]=Now();self->Reply(id,true);return S_OK;}
                         if(method=="host:test-operations"&&self->host.context->test){std::ofstream(self->host.context->directory/L"operations-ui.json")<<data.dump(2);self->Reply(id,true);return S_OK;}
                         if(method=="host:test-frame"&&self->host.context->test){
+                            if(data.contains("width")){RECT prior{};GetWindowRect(self->hwnd,&prior);MapWindowPoints(HWND_DESKTOP,self->host.parent,reinterpret_cast<POINT*>(&prior),2);SetWindowPos(self->hwnd,HWND_TOP,prior.left,prior.top,data.at("width").get<int>(),data.value("height",static_cast<int>(prior.bottom-prior.top)),SWP_NOACTIVATE|SWP_NOCOPYBITS);}
+
                             const auto capture=data.value("capture",std::string());
-                            if(capture=="insert"||capture=="swap"){
+                            if(capture=="insert"||capture=="swap"||capture=="compact"){
                                 ComPtr<IStream> stream;const auto file=self->host.context->directory/Wide("placement-"+capture+".png");
                                 if(FAILED(SHCreateStreamOnFileEx(file.c_str(),STGM_CREATE|STGM_WRITE,FILE_ATTRIBUTE_NORMAL,TRUE,nullptr,&stream)))throw RequestError(500,"Could not create preview capture");
                                 const auto started=self->browser->CapturePreview(COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG,stream.Get(),Callback<ICoreWebView2CapturePreviewCompletedHandler>([stream,weak,id](HRESULT error)->HRESULT{if(auto owner=weak.lock())owner->Reply(id,SUCCEEDED(error));return S_OK;}).Get());
@@ -378,7 +380,7 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                         window.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:clickX,clientY:clickY}));await wait(30);
                         const clickPreview=find('[data-placement=insert]');if(!clickPreview)throw Error('Selected aircraft hover arrow missing');const previewTime=Number(clickPreview.dataset.time);
                         area.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:clickX,clientY:clickY}));await wait(250);
-                        const inserted=await planFlight('RESERVE_TEST');result.insertionTimes={preview:previewTime,inserted:inserted.sta,previous:laterManual.sta};result.selectionInsertion=Math.abs(inserted.sta-previewTime)<1000&&Math.abs(inserted.sta-(laterManual.sta-60000))<5000;if(!result.selectionInsertion)throw Error('Selected aircraft insertion click did not set the proposed time');
+                        const inserted=await planFlight('RESERVE_TEST');result.insertionTimes={preview:previewTime,inserted:inserted.sta,previous:laterManual.sta};/* The live clock can tick between hover and click. */result.selectionInsertion=Math.abs(inserted.sta-previewTime)<3000&&Math.abs(inserted.sta-(laterManual.sta-60000))<5000;if(!result.selectionInsertion)throw Error('Selected aircraft insertion click did not set the proposed time');
                         manual=find('.flight[data-callsign=RESERVE_TEST]');manual.click();await wait(30);
                         const live=find('.flight[data-callsign=SAAMAN_TEST]'),liveRect=live.getBoundingClientRect(),liveBefore=await planFlight('SAAMAN_TEST');
                         window.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:liveRect.left+15,clientY:liveRect.top+liveRect.height/2}));await wait(30);
@@ -464,6 +466,14 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     await rpc('host:coordination',{message:notification,enabled:true,busy:false});const zoomedCoordination=await rpc('host:test-coordination');
                     result.coordinationZoom=zoomedCoordination.width===Math.round(400*zoomedCoordination.dpi/96)&&zoomedCoordination.dpi>96;if(!result.coordinationZoom)throw Error('Native coordination popup did not follow AMAN zoom');
                     await rpc('host:coordination',{message:null});await rpc('host:test-zoom',{factor:originalZoom.zoom});
+                    const wideFrame=await rpc('host:test-frame'),wideFont=parseFloat(getComputedStyle(find('.view-buttons button')).fontSize);
+                    await rpc('host:test-frame',{width:360});await wait(200);
+                    const toolbar=find('.toolbar'),nav=find('.view-buttons'),navButtons=[...nav.querySelectorAll('button')],smallFont=parseFloat(getComputedStyle(navButtons[0]).fontSize),rows=new Set(navButtons.map(b=>Math.round(b.getBoundingClientRect().top)));
+                    result.compactHeader={font:smallFont,wideFont,rows:rows.size,height:toolbar.getBoundingClientRect().height,overflow:toolbar.scrollWidth-toolbar.clientWidth};
+                    if(smallFont>=wideFont||rows.size>2||toolbar.getBoundingClientRect().height>70||toolbar.scrollWidth>toolbar.clientWidth+1||navButtons.some(b=>b.scrollWidth>b.clientWidth+1))throw Error('Narrow header did not compact without clipping controls');
+                    await rpc('host:test-frame',{capture:'compact'});await rpc('host:test-frame',{width:wideFrame.width,height:wideFrame.height});await wait(150);
+                    result.headerRestores=parseFloat(getComputedStyle(find('.view-buttons button')).fontSize)===wideFont;if(!result.headerRestores)throw Error('Header did not restore at wider size');
+
                     result.ok=true;
                 }catch(error){result.error=String(error.message||error)}
                 window.chrome.webview.postMessage({id:999999,method:'host:test-operations',data:result});

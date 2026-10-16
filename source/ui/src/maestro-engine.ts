@@ -1,5 +1,6 @@
 // Independent implementation of the documented MAESTRO data model.
 // All absolute times are Unix milliseconds internally; route EET inputs are seconds.
+import {initialProfileHandover,type InitialProfile} from './maestro-initial-profile'
 import {manualReservationLifecycle,pruneExpiredManualEdits,type ManualRetirement} from './maestro-manual-reservations'
 import {aircraftType,performanceAt,PERFORMANCE_SOURCE} from './maestro-aircraft-performance'
 import { finalPosition, headingDifference, bearingBetween, vectoringSeconds, vectoringDistance, type GeoPoint, type RunwayGeometry } from './maestro-geometry'
@@ -137,6 +138,9 @@ export interface EngineFlight extends TelemetryFlight {
     committedSta?:number
     // Automatic scheduling follows sustained ETA changes, rather than the
     // absolute landing slot saved when the aircraft became Superstable.
+    initialProfile?:InitialProfile
+    feederEtaAvailable?:boolean
+    feederObservationSource?:string
     planningEta?:number
     planningEtaCandidate?:{eta:number;since:number}
     sequenceCorrectionCandidate?:{leader:string;since:number}
@@ -692,14 +696,15 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         const landingPrediction=bufferMode?predictLanding(p,config,feederBufferMinutes,resumed||requeued||old?.state===4?undefined:old?.landingPrediction,now):undefined
         const selectedBufferMinutes=(landingPrediction?.correctionSeconds??0)/60
         const liveEuroscopeEta=bufferMode&&usableEuroScope?now+ms(landingPrediction!.rawSeconds):undefined
-        const captureBaseline=bufferMode&&usableEuroScope&&(landingPrediction!.rawSeconds>0||landingPrediction!.establishedFinal&&landingPrediction!.seconds>0)&&(!old?.euroscopeBaseline||recompute||resumed||confirmedRunwayChange)
+        const profileHandover=bufferMode?initialProfileHandover(p,old,e,landingPrediction!,now,recompute||resumed||confirmedRunwayChange):undefined
+        const captureBaseline=bufferMode&&usableEuroScope&&(landingPrediction!.rawSeconds>0||landingPrediction!.establishedFinal&&landingPrediction!.seconds>0)&&(!old?.euroscopeBaseline||recompute||resumed||confirmedRunwayChange||profileHandover?.ready&&old?.state===1)
         const liveEuroscopeEtaFf=bufferMode?e.etaFfOverride??now+ms(modelFeederSeconds):undefined
         // Physical passage and explicit controller overrides take precedence.
         // Profile timing already includes the descent/slowdown; do not add a
         // second fixed buffer or feed the assigned instruction back into ETA.
         const profileFeeder=landingPrediction?.routeTiming?.feeder
         const useProfileFeeder=profileFeeder&&!feederObservation?.passed&&profileFeeder.name===feederObservation?.feeder&&e.etaFfOverride===undefined
-        const liveBufferedEtaFf=liveEuroscopeEtaFf===undefined?undefined:useProfileFeeder?now+ms(profileFeeder.seconds):liveEuroscopeEtaFf+ms(feederBufferMinutes*60)
+        const liveBufferedEtaFf=liveEuroscopeEtaFf===undefined?undefined:feederObservation?.available===false&&e.etaFfOverride===undefined?old?.etaFf??old?.euroscopeBaseline?.etaFf??liveEuroscopeEtaFf:feederObservation?.source==='track'&&e.etaFfOverride===undefined?now+ms(feederObservation.seconds):useProfileFeeder?now+ms(profileFeeder.seconds):liveEuroscopeEtaFf+ms(feederBufferMinutes*60)
         const liveBufferedEta=liveEuroscopeEta===undefined?undefined:now+ms(landingPrediction!.seconds)
         const euroscopeBaseline=bufferMode?(captureBaseline?{at:now,runway:p.runway?`${p.arrival}/${p.runway}`:runway,eta:liveBufferedEta!+manualFeederShift,rawEta:liveEuroscopeEta!,etaFf:liveBufferedEtaFf!,rawEtaFf:liveEuroscopeEtaFf,feederBuffered:true,bufferMinutes:selectedBufferMinutes,feederBufferMinutes:useProfileFeeder?(liveBufferedEtaFf!-liveEuroscopeEtaFf!)/60000:feederBufferMinutes,groundspeed:p.groundspeed,landingReference:landingPrediction!.reference,landingMethod:landingPrediction!.method}:old?.euroscopeBaseline&&!old.euroscopeBaseline.feederBuffered?{...old.euroscopeBaseline,etaFf:old.euroscopeBaseline.etaFf+ms((old.euroscopeBaseline.feederBufferMinutes??old.euroscopeBaseline.bufferMinutes)*60),rawEtaFf:old.euroscopeBaseline.etaFf,feederBuffered:true}:old?.euroscopeBaseline):undefined
         const eta = euroscopeBaseline?.eta??now + ms(prediction.seconds)+manualFeederShift
@@ -713,7 +718,8 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         const passed = retainedEntry||(prediction.passedFeeder??(!!group&&!feederPoint))
         const ffSeconds = passed?-1:prediction.feederSeconds??feederPoint?.seconds??prediction.seconds-(config.defaultFeederMinutes??15)*60
         const etaFf = passed && old ? old.etaFf : bufferMode?liveBufferedEtaFf!:e.etaFfOverride??now + ms(ffSeconds)
-        const phaseFeederSeconds=bufferMode&&!passed?(etaFf-now)/1000:ffSeconds
+        const feederEtaAvailable=e.etaFfOverride!==undefined?true:feederObservation?.available
+        const phaseFeederSeconds=bufferMode&&!passed?(feederEtaAvailable===false?Infinity:(etaFf-now)/1000):ffSeconds
         const protectedTma=!!old && passed && !recompute && !requeued && old.mode==='sequenced'
         const futureChoice=config.pending&&config.pending.at>now&&(config.pending.active.includes(runway)||config.pending.departureRunway===runway)&&!currentConfig.active.includes(runway)&&(currentConfig.departureRunway!==runway||automaticFuture||old?.runwayAvailableFrom===config.pending.at&&old.runway===runway.split('/')[1])
         const runwayAvailableFrom=futureChoice&&(automaticFuture||e.runway===runway||sdkRunwayExplicit||old?.runwayAvailableFrom===config.pending!.at&&old.runway===runway.split('/')[1])?config.pending!.at:undefined
@@ -760,6 +766,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         const retainEntryOrder=passed&&old?.mode==='sequenced'&&!resumed&&!requeued&&old.runway===runway.split('/')[1]
         if(landed)grounded[p.callsign]=landingStamp
         flights.push({ ...p, runway:runway.split('/')[1],euroscopeRunway:p.runway,sdkRunwayExplicit,runwaySource:e.runway?'manual':runway!==`${p.arrival}/${p.runway}`?'active':p.runway?'filed':'active',firstSeen, lastSeen: now, initialEta: captureBaseline&&!old?.euroscopeBaseline||old?.issue==='Awaiting usable airborne groundspeed'?eta:old?.initialEta ?? eta, initialEtaFf:captureBaseline&&!old?.euroscopeBaseline?euroscopeBaseline!.etaFf:old?.initialEtaFf??etaFf, eta, etaFf,
+            initialProfile:profileHandover?.state,feederEtaAvailable,feederObservationSource:e.etaFfOverride!==undefined?'manual':feederObservation?.source,
             euroscopeBaseline,liveEuroscopeEta,liveBufferedEta,liveEuroscopeEtaFf,liveBufferedEtaFf,landingPrediction,bufferedFeederVerified:bufferMode,
             secondaryRunwayAccepted,runwayTransition,
             runwayAvailableFrom,
@@ -1026,6 +1033,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             if((explicitlyReordered||finalReordered||(predecessorChanged&&f.state===0))&&edits[f.callsign]?.target===undefined)anchor=automaticTiming?f.planningEta!:f.eta
             if(['star-distance','vector-profile','final-position'].includes(f.predictionSource??'')&&f.state===1&&edits[f.callsign]?.target===undefined&&!protectedFollower)anchor=f.eta
             if(holdTma)anchor=edits[f.callsign]?.target??old.tmaAssignment?.sta??old.sta
+            if(f.initialProfile?.appliedAt===now)anchor=Math.max(anchor,f.eta+ms(f.initialProfile.workSeconds))
             if(selectedClosure&&closurePosition?.side==='before')anchor=Math.min(anchor,selectedClosure.begin-1)
             const rateGap=ms(acceptedRate)+ms(((last?.slotAfter||0)+f.slotBefore)*60)
             const transfer = Math.max(0,provisionalTimings.has(f.callsign)?f.eta-f.etaFf:holdTma&&old&&!f.passedFeeder?old.sta-old.staFf:f.euroscopeBaseline?f.euroscopeBaseline.eta-f.euroscopeBaseline.etaFf:f.eta-f.etaFf)
@@ -1139,6 +1147,11 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             f.initialSta=old?.initialSta??(!old||old.issue?f.sta:undefined);f.initialStaFf=old?.initialStaFf??(!old||old.issue?f.staFf:undefined)
             f.originalAssignedSta=recomputed||old?.runway!==f.runway?f.sta:old?.originalAssignedSta??old?.sta??f.sta
             if(!f.passedFeeder&&f.state<=1){const feederWork=Math.round((f.staFf-f.etaFf)/1000);f.delay=feederWork}
+            if(f.initialProfile?.pending&&f.initialProfile.candidateSince!==undefined&&edits[f.callsign]?.target===undefined){
+                const spacingWork=last?Math.max(0,(last.sta+gap-(f.liveBufferedEta??f.eta))/1000):0
+                f.delay=Math.max(f.initialProfile.workSeconds,Math.ceil(spacingWork),Math.ceil((f.closureDelayMs??0)/1000))
+            }
+            if(f.feederEtaAvailable===false&&!f.passedFeeder&&old&&!recomputed)f.delay=old.delay+Math.round((f.staFf-old.staFf)/1000)
             f.maximumDelayExceeded=edits[f.callsign]?.maximumDelayMinutes!==undefined&&f.delay>edits[f.callsign].maximumDelayMinutes!*60
             f.planningDelaySeconds=f.delay
             if(!f.spacingActive&&edits[f.callsign]?.target===undefined)f.delay=0
@@ -1146,6 +1159,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             const constraints:string[]=[]
             if(edits[f.callsign]?.order!==undefined)constraints.push('controller sequence order')
             if(holdTma)constraints.push('accepted TMA assignment; Recompute refreshes time')
+            if(f.feederEtaAvailable===false)constraints.push('feeder bypassed or crossing ETA unavailable; previous instruction retained')
             if(corrected.has(f.callsign))constraints.push('automatic order reconciled after sustained trajectory inversion')
             if(unsupportedGain)constraints.push('requested gain exceeds current capability estimate; controller review required')
             if(edits[f.callsign]?.target!==undefined)constraints.push('manual time / slot')

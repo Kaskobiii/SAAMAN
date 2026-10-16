@@ -53,6 +53,7 @@ const view = ref('Runway')
 const revision = ref(-1)
 const masterCid = ref<number | null>(null)
 const sharedRole=ref('disconnected')
+const backendContact=ref(0)
 let relayEpoch=''
 const busy = ref(false)
 const polling = ref(false)
@@ -199,6 +200,7 @@ let pollingTimer: ReturnType<typeof setInterval>
 let demoEpoch = Date.now()
 const isMaster = computed(() => demo.value || (localPreview && masterCid.value === 0) || masterCid.value === Number(auth.user?.cid))
 const stale = computed(() => !sequence.value || now.value - sequence.value.timestamp > 30000)
+const backendLive=computed(()=>nativeInfo.shared!==false&&!localPreview&&!demo.value&&auth.ready&&sharedRole.value!=='disconnected'&&!stale.value&&now.value-backendContact.value<15000)
 const towerController=computed(()=>isTowerCallsign(auth.user?.callsign||localCoverage.value.own.callsign||''))
 const editable = computed(() => !towerController.value&&(demo.value||localPreview?isMaster.value:auth.ready&&['sequencer','editor'].includes(sharedRole.value)) && !busy.value && !stale.value)
 const all = computed(() => (sequence.value?.flights || []).filter(f=>f.arrival==='ESSA'))
@@ -277,7 +279,8 @@ const groups = computed<{id:string;name:string;runways:string[];fixes:string[]}[
 const ticks = computed(()=>Array.from({length:Math.ceil(visibleSpanMinutes.value)+7},(_,i)=>i-Math.ceil(visiblePastMinutes)-2))
 const pixelsPerMinute = computed(()=>timelineMinutePixels)
 const nowBaseline = computed(()=>pixelsPerMinute.value * visibleFutureMinutes.value)
-const horizontalMax = computed(()=>Math.max(0,groups.value.length*columnWidth.value-plotWidth.value))
+const horizontalMargin=96
+const horizontalMax = computed(()=>Math.max(0,groups.value.length*columnWidth.value+horizontalMargin*2-plotWidth.value))
 const clone = <T,>(value:T):T => JSON.parse(JSON.stringify(value))
 function rwy(f: EngineFlight) { return `${f.arrival}/${f.runway}` }
 function groupOf(f: EngineFlight) { return view.value === 'Runway' ? groups.value.find(g=>g.runways.includes(rwy(f)))?.id : groups.value.find(g=>g.fixes.includes(f.ff))?.id || 'OTHER' }
@@ -365,6 +368,7 @@ function refreshDemo(force = false) {
 }
 function headers() { return localPreview ? {} : auth.requestHeaders }
 function receive(data: any) {
+    backendContact.value=data.relayRole&&data.relayRole!=='disconnected'?Date.now():0
     if(data.epoch&&relayEpoch!==data.epoch){relayEpoch=data.epoch;revision.value=-1;coordinationBaseline.value=null}
     if (data.revision < revision.value) return
     revision.value = data.revision; config.value = data.config; edits.value = data.edits
@@ -391,7 +395,7 @@ async function poll() {
             receive((await axios.post(`${apiBase}/maestro/ESSA/telemetry`, telemetry, { headers: headers(), timeout: 7000 })).data)
         } else receive((await axios.get(`${apiBase}/maestro/ESSA`, { headers: headers(), timeout: 7000 })).data)
         error.value = ''
-    } catch (e: any) { error.value = e.response?.data?.error || e.message || 'Shared AMAN unavailable' }
+    } catch (e: any) { backendContact.value=0;error.value = e.response?.data?.error || e.message || 'Shared AMAN unavailable' }
     finally { polling.value = false }
     if (bridge.value) await publishTiming()
 }
@@ -462,7 +466,7 @@ function openDialog(name: string) {
 function focusArrivalColumn(runway:string){
     void changeView('Runway').then(()=>{
         const index=groups.value.findIndex(g=>g.runways.includes(runway))
-        horizontalPosition.value=Math.max(0,Math.min(horizontalMax.value,index*columnWidth.value-(plotWidth.value-columnWidth.value)/2))
+        horizontalPosition.value=Math.max(0,Math.min(horizontalMax.value,horizontalMargin+index*columnWidth.value-(plotWidth.value-columnWidth.value)/2))
         horizontalByView.Runway=horizontalPosition.value
         void nextTick(scrollHorizontal)
     })
@@ -546,8 +550,8 @@ function startSelection(event:PointerEvent){
     try{(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)}catch{ /* Synthetic events have no capture. */ }
     const strip=event.currentTarget as HTMLElement,timeline=strip.getBoundingClientRect(),viewport=strip.parentElement!.getBoundingClientRect(),plot=strip.querySelector<HTMLElement>('.time-area')?.getBoundingClientRect()
     if(!plot||event.clientY<plot.top||event.clientY>plot.bottom)return
-    const width=columnWidth.value,total=groups.value.length*width,lane=Math.floor((event.clientX-timeline.left-width/2)/width)
-    const left=Math.max(viewport.left,timeline.left+Math.max(0,width/2+lane*width)),right=Math.min(viewport.right,timeline.left+Math.min(total,width/2+(lane+1)*width))
+    const width=columnWidth.value,total=groups.value.length*width,lane=Math.floor((event.clientX-timeline.left-horizontalMargin-width/2)/width)
+    const left=Math.max(viewport.left,timeline.left+horizontalMargin+Math.max(0,width/2+lane*width)),right=Math.min(viewport.right,timeline.left+horizontalMargin+Math.min(total,width/2+(lane+1)*width))
     if(left>=right)return
     const x=Math.max(left,Math.min(right,event.clientX)),y=Math.max(plot.top,Math.min(plot.bottom,event.clientY))
     selectionDrag.value={startX:x,startY:y,x,y,left,right,top:plot.top,bottom:plot.bottom,moved:false}
@@ -845,13 +849,13 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
     <div class="toolbar">
         <button class="configuration-button" data-action="configuration" aria-label="Runway configuration" @click="openDialog('configuration')"><span v-if="!localPreview&&!demo&&!sequence" title="Waiting for the shared room configuration">— / —</span><span v-else>{{ currentConfig.active.find(r=>r.startsWith('ESSA/'))?.split('/')[1] }} / {{currentConfig.departureRunway?.split('/')[1]}}<template v-if="nextConfiguration"><em class="pill-arrow">→</em><strong class="pill-next">{{nextConfiguration.active.find(r=>r.startsWith('ESSA/'))?.split('/')[1]}} / {{nextConfiguration.departureRunway?.split('/')[1]}}</strong></template></span><small v-if="nextConfiguration" class="pill-change-time">{{utc(nextConfiguration.at)}} UTC</small></button>
         <button class="rate-button" data-action="rates" aria-label="Arrival rate" @click="openDialog('rates')"><span v-if="!localPreview&&!demo&&!sequence">Waiting for shared configuration</span><span v-for="r in (!localPreview&&!demo&&!sequence?[]:currentConfig.active)" :key="r">{{r.split('/')[1]}} : {{Math.round(3600/currentConfig.rates[r])}} / h<template v-if="nextRate&&r.startsWith('ESSA/')"><em class="pill-arrow">→</em><strong class="pill-next">{{Math.round(3600/nextRate.seconds)}} / h</strong><small class="pill-change-time">{{utc(nextRate.at)}} UTC</small></template><small>{{currentConfig.rates[r]}}s · {{rateDistanceNm(currentConfig.rates[r],r,currentConfig).toFixed(1)}} NM</small></span></button>
-        <div v-if="panels.tracks" class="tracks">TMA {{ sequenced.filter(f=>f.passedFeeder).length }}<br>TOT {{sequenced.length}}</div><div v-if="panels.winds" class="tracks">SFC {{currentConfig.surfaceWindDirection}}°<br>{{currentConfig.surfaceWindSpeed}} kt</div><div v-if="panels.rates" class="tracks"><span v-for="r in currentConfig.active" :key="r">{{r.split('/')[1]}} {{measuredRate(r)===null?'—':`${measuredRate(r)}s (${measuredRate(r)!-currentConfig.rates[r]}s)`}}<br></span></div><span class="updated">{{sequence?utc(sequence.timestamp,true):'--:--:--'}}</span>
+        <div v-if="panels.tracks" class="tracks">TMA {{ sequenced.filter(f=>f.passedFeeder).length }}<br>TOT {{sequenced.length}}</div><div v-if="panels.winds" class="tracks">SFC {{currentConfig.surfaceWindDirection}}°<br>{{currentConfig.surfaceWindSpeed}} kt</div><div v-if="panels.rates" class="tracks"><span v-for="r in currentConfig.active" :key="r">{{r.split('/')[1]}} {{measuredRate(r)===null?'—':`${measuredRate(r)}s (${measuredRate(r)!-currentConfig.rates[r]}s)`}}<br></span></div><span class="updated"><strong v-if="backendLive" class="live-indicator" aria-label="Shared backend connected">LIVE</strong><span>{{sequence?utc(sequence.timestamp,true):'--:--:--'}}</span></span>
     </div>
     <nav class="view-buttons">
         <button @click="menu=menu==='maestro'?'':'maestro'">MAESTRO▼</button>
         <button v-for="v in ['ACC','Runway','FLOW'].filter(v=>v!=='ACC'||coverage.view!==null)" :key="v" :class="{active:view===v}" @click="changeView(v)">{{v==='ACC'?coverage.view:v}}</button>
-        <button data-action="desequenced" @click="openDialog('desequenced')">Desequenced {{unsequenced.length}}</button><button @click="openDialog('missed')">Missed Approach {{all.filter(f=>f.mode==='missed').length}}</button>
-        <button class="errors-button" data-action="errors" :disabled="!error&&!diagnosticFlights.length" @click="openDialog('diagnostics')">Errors {{diagnosticFlights.length+(error?1:0)}}</button>
+        <button v-if="unsequenced.length" data-action="desequenced" @click="openDialog('desequenced')">Desequenced {{unsequenced.length}}</button><button v-if="all.some(f=>f.mode==='missed')" data-action="missed" @click="openDialog('missed')">Missed Approach {{all.filter(f=>f.mode==='missed').length}}</button>
+        <button v-if="error||diagnosticFlights.length" class="errors-button" data-action="errors" @click="openDialog('diagnostics')">Errors {{diagnosticFlights.length+(error?1:0)}}</button>
         <button data-action="coordinations" @click="positionPopup($event,true);menu=menu==='coordination'?'':'coordination'">Coordinations</button>
     </nav>
     <Teleport :to="globalTarget||'body'" :disabled="!globalTarget">
@@ -864,7 +868,7 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
             <i class="overview-now" :style="{top:`${overviewPercent(now)}%`}"></i>
         </div>
         <div class="horizontal-scroll" ref="scrollElement" @scroll="syncHorizontal">
-            <div id="aman-timeline" class="timeline-strip" :class="{'scrolling-time':scrollingTime}" @pointerdown="startSelection" @click="placeOnTimeline" @pointerleave="placementPreview=null" :style="{'--column-width':`${columnWidth}px`,'--axis-x':`${columnWidth/2}px`}">
+            <div id="aman-timeline" class="timeline-strip" :class="{'scrolling-time':scrollingTime}" @pointerdown="startSelection" @click="placeOnTimeline" @pointerleave="placementPreview=null" :style="{'--column-width':`${columnWidth}px`,'--axis-x':`${columnWidth/2}px`,paddingInline:`${horizontalMargin}px`}">
                 <div class="now-line" :style="{top:`${y(now)}px`}"><span>{{utc(now)}} NOW</span></div>
                 <div v-for="g in groups" :key="g.id" class="timeline-column" :data-column="g.id">
                     <div class="time-area" @contextmenu.stop.prevent="newSlot(g.id,$event)">
@@ -890,7 +894,7 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
             </div>
         </div>
     </div>
-    <div class="horizontal-slider" :style="{'--horizontal-thumb-width':`${Math.max(14,plotWidth*Math.min(1,plotWidth/(groups.length*columnWidth)))}px`}"><input type="range" v-model.number="horizontalPosition" :max="horizontalMax" min="0" step="1" :disabled="horizontalMax===0" aria-label="Scroll between timeline columns" @input="scrollHorizontal"></div>
+    <div class="horizontal-slider" :style="{'--horizontal-thumb-width':`${Math.max(14,plotWidth*Math.min(1,plotWidth/(groups.length*columnWidth+horizontalMargin*2)))}px`}"><input type="range" v-model.number="horizontalPosition" :max="horizontalMax" min="0" step="1" :disabled="horizontalMax===0" aria-label="Scroll between timeline columns" @input="scrollHorizontal"></div>
 
 
     <div v-if="selectionBox" class="recompute-box" :style="selectionBox" aria-hidden="true"></div>
@@ -957,6 +961,8 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
 <style scoped>
 .juha-aman{background:#495055;color:#c8c8c8;font:10px 'Lucida Console',Consolas,monospace;height:100%;min-height:360px;display:flex;flex-direction:column;position:relative;overflow:hidden}button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,input:focus-visible{outline:1px solid #ccefff}.toolbar{display:flex;gap:3px;padding:3px;background:#8b9aa4;color:#122129;min-height:49px;border:1px solid #a8b3bb}.toolbar>button{border:1px solid #a3afb5;background:transparent;color:inherit;padding:3px 6px;display:flex;flex-direction:column;gap:4px;text-align:left}.configuration-button{min-width:74px;max-width:135px}.rate-button{flex:1;font-size:10px}.rate-button span{display:inline-block}.tracks{padding:3px;line-height:1.8;white-space:nowrap}.updated{align-self:center;padding:3px;font-size:9px}.pending-change{padding:3px 6px;background:#687780;color:#fff;font-size:9px}.pending-change button{float:right}.view-buttons{display:flex;gap:3px;padding:4px 3px;flex-wrap:wrap}.view-buttons button{border:1px solid #8b9ca7;border-radius:8px;padding:0 6px;min-height:17px;font-size:9px;line-height:12px;background:#8a979e;color:#15252d;white-space:nowrap}.view-buttons button.active{background:#8bb4cf;color:#eef8ff}.display{flex:1;min-height:220px;display:flex;overflow:hidden}.time-overview{width:17px;position:relative;flex:none;border:1px solid #7e8a91;background:#68747b;text-align:center;font-size:8px;padding-top:4px}.time-overview i{position:absolute;left:0;right:0;border-top:2px solid #ff3030}.horizontal-scroll{overflow-x:auto;overflow-y:hidden;flex:1;position:relative;scrollbar-width:none}.horizontal-scroll::-webkit-scrollbar{display:none}.timeline-strip{display:flex;height:100%;position:relative;width:max-content;min-width:100%}.timeline-column{width:var(--column-width);min-width:var(--column-width);position:relative;height:100%;overflow:hidden}.column-heading{position:absolute;top:2px;left:0;right:0;display:flex;justify-content:space-around;font-size:9px;z-index:2;pointer-events:none}.column-heading .inactive{opacity:.35}.time-area{position:relative;height:calc(100% - 28px);overflow:hidden}.axis{position:absolute;width:7px;left:var(--axis-x);top:0;bottom:0;border-left:1px solid #a2abb0;border-right:1px solid #a2abb0;pointer-events:none}.tick{position:absolute;left:var(--axis-x);width:7px;height:0;border-top:1px solid #a2abb0;pointer-events:none}.tick.major{left:calc(var(--axis-x) - 5px);width:12px}.tick span{position:absolute;right:17px;top:-5px;font-size:8px;color:#aab3b9}.flight{position:absolute;right:calc(var(--column-width) / 2 + 3px);transform:translateY(-50%);display:flex;align-items:center;gap:4px;padding:1px 2px;border:1px solid transparent;background:#495055;color:#96d796;white-space:nowrap;font-size:9px;min-height:13px;max-width:calc(var(--column-width) / 2 - 5px);touch-action:none;user-select:none;z-index:3}.flight.right{left:calc(var(--axis-x) + 9px);right:auto}.flight.movable{cursor:grab}.flight.movable:active{cursor:grabbing}.flight strong{font-weight:normal;min-width:43px;text-align:right}.flight .type{font-size:8px;color:#b0b8bb}.flight .ff-time{width:14px;text-align:right}.flight .delay{font-size:8px;min-width:11px}.flight.boxed{border-color:#fffffe}.conflict{color:#ffd769}.timeline-foot{position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:center;align-items:center;gap:5px;color:#aeb7b7;font-size:8px;white-space:nowrap;height:25px}.timeline-foot button{background:#75828a;border:1px solid #a0aab0;color:#d4dfd7;border-radius:4px;padding:3px;font-size:9px}.slot{position:absolute;left:calc(var(--axis-x) - 11px);width:12px;background:#a00000cc;color:#ffc0c0;border:0;padding:0;font-size:6px;z-index:4;cursor:pointer;min-height:5px}.slot.right{left:calc(var(--axis-x) + 8px)}.now-line{position:absolute;left:0;right:0;border-top:2px solid #ff3030;z-index:2;pointer-events:none}.now-line span{position:absolute;right:2px;top:2px;font-size:8px;color:#ff8d8d;background:#495055;padding:0 3px}.drag-guide{position:absolute;left:0;right:0;border-top:1px dashed #fff;z-index:5;pointer-events:none}.horizontal-slider{display:flex;align-items:center;gap:4px;height:18px;padding:0 5px;background:#59646b;border-top:1px solid #89969d;font-size:8px}.horizontal-slider input{width:100%;height:12px;accent-color:#a2b2be;cursor:ew-resize}.status-line{font-size:9px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:3px 5px;border-top:1px solid #69767d;color:#b4bfc4}.status-line button{background:none;color:inherit;border:0;font-size:9px;padding:0}.status-line label{margin-left:auto}.message,.diagnostics{background:#677078;color:#ffe692;padding:5px;text-align:left;font-size:10px;border:0}.message button{float:right}.popup{position:absolute;z-index:10;background:#667780;border:1px solid #a7b4bd;color:#e5eef4;box-shadow:2px 3px 5px #252c31;width:190px}.global-menu{top:76px;left:4px;width:165px}.popup button{display:block;width:100%;background:none;color:inherit;border:0;text-align:left;padding:5px}.popup button:hover:not(:disabled){background:#387da3}.menu-title{padding:4px;background:#8a9ba7;color:#122631;font-size:9px}.menu-title button{float:right;display:inline;width:auto;padding:0}.popup small{display:block;padding:5px;font-size:8px;opacity:.8}.dialog-shade{position:absolute;inset:0;background:#17202944;z-index:20;display:flex;align-items:flex-start;justify-content:center;padding:50px 7px 7px;overflow:auto}.native-dialog{background:#788792;border:2px solid #909ea9;box-shadow:3px 4px 9px #273138;color:#12242e;max-width:100%;min-width:265px;font-size:11px;padding:7px}.dialog-title{margin:-7px -7px 8px;padding:4px;text-align:center;background:#646469;color:#f5f5f5}.dialog-title button{float:right;padding:0 4px}.native-dialog button{background:#9aa8b3;color:#142630;border:1px solid #c1c9cf;border-radius:5px;padding:3px 8px;margin:3px}.native-dialog label{display:block;margin:5px 0}.native-dialog input:not([type=checkbox]):not([type=radio]):not([type=range]),.native-dialog select{background:#aab8c2;border:1px solid #6a7984;color:#122631;padding:2px;width:100px}.native-dialog p{margin:8px 0;line-height:1.5;max-width:370px}.native-dialog table{border-collapse:collapse;font-size:10px}.native-dialog td,.native-dialog th{border:1px solid #a7b5bf;padding:5px;text-align:left}.rate-row{display:flex;gap:8px;align-items:center;margin:8px 0}.rate-row label{width:60px;white-space:nowrap}.rate-row input[type=range]{width:135px;accent-color:#bed6e4}.rate-row output{width:115px;white-space:nowrap}.apply-row{margin-top:13px;border-top:1px solid #b6c3cb;padding-top:5px}.apply-row label{display:flex;align-items:center;gap:5px}
 </style>
+
+
 
 <style scoped>
 .juha-aman{font-size:13px}
@@ -1179,4 +1185,27 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
  .view-buttons button{padding:0 4px;font-size:11px!important;min-height:23px;line-height:17px!important;border-radius:7px}
  .view-buttons .errors-button{width:66px;min-width:66px}
 }
+</style>
+
+<style scoped>
+.horizontal-slider{height:9px;min-height:9px;border-radius:5px}
+.horizontal-slider input[type=range]::-webkit-slider-runnable-track,.horizontal-slider input[type=range]::-webkit-slider-thumb{height:7px;border-radius:4px}
+.horizontal-slider input[type=range]::-moz-range-track{height:7px}.horizontal-slider input[type=range]::-moz-range-thumb{height:5px}
+.toolbar .updated{display:flex;flex-direction:column;justify-content:center;gap:2px;line-height:1.15;padding:4px 6px}
+.live-indicator{color:#ff252f;font-size:10px!important;letter-spacing:.7px;line-height:1!important;font-weight:700}
+.popup{width:190px;font-size:11px}.popup button{padding:3px 6px;line-height:1.25;min-height:20px}
+.popup,.popup :deep(*),.native-dialog,.native-dialog :deep(*){font-size:11px!important;line-height:1.2!important}
+.native-dialog{min-width:245px;font-size:11px;padding:5px;border-width:1px}
+.native-dialog label{margin:4px 0}.native-dialog p{margin:5px 0;line-height:1.25;max-width:320px}
+.native-dialog button{font-size:11px;padding:2px 6px;margin:2px;min-height:20px}
+.native-dialog input:not([type=range]):not([type=checkbox]),.native-dialog select{font-size:11px;padding:1px 3px;max-width:100%}
+.native-dialog table{font-size:11px}.native-dialog td,.native-dialog th{padding:3px 5px}
+.native-dialog .dialog-title,.popup .menu-title{min-height:22px;padding:3px 27px;line-height:16px;font-size:11px}
+.native-dialog .dialog-title{margin:-5px -5px 5px}
+.native-dialog .dialog-title>button,.popup .menu-title>button{width:17px;height:17px;min-height:0;margin:0;padding:0;font-size:12px;right:3px}
+.rate-row{gap:5px;margin:4px 0}.rate-row label{width:58px}.rate-row input[type=range]{width:105px}.rate-row output{min-width:104px;width:104px;font-size:11px}
+.apply-row{margin-top:6px;padding-top:3px}.apply-range{font-size:10px}
+.manual-flight-lists{gap:7px;min-width:265px;margin-bottom:6px}.flight-list{height:95px}
+.native-dialog :deep(.information-table){font-size:11px}.native-dialog :deep(.information-table td),.native-dialog :deep(.information-table th){padding:4px 6px}
+@container aman (max-width:320px){.toolbar{gap:2px;padding:2px}.toolbar .configuration-button{min-width:60px}.toolbar .rate-button{min-width:74px}.toolbar .tracks{min-width:40px;padding:2px}.toolbar .updated{padding:2px;font-size:9px!important}.configuration-button span{font-size:10px!important}.view-buttons{gap:2px}.view-buttons button{padding:0 3px;font-size:10px!important;min-height:21px;line-height:16px!important}.live-indicator{font-size:8px}.toolbar>button{border-width:1px}}
 </style>

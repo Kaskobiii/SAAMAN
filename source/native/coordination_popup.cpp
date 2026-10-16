@@ -32,10 +32,10 @@ void CoordinationPopup::Update(HWND owner,const Json& data,std::function<void(co
         WNDCLASSW type{};type.hInstance=module;type.lpfnWndProc=Procedure;type.lpszClassName=PopupClass;type.hCursor=LoadCursorW(nullptr,IDC_ARROW);RegisterClassW(&type);
         baseDpi=owner?static_cast<int>(GetDpiForWindow(owner)):96;if(!baseDpi)baseDpi=96;
         dpi=static_cast<int>(std::round(baseDpi*zoom));Fonts();
-        RECT rect{0,0,Px(400),Px(180)};
+        RECT rect{0,0,Px(340),Px(150)};
         hwnd=CreateWindowExW(WS_EX_CONTROLPARENT,PopupClass,L"AMAN coordination",WS_POPUP|WS_CLIPCHILDREN,0,0,rect.right-rect.left,rect.bottom-rect.top,owner,nullptr,module,this);
         if(!hwnd)throw RequestError(500,"Could not open coordination window");
-        button=CreateWindowExW(0,L"BUTTON",L"Acknowledge",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,0,0,Px(140),Px(28),hwnd,reinterpret_cast<HMENU>(1),module,nullptr);
+        button=CreateWindowExW(0,L"BUTTON",L"Acknowledge",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,0,0,Px(128),Px(24),hwnd,reinterpret_cast<HMENU>(1),module,nullptr);
     }
     if(owner&&GetWindow(hwnd,GW_OWNER)!=owner)SetWindowLongPtrW(hwnd,GWLP_HWNDPARENT,reinterpret_cast<LONG_PTR>(owner));
     Layout();SetWindowTextW(button,busy?L"Acknowledging\u2026":L"Acknowledge");EnableWindow(button,enabled&&!busy);InvalidateRect(hwnd,nullptr,FALSE);InvalidateRect(button,nullptr,FALSE);
@@ -46,7 +46,7 @@ void CoordinationPopup::Update(HWND owner,const Json& data,std::function<void(co
         const int x=std::max(static_cast<int>(monitor.rcWork.left),std::min(static_cast<int>((area.left+area.right-width)/2),static_cast<int>(monitor.rcWork.right)-width));
         const int y=std::max(static_cast<int>(monitor.rcWork.top),std::min(static_cast<int>((area.top+area.bottom-height)/2),static_cast<int>(monitor.rcWork.bottom)-height));
         SetWindowPos(hwnd,HWND_TOP,x,y,0,0,SWP_NOSIZE|SWP_NOACTIVATE);
-        if(!test){ShowWindow(hwnd,SW_SHOWNORMAL);SetForegroundWindow(hwnd);SetFocus(button);FlashWindow(hwnd,TRUE);}
+        if(!test&&!sdk&&hostUiAllowed){ShowWindow(hwnd,SW_SHOWNORMAL);SetForegroundWindow(hwnd);SetFocus(button);FlashWindow(hwnd,TRUE);}
     }
 }
 void CoordinationPopup::Acknowledge(){
@@ -54,10 +54,14 @@ void CoordinationPopup::Acknowledge(){
     const auto id=current.at("id").get<std::string>();busy=true;EnableWindow(button,FALSE);SetWindowTextW(button,L"Acknowledging\u2026");status=L"Waiting for confirmation\u2026";Layout();InvalidateRect(hwnd,nullptr,FALSE);
     if(acknowledge)acknowledge(id);
 }
+void CoordinationPopup::AllowHostUi(bool allowed){
+    if(hostUiAllowed==allowed)return;hostUiAllowed=allowed;
+    if(hwnd&&!test)ShowWindow(hwnd,allowed&&!sdk&&!current.is_null()?SW_SHOWNOACTIVATE:SW_HIDE);
+}
 void CoordinationPopup::Fonts(){
     if(messageFont)DeleteObject(messageFont);if(headingFont)DeleteObject(headingFont);if(bodyFont)DeleteObject(bodyFont);
     const auto font=[&](int size,int weight){return CreateFontW(-Px(size),0,0,0,weight,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Arial");};
-    messageFont=font(16,FW_SEMIBOLD);headingFont=font(13,FW_SEMIBOLD);bodyFont=font(12,FW_NORMAL);
+    messageFont=font(14,FW_SEMIBOLD);headingFont=font(12,FW_SEMIBOLD);bodyFont=font(11,FW_NORMAL);
 }
 void CoordinationPopup::SetZoom(double factor){
     if(!std::isfinite(factor)||factor<0.25||factor>5)return;
@@ -66,29 +70,29 @@ void CoordinationPopup::SetZoom(double factor){
     dpi=scaled;Fonts();Layout();InvalidateRect(hwnd,nullptr,FALSE);InvalidateRect(button,nullptr,FALSE);
 }
 void CoordinationPopup::Layout(){
-    const HDC dc=GetDC(hwnd);RECT text{0,0,Px(368),0};const auto old=SelectObject(dc,messageFont);
+    const HDC dc=GetDC(hwnd);RECT text{0,0,Px(316),0};const auto old=SelectObject(dc,messageFont);
     DrawTextW(dc,message.c_str(),-1,&text,DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);SelectObject(dc,old);ReleaseDC(hwnd,dc);
-    const int messageHeight=std::max(Px(38),static_cast<int>(text.bottom)),buttonTop=Px(86)+messageHeight+Px(12);
-    const int height=buttonTop+Px(28)+Px(12)+(status.empty()?0:Px(38));
-    SetWindowPos(hwnd,nullptr,0,0,Px(400),height,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
-    SetWindowPos(button,nullptr,Px(130),buttonTop,Px(140),Px(28),SWP_NOZORDER|SWP_NOACTIVATE);
+    const int messageHeight=std::max(Px(30),static_cast<int>(text.bottom)),buttonTop=Px(70)+messageHeight+Px(8);
+    const int height=buttonTop+Px(24)+Px(8)+(status.empty()?0:Px(30));
+    SetWindowPos(hwnd,nullptr,0,0,Px(340),height,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+    SetWindowPos(button,nullptr,Px(106),buttonTop,Px(128),Px(24),SWP_NOZORDER|SWP_NOACTIVATE);
 }
 void CoordinationPopup::Paint(HDC dc){
     RECT client{};GetClientRect(hwnd,&client);Fill(dc,client,RGB(133,154,167));
-    Fill(dc,{0,0,client.right,Px(24)},RGB(94,97,101));
+    Fill(dc,{0,0,client.right,Px(20)},RGB(94,97,101));
     const auto edge=CreateSolidBrush(RGB(173,190,200));FrameRect(dc,&client,edge);DeleteObject(edge);
-    Label(dc,headingFont,RGB(220,230,241),{Px(8),0,client.right-Px(8),Px(24)},L"COORDINATION",DT_CENTER|DT_VCENTER|DT_SINGLELINE);
-    Label(dc,headingFont,RGB(20,38,48),{Px(16),Px(34),Px(384),Px(54)},sender);
-    Label(dc,bodyFont,RGB(20,38,48),{Px(16),Px(57),Px(384),Px(75)},sent);
+    Label(dc,headingFont,RGB(220,230,241),{Px(8),0,client.right-Px(8),Px(20)},L"COORDINATION",DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+    Label(dc,headingFont,RGB(20,38,48),{Px(12),Px(27),Px(328),Px(44)},sender);
+    Label(dc,bodyFont,RGB(20,38,48),{Px(12),Px(46),Px(328),Px(61)},sent);
     RECT location{};GetWindowRect(button,&location);MapWindowPoints(HWND_DESKTOP,hwnd,reinterpret_cast<POINT*>(&location),2);
-    Label(dc,messageFont,RGB(20,38,48),{Px(16),Px(86),Px(384),location.top-Px(10)},message);
-    Label(dc,bodyFont,RGB(20,38,48),{Px(16),location.bottom+Px(7),Px(384),client.bottom-Px(5)},status,DT_CENTER|DT_WORDBREAK);
+    Label(dc,messageFont,RGB(20,38,48),{Px(12),Px(70),Px(328),location.top-Px(8)},message);
+    Label(dc,bodyFont,RGB(20,38,48),{Px(12),location.bottom+Px(5),Px(328),client.bottom-Px(4)},status,DT_CENTER|DT_WORDBREAK);
 }
 LRESULT CALLBACK CoordinationPopup::Procedure(HWND window,UINT msg,WPARAM w,LPARAM l){
     auto* self=reinterpret_cast<CoordinationPopup*>(GetWindowLongPtrW(window,GWLP_USERDATA));
     if(msg==WM_NCCREATE){self=static_cast<CoordinationPopup*>(reinterpret_cast<CREATESTRUCTW*>(l)->lpCreateParams);self->hwnd=window;SetWindowLongPtrW(window,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(self));}
     if(!self)return DefWindowProcW(window,msg,w,l);
-    if(msg==WM_NCHITTEST){POINT point{static_cast<short>(LOWORD(l)),static_cast<short>(HIWORD(l))};ScreenToClient(window,&point);if(point.y>=0&&point.y<self->Px(24))return HTCAPTION;return HTCLIENT;}
+    if(msg==WM_NCHITTEST){POINT point{static_cast<short>(LOWORD(l)),static_cast<short>(HIWORD(l))};ScreenToClient(window,&point);if(point.y>=0&&point.y<self->Px(20))return HTCAPTION;return HTCLIENT;}
     if(msg==WM_ERASEBKGND)return 1;
     if(msg==WM_PAINT){PAINTSTRUCT paint{};const auto dc=BeginPaint(window,&paint);self->Paint(dc);EndPaint(window,&paint);return 0;}
     if(msg==WM_PRINTCLIENT){self->Paint(reinterpret_cast<HDC>(w));return 0;}
@@ -112,5 +116,21 @@ void CoordinationPopup::Capture(const std::filesystem::path& file){
     if(button){RECT location{};GetWindowRect(button,&location);MapWindowPoints(HWND_DESKTOP,hwnd,reinterpret_cast<POINT*>(&location),2);SetViewportOrgEx(dc,location.left,location.top,nullptr);DRAWITEMSTRUCT draw{ODT_BUTTON,1,0,ODA_DRAWENTIRE,enabled&&!busy?0u:ODS_DISABLED,button,dc,{0,0,location.right-location.left,location.bottom-location.top},0};SendMessageW(hwnd,WM_DRAWITEM,1,reinterpret_cast<LPARAM>(&draw));}
     BITMAPFILEHEADER header{};header.bfType=0x4D42;header.bfOffBits=sizeof(header)+sizeof(BITMAPINFOHEADER);header.bfSize=header.bfOffBits+width*height*4;std::ofstream output(file,std::ios::binary);output.write(reinterpret_cast<const char*>(&header),sizeof(header));output.write(reinterpret_cast<const char*>(&info.bmiHeader),sizeof(info.bmiHeader));output.write(static_cast<const char*>(pixels),width*height*4);
     SelectObject(dc,old);DeleteObject(bitmap);DeleteDC(dc);
+}
+RadarSurface CoordinationPopup::Surface(HWND parent){
+    RadarSurface result;result.id=0xFFFFFFFFu;result.visible=hwnd&&!current.is_null();if(!result.visible)return result;
+    GetWindowRect(hwnd,&result.bounds);MapWindowPoints(HWND_DESKTOP,parent,reinterpret_cast<POINT*>(&result.bounds),2);RECT client{};GetClientRect(hwnd,&client);result.width=client.right;result.height=client.bottom;
+    if(!result.width||!result.height||result.width>4096||result.height>4096){result.visible=false;return result;}
+    HDC dc=CreateCompatibleDC(nullptr);BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=result.width;info.bmiHeader.biHeight=-static_cast<LONG>(result.height);info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;
+    void* pixels=nullptr;const auto bitmap=CreateDIBSection(dc,&info,DIB_RGB_COLORS,&pixels,nullptr,0);if(!bitmap){DeleteDC(dc);result.visible=false;return result;}const auto old=SelectObject(dc,bitmap);Paint(dc);
+    RECT location{};GetWindowRect(button,&location);MapWindowPoints(HWND_DESKTOP,hwnd,reinterpret_cast<POINT*>(&location),2);SetViewportOrgEx(dc,location.left,location.top,nullptr);
+    DRAWITEMSTRUCT draw{ODT_BUTTON,1,0,ODA_DRAWENTIRE,enabled&&!busy?0u:ODS_DISABLED,button,dc,{0,0,location.right-location.left,location.bottom-location.top},0};SendMessageW(hwnd,WM_DRAWITEM,1,reinterpret_cast<LPARAM>(&draw));
+    result.pixels.assign(static_cast<unsigned char*>(pixels),static_cast<unsigned char*>(pixels)+static_cast<size_t>(result.width)*result.height*4);SelectObject(dc,old);DeleteObject(bitmap);DeleteDC(dc);return result;
+}
+void CoordinationPopup::Pointer(HWND parent,POINT point,const std::string& type){
+    if(!hwnd||current.is_null())return;POINT screen=point;ClientToScreen(parent,&screen);POINT local=screen;ScreenToClient(hwnd,&local);
+    if(type=="down"){dragging=local.y>=0&&local.y<Px(20);dragOrigin=screen;RECT rect{};GetWindowRect(button,&rect);pressed=PtInRect(&rect,screen)!=FALSE;GetWindowRect(hwnd,&rect);dragWindow={rect.left,rect.top};}
+    if(type=="move"&&dragging)SetWindowPos(hwnd,nullptr,dragWindow.x+screen.x-dragOrigin.x,dragWindow.y+screen.y-dragOrigin.y,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
+    if(type=="up"){RECT rect{};GetWindowRect(button,&rect);if(pressed&&!dragging&&PtInRect(&rect,screen))Acknowledge();dragging=false;pressed=false;}
 }
 }

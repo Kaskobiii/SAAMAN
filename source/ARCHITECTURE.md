@@ -17,7 +17,9 @@ native/radar_surface.h decodes bounded asynchronous WebView PNG captures into
 owned BGRA frames. Native rendering HWNDs remain hidden. RadarScreen paints the
 cached main, supervision, floating and coordination surfaces in AFTER_LISTS,
 then registers their hit rectangles with AddScreenObject. EuroScope's own menus
-paint afterwards and keep input precedence. Cold opening paints a loading panel
+paint afterwards and keep input precedence. TopSky also uses the radar drawing
+callbacks, so SAAMAN must precede TopSky in EuroScope's plug-in list; this order
+has been live-confirmed for both menu painting and clicking. Cold opening paints a loading panel
 until the first browser frame is ready. The SDK thread never waits for WebView.
 Capture is limited to one outstanding request per view, 33ms during interaction
 or 100ms otherwise, and only runs after content/size/zoom/scroll changes. Images

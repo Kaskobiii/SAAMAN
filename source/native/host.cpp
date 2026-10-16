@@ -1,6 +1,9 @@
 #include "host.h"
 #include "panel_chrome.h"
 #include "host_ui_occlusion.h"
+#include "radar_surface.h"
+#include "sdk_input.h"
+#include "private_edit.h"
 #include "coordination_popup.h"
 #include <unknwn.h>
 #include <objbase.h>
@@ -21,7 +24,7 @@ using Microsoft::WRL::ComPtr;
 using Microsoft::WRL::Callback;
 namespace saaman {
 namespace {
-constexpr UINT ShowMessage=WM_APP+41,StopMessage=WM_APP+42,CloseAuth=WM_APP+43,HideMessage=WM_APP+44,PulseMessage=WM_APP+45,AttachMessage=WM_APP+46,ToggleMessage=WM_APP+47;
+constexpr UINT ShowMessage=WM_APP+41,StopMessage=WM_APP+42,CloseAuth=WM_APP+43,HideMessage=WM_APP+44,PulseMessage=WM_APP+45,AttachMessage=WM_APP+46,ToggleMessage=WM_APP+47,InputMessage=WM_APP+48,EditMessage=WM_APP+49;
 struct Attachment {HWND parent;RECT radar;};
 const wchar_t* WindowClass=L"SAAMANNativeWindow";
 std::wstring Wide(const std::string& text){const int size=MultiByteToWideChar(CP_UTF8,0,text.data(),static_cast<int>(text.size()),nullptr,0);std::wstring result(size,L'\0');MultiByteToWideChar(CP_UTF8,0,text.data(),static_cast<int>(text.size()),result.data(),size);return result;}
@@ -34,12 +37,39 @@ struct Host::Impl {
     struct Window:std::enable_shared_from_this<Window>{
         Impl& host;bool supervisor=false,auth=false,floating=false,floatingVisible=false,completed=false,destroying=false,smokeStarted=false,zoomReady=false;
         HostUiOcclusion hostOcclusion;
+        unsigned surfaceId=0;bool surfaceDirty=true,capturing=false,surfaceReady=false;long long captureAt=0,lastInputAt=0;
         std::string floatingKey;std::weak_ptr<Window> floatingOwner;
         ComPtr<ICoreWebView2NewWindowRequestedEventArgs> openArgs;ComPtr<ICoreWebView2Deferral> openDeferral;
         HWND hwnd=nullptr;ComPtr<ICoreWebView2Controller> controller;ComPtr<ICoreWebView2> browser;ComPtr<ICoreWebView2Environment> environment;
         bool dragging=false,resizing=false;POINT dragStart{};RECT dragRect{},previousBounds{};bool havePreviousBounds=false;
         std::weak_ptr<Window> authOwner;int authRequest=0;std::string authUrl,redirect,state;
-        explicit Window(Impl& owner,bool admin):host(owner),supervisor(admin){}
+        explicit Window(Impl& owner,bool admin):host(owner),supervisor(admin),surfaceId(++owner.surfaceSerial){}
+        bool RequestedVisible()const{return floating?floatingVisible:host.visible[supervisor?1:0].load();}
+        void SyncSurface(){
+            if(auth||!host.context->sdkSurfaces||!hwnd)return;
+            RECT rect{};GetWindowRect(hwnd,&rect);MapWindowPoints(HWND_DESKTOP,host.parent,reinterpret_cast<POINT*>(&rect),2);
+            std::lock_guard lock(host.surfaceMutex);auto& surface=host.surfaces[surfaceId];surface.id=surfaceId;surface.order=++host.surfaceOrder;surface.bounds=rect;surface.visible=RequestedVisible()&&!destroying;surface.supervisor=supervisor;surfaceDirty=true;
+        }
+        void CaptureSurface(){
+            if(auth||!host.context->sdkSurfaces||!browser||!surfaceReady||!RequestedVisible()||!surfaceDirty||capturing||Now()-captureAt<(Now()-lastInputAt<300?33:100))return;
+            surfaceDirty=false;capturing=true;captureAt=Now();ComPtr<IStream> stream;if(FAILED(CreateStreamOnHGlobal(nullptr,TRUE,&stream))){capturing=false;return;}
+            std::weak_ptr<Window> weak=shared_from_this();
+            const auto result=browser->CapturePreview(COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG,stream.Get(),Callback<ICoreWebView2CapturePreviewCompletedHandler>([weak,stream](HRESULT error)->HRESULT{
+                auto self=weak.lock();if(!self)return S_OK;self->capturing=false;if(self->destroying)return S_OK;
+                RadarSurface frame;if(SUCCEEDED(error)&&DecodeRadarSurface(stream.Get(),frame)){
+                    {std::lock_guard lock(self->host.surfaceMutex);auto& surface=self->host.surfaces[self->surfaceId];surface.width=frame.width;surface.height=frame.height;surface.pixels=std::move(frame.pixels);}
+                    self->host.MarkRadarDirty();
+                }else self->surfaceDirty=true;
+                return S_OK;
+            }).Get());if(FAILED(result)){capturing=false;surfaceDirty=true;}
+        }
+        void DispatchInput(Json data){
+            if(!browser||!RequestedVisible()||destroying)return;
+            lastInputAt=Now();
+            if(data.value("type",std::string())=="wheel"&&data.value("ctrl",false)){host.ShareZoom(std::clamp(host.uiZoom+(data.value("delta",0)<0?.1:-.1),.25,5.0));return;}
+            RECT rect{};GetWindowRect(hwnd,&rect);MapWindowPoints(HWND_DESKTOP,host.parent,reinterpret_cast<POINT*>(&rect),2);data["x"]=data.at("x").get<int>()-rect.left;data["y"]=data.at("y").get<int>()-rect.top;
+            browser->ExecuteScript(Wide("window.__SAAMAN_SDK_INPUT__?.("+data.dump()+")").c_str(),nullptr);surfaceDirty=true;
+        }
         void Reply(int id,const Json& result,bool ok=true,int status=200,const std::string& error=""){
             if(!browser)return;const auto message=Wide(Json({{"id",id},{"ok",ok},{"result",result},{"status",status},{"error",error}}).dump());browser->PostWebMessageAsJson(message.c_str());
         }
@@ -48,7 +78,7 @@ struct Host::Impl {
                 if(!IsWindow(host.parent)){destroying=true;return;}
                 hostOcclusion.Bind(host.parent);
                 const auto area=host.radar;const int width=std::min(supervisor?1050:780,static_cast<int>(area.right-area.left-90)),height=std::min(760,static_cast<int>(area.bottom-area.top-30));
-                const int panelWidth=std::min(std::max(360,width),static_cast<int>(area.right-area.left)),panelHeight=std::min(std::max(380,height),static_cast<int>(area.bottom-area.top));
+                const int panelWidth=std::min(std::max(260,width),static_cast<int>(area.right-area.left)),panelHeight=std::min(std::max(380,height),static_cast<int>(area.bottom-area.top));
                 const int x=area.left+std::min(85,std::max(0,static_cast<int>(area.right-area.left)-panelWidth)),y=area.top+std::min(25,std::max(0,static_cast<int>(area.bottom-area.top)-panelHeight));
                 hwnd=CreateWindowExW(WS_EX_NOPARENTNOTIFY,WindowClass,supervisor?L"SAAMAN SUPERVISION":L"AMAN",WS_CHILD|WS_CLIPCHILDREN|WS_CLIPSIBLINGS,x,y,panelWidth,panelHeight,host.parent,nullptr,host.module,this);
                 if(!floating){host.panels[supervisor?1:0].store(hwnd);host.visible[supervisor?1:0].store(hwnd!=nullptr&&show);}
@@ -58,7 +88,7 @@ struct Host::Impl {
             hwnd=CreateWindowExW(0,WindowClass,auth?L"SAAMAN · VATSIM sign in":supervisor?L"SAAMAN · ESSA supervision":L"SAAMAN · ESSA arrivals",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,supervisor?1100:820,auth?780:820,owner,nullptr,host.module,this);
             }
             if(!hwnd)return;
-            ShowWindow(hwnd,host.context->test||!show?SW_HIDE:SW_SHOW);
+            ShowWindow(hwnd,host.context->test||!show||!auth&&host.context->sdkSurfaces?SW_HIDE:SW_SHOW);SyncSurface();
             if(floating){InitializeController();return;}
             std::weak_ptr<Window> weak=shared_from_this();
             auto options=Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>();
@@ -83,6 +113,7 @@ struct Host::Impl {
         void Fail(const wchar_t* message){if(openDeferral){openArgs->put_Handled(TRUE);openDeferral->Complete();openDeferral.Reset();openArgs.Reset();}SetWindowTextW(hwnd,message);if(host.context->test){std::ofstream(host.context->directory/L"host-test-failure.txt")<<Narrow(message);SetEvent(host.testDone);}else MessageBoxW(hwnd,message,L"SAAMAN",MB_ICONERROR|MB_OK);}
         void ApplyZoom(double zoom){
             if(auth||!controller)return;
+            surfaceDirty=true;
             double prior=1;controller->get_ZoomFactor(&prior);if(std::abs(prior-zoom)>0.000001)controller->put_ZoomFactor(zoom);
             if(browser)browser->ExecuteScript(L"window.dispatchEvent(new Event('saaman-zoom'))",nullptr);
         }
@@ -96,9 +127,9 @@ struct Host::Impl {
             if(!hwnd)return;
             if(floating)floatingVisible=show;
             if(!show&&!auth&&!floating)for(const auto& child:host.windows)if(child->floating&&child->floatingOwner.lock().get()==this&&!child->destroying){child->Present(false);if(browser){const auto event=Wide(Json({{"event","floating-close"},{"key",child->floatingKey}}).dump());browser->PostWebMessageAsJson(event.c_str());}}
-            if(controller){Bounds();controller->put_IsVisible(show&&!host.hostUiBusy?TRUE:FALSE);controller->NotifyParentWindowPositionChanged();}
+            if(controller){Bounds();controller->put_IsVisible(show&&(host.context->sdkSurfaces||!host.hostUiBusy)?TRUE:FALSE);controller->NotifyParentWindowPositionChanged();}
             const bool wasVisible=IsWindowVisible(hwnd)!=FALSE;
-            ShowWindow(hwnd,show&&!host.hostUiBusy&&!host.context->test?SW_SHOW:SW_HIDE);
+            ShowWindow(hwnd,show&&!host.hostUiBusy&&!host.context->test&&(auth||!host.context->sdkSurfaces)?SW_SHOW:SW_HIDE);SyncSurface();if(host.context->sdkSurfaces)host.MarkRadarDirty();
             if(!auth&&wasVisible!=show)host.MarkRadarDirty();
             if(show){SetWindowPos(hwnd,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);RedrawWindow(hwnd,nullptr,nullptr,RDW_INVALIDATE|RDW_ALLCHILDREN|RDW_UPDATENOW);}
         }
@@ -116,6 +147,7 @@ struct Host::Impl {
                 }).Get(),&token);
             }
             if(!auth){
+                browser->AddScriptToExecuteOnDocumentCreated(SdkInputScript,nullptr);
                 browser->AddWebResourceRequestedFilter(L"https://saaman.local/*",COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
                 browser->add_WebResourceRequested(Callback<ICoreWebView2WebResourceRequestedEventHandler>([weak](ICoreWebView2*,ICoreWebView2WebResourceRequestedEventArgs* args)->HRESULT{
                     auto self=weak.lock();if(!self||self->destroying)return S_OK;
@@ -134,6 +166,23 @@ struct Host::Impl {
                     try{const Json request=Json::parse(message);id=request.at("id").get<int>();const auto method=request.at("method").get<std::string>();const Json data=request.value("data",Json::object());
                         if(method=="auth:open"){self->OpenAuth(id,data);return S_OK;}
                         if(method=="auth:user"){self->Reply(id,ReadVatsimUser(data));return S_OK;}
+                        if(method=="host:surface-dirty"){self->surfaceDirty=true;return S_OK;}
+                        if(method=="host:surface-cursor"){std::lock_guard lock(self->host.surfaceMutex);self->host.inputCursor=data.value("cursor",std::string());return S_OK;}
+                        if(method=="host:surface-edit"){
+                            if(self->host.context->sdkSurfaces&&self->RequestedVisible()){
+                                if(data.value("kind",std::string())=="password"){
+                                    if(!self->host.privateEditor)self->host.privateEditor=std::make_unique<PrivateEdit>();
+                                    std::weak_ptr<Window> owner=self;const auto editToken=data.at("token");self->host.privateEditor->Show(self->host.module,GetAncestor(self->host.parent,GA_ROOT),[owner,editToken](std::wstring text){if(auto window=owner.lock())if(window->browser&&!window->destroying){const Json result{{"token",editToken},{"value",Narrow(text.c_str())}};window->browser->ExecuteScript(Wide("window.__SAAMAN_SDK_EDIT__?.("+result.dump()+")").c_str(),nullptr);SecureZeroMemory(text.data(),text.size()*sizeof(wchar_t));}});return S_OK;
+                                }
+                                Json editor=data;editor["window"]=self->surfaceId;RECT bounds{};GetWindowRect(self->hwnd,&bounds);MapWindowPoints(HWND_DESKTOP,self->host.parent,reinterpret_cast<POINT*>(&bounds),2);editor["origin"]={{"x",bounds.left},{"y",bounds.top}};
+                                {std::lock_guard lock(self->host.surfaceMutex);self->host.editor=std::move(editor);}self->host.MarkRadarDirty();
+                            }return S_OK;
+                        }
+                        if(method=="host:test-sdk-editor"&&self->host.context->test){
+                            Json editor;{std::lock_guard lock(self->host.surfaceMutex);editor=self->host.editor;}
+                            if(data.contains("value")&&editor.is_object())for(const auto& candidate:self->host.windows)if(candidate->surfaceId==editor.value("window",0u)&&candidate->browser){editor["value"]=data.at("value");candidate->browser->ExecuteScript(Wide("window.__SAAMAN_SDK_EDIT__?.("+editor.dump()+")").c_str(),nullptr);break;}
+                            self->Reply(id,editor);return S_OK;
+                        }
                         if(!self->auth&&!self->floating&&method.rfind("host:floating-",0)==0){
                             const auto key=data.at("key").get<std::string>();std::shared_ptr<Window> child;
                             for(const auto& candidate:self->host.windows)if(candidate->floating&&candidate->floatingKey==key&&candidate->floatingOwner.lock()==self&&!candidate->destroying){child=candidate;break;}
@@ -151,9 +200,9 @@ struct Host::Impl {
                                 if(width!=client.right||height!=client.bottom){RECT bounds{};GetWindowRect(child->hwnd,&bounds);MapWindowPoints(HWND_DESKTOP,self->host.parent,reinterpret_cast<POINT*>(&bounds),2);const int x=std::clamp(bounds.left,area.left,area.right-width),y=std::clamp(bounds.top,area.top,area.bottom-height);SetWindowPos(child->hwnd,HWND_TOP,x,y,width,height,SWP_NOACTIVATE|SWP_NOCOPYBITS);}
                             }else if(method=="host:floating-hide")child->Present(false);
                             else if(method=="host:floating-start"){
-                                child->dragging=true;child->dragStart={data.at("x").get<LONG>(),data.at("y").get<LONG>()};if(!self->host.context->test)GetCursorPos(&child->dragStart);GetWindowRect(child->hwnd,&child->dragRect);MapWindowPoints(HWND_DESKTOP,self->host.parent,reinterpret_cast<POINT*>(&child->dragRect),2);
+                                child->dragging=true;child->dragStart={data.at("x").get<LONG>(),data.at("y").get<LONG>()};GetWindowRect(child->hwnd,&child->dragRect);MapWindowPoints(HWND_DESKTOP,self->host.parent,reinterpret_cast<POINT*>(&child->dragRect),2);
                             }else if(method=="host:floating-move"||method=="host:floating-end"){
-                                if(child->dragging){POINT cursor{data.at("x").get<LONG>(),data.at("y").get<LONG>()};if(!self->host.context->test)GetCursorPos(&cursor);const auto area=self->host.radar;const int width=child->dragRect.right-child->dragRect.left,height=child->dragRect.bottom-child->dragRect.top;
+                                if(child->dragging){POINT cursor{data.at("x").get<LONG>(),data.at("y").get<LONG>()};const auto area=self->host.radar;const int width=child->dragRect.right-child->dragRect.left,height=child->dragRect.bottom-child->dragRect.top;
                                     const int x=std::clamp(child->dragRect.left+cursor.x-child->dragStart.x,area.left,area.right-width),y=std::clamp(child->dragRect.top+cursor.y-child->dragStart.y,area.top,area.bottom-height);SetWindowPos(child->hwnd,HWND_TOP,x,y,width,height,SWP_NOACTIVATE|SWP_NOCOPYBITS);}
                                 if(method=="host:floating-end")child->dragging=false;
                             }else throw RequestError(400,"Unknown submenu operation");
@@ -185,11 +234,11 @@ struct Host::Impl {
                         if(self->floating)throw RequestError(403,"Submenus use their owning AMAN session");
                         if(method=="host:coordination"){
                             if(self->auth||self->supervisor)throw RequestError(403,"Coordination belongs to the AMAN worker");
-                            if(!self->host.coordination)self->host.coordination=std::make_unique<CoordinationPopup>(self->host.module,self->host.context->test);
+                            if(!self->host.coordination)self->host.coordination=std::make_unique<CoordinationPopup>(self->host.module,self->host.context->test,self->host.context->sdkSurfaces);
                             std::weak_ptr<Window> owner=self;
                             self->host.coordination->SetZoom(self->host.uiZoom);self->host.coordination->Update(GetAncestor(self->host.parent,GA_ROOT),data,[owner](const std::string& messageId){
                                 if(auto window=owner.lock())if(window->browser&&!window->destroying){const auto event=Wide(Json({{"event","coordination-ack"},{"messageId",messageId}}).dump());window->browser->PostWebMessageAsJson(event.c_str());}
-                            });self->Reply(id,true);return S_OK;
+                            });self->host.SyncCoordination();self->Reply(id,true);return S_OK;
                         }
                         if(method=="host:test-coordination"&&self->host.context->test){
                             if(!self->host.coordination)throw RequestError(400,"No coordination popup");
@@ -200,21 +249,21 @@ struct Host::Impl {
                         if(!self->auth&&method=="host:frame-close"){self->host.visible[self->supervisor?1:0].store(false);self->Present(false);self->Reply(id,true);return S_OK;}
                         if(!self->auth&&method=="host:frame-start"){
                             self->dragging=!data.value("resize",false);self->resizing=!self->dragging;
-                            self->dragStart={data.at("x").get<LONG>(),data.at("y").get<LONG>()};if(!self->host.context->test)GetCursorPos(&self->dragStart);GetWindowRect(self->hwnd,&self->dragRect);MapWindowPoints(HWND_DESKTOP,GetParent(self->hwnd),reinterpret_cast<POINT*>(&self->dragRect),2);self->Reply(id,true);return S_OK;
+                            self->dragStart={data.at("x").get<LONG>(),data.at("y").get<LONG>()};GetWindowRect(self->hwnd,&self->dragRect);MapWindowPoints(HWND_DESKTOP,GetParent(self->hwnd),reinterpret_cast<POINT*>(&self->dragRect),2);self->Reply(id,true);return S_OK;
                         }
                         if(!self->auth&&(method=="host:frame-move"||method=="host:frame-end")){
                             if(self->dragging||self->resizing){
-                                POINT cursor{data.at("x").get<LONG>(),data.at("y").get<LONG>()};if(!self->host.context->test)GetCursorPos(&cursor);
+                                POINT cursor{data.at("x").get<LONG>(),data.at("y").get<LONG>()};
                                 const int dx=cursor.x-self->dragStart.x,dy=cursor.y-self->dragStart.y;const auto area=self->host.radar;
                                 int width=self->dragRect.right-self->dragRect.left,height=self->dragRect.bottom-self->dragRect.top,x=self->dragRect.left,y=self->dragRect.top;
-                                if(self->resizing){width=std::max(360,std::min(width+dx,static_cast<int>(area.right-x)));height=std::max(380,std::min(height+dy,static_cast<int>(area.bottom-y)));}
+                                if(self->resizing){width=std::max(260,std::min(width+dx,static_cast<int>(area.right-x)));height=std::max(380,std::min(height+dy,static_cast<int>(area.bottom-y)));}
                                 else{x=std::max(static_cast<int>(area.left),std::min(x+dx,static_cast<int>(area.right)-width));y=std::max(static_cast<int>(area.top),std::min(y+dy,static_cast<int>(area.bottom)-height));}
                                 SetWindowPos(self->hwnd,HWND_TOP,x,y,width,height,SWP_NOACTIVATE|SWP_NOCOPYBITS);
                             }
                             if(method=="host:frame-end"){self->dragging=false;self->resizing=false;}
                             self->Reply(id,true);return S_OK;
                         }
-                        if(method=="host:ready"){self->Present(self->host.visible[self->supervisor?1:0].load());self->Reply(id,true);if(self->host.context->test){BOOL shown=FALSE;self->controller->get_IsVisible(&shown);std::ofstream(self->host.context->directory/(self->supervisor?L"supervisor-first-open.txt":L"aman-first-open.txt"))<<shown;if(self->supervisor)self->TestSupervisor();}self->Smoke();return S_OK;}
+                        if(method=="host:ready"){self->surfaceReady=true;self->Present(self->host.visible[self->supervisor?1:0].load());self->Reply(id,true);if(self->host.context->test){BOOL shown=FALSE;self->controller->get_IsVisible(&shown);std::ofstream(self->host.context->directory/(self->supervisor?L"supervisor-first-open.txt":L"aman-first-open.txt"))<<shown;if(self->supervisor)self->TestSupervisor();}self->Smoke();return S_OK;}
                         if(method=="host:test-supervisor"&&self->host.context->test){std::ofstream(self->host.context->directory/L"supervisor-frame.json")<<data.dump();self->Reply(id,true);return S_OK;}
                         if(method=="host:test-runways"&&self->host.context->test){std::lock_guard lock(self->host.context->mutex);self->host.context->telemetry["activeRunways"]={{"arrivals",Json::array({"ESSA/01R"})},{"departures",Json::array({"ESSA/01L"})}};self->host.context->telemetry["timestamp"]=Now();self->Reply(id,true);return S_OK;}
                         if(method=="host:test-operations"&&self->host.context->test){std::ofstream(self->host.context->directory/L"operations-ui.json")<<data.dump(2);self->Reply(id,true);return S_OK;}
@@ -251,7 +300,7 @@ struct Host::Impl {
                 auto child=std::make_shared<Window>(self->host,false);child->floating=true;child->floatingKey=key;child->floatingOwner=self;child->environment=self->environment;child->openArgs=args;args->GetDeferral(&child->openDeferral);self->host.windows.push_back(child);child->Create(false);return S_OK;
             }).Get(),&token);
             browser->add_NavigationCompleted(Callback<ICoreWebView2NavigationCompletedEventHandler>([weak](ICoreWebView2*,ICoreWebView2NavigationCompletedEventArgs*)->HRESULT{
-                if(auto self=weak.lock())if(!self->auth){if(!self->host.zoomInitialized){double zoom=1;self->controller->get_ZoomFactor(&zoom);self->host.ShareZoom(zoom);}else self->ApplyZoom(self->host.uiZoom);self->zoomReady=true;if(!self->floating)self->Present(self->host.visible[self->supervisor?1:0].load());}return S_OK;
+                if(auto self=weak.lock())if(!self->auth){if(!self->host.zoomInitialized){double zoom=1;self->controller->get_ZoomFactor(&zoom);self->host.ShareZoom(zoom);}else self->ApplyZoom(self->host.uiZoom);self->zoomReady=true;if(self->floating)self->surfaceReady=true;if(!self->floating)self->Present(self->host.visible[self->supervisor?1:0].load());}return S_OK;
             }).Get(),&token);
             browser->add_WindowCloseRequested(Callback<ICoreWebView2WindowCloseRequestedEventHandler>([weak](ICoreWebView2*,IUnknown*)->HRESULT{if(auto self=weak.lock())PostMessageW(self->hwnd,WM_CLOSE,0,0);return S_OK;}).Get(),&token);
             if(!floating)browser->Navigate(auth?Wide(authUrl).c_str():supervisor?L"https://saaman.local/index.html?view=supervisor":L"https://saaman.local/index.html?view=aman");
@@ -469,7 +518,7 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     if(!result.reopenedZoom)throw Error('Reopened submenu did not inherit current zoom');
                     find('.coordination-menu .menu-title button').click();await wait(50);
                     await rpc('host:coordination',{message:notification,enabled:true,busy:false});const zoomedCoordination=await rpc('host:test-coordination');
-                    result.coordinationZoom=zoomedCoordination.width===Math.round(400*zoomedCoordination.dpi/96)&&zoomedCoordination.dpi>96;if(!result.coordinationZoom)throw Error('Native coordination popup did not follow AMAN zoom');
+                    result.coordinationZoom=zoomedCoordination.width===Math.round(340*zoomedCoordination.dpi/96)&&zoomedCoordination.dpi>96;if(!result.coordinationZoom)throw Error('Native coordination popup did not follow AMAN zoom');
                     await rpc('host:coordination',{message:null});await rpc('host:test-zoom',{factor:originalZoom.zoom});
                     const wideFrame=await rpc('host:test-frame'),wideFont=parseFloat(getComputedStyle(find('.view-buttons button')).fontSize);
                     await rpc('host:test-frame',{width:360});await wait(200);
@@ -478,6 +527,30 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     if(smallFont>=wideFont||rows.size>2||toolbar.getBoundingClientRect().height>70||toolbar.scrollWidth>toolbar.clientWidth+1||navButtons.some(b=>b.scrollWidth>b.clientWidth+1))throw Error('Narrow header did not compact without clipping controls');
                     await rpc('host:test-frame',{capture:'compact'});await rpc('host:test-frame',{width:wideFrame.width,height:wideFrame.height});await wait(150);
                     result.headerRestores=parseFloat(getComputedStyle(find('.view-buttons button')).fontSize)===wideFont;if(!result.headerRestores)throw Error('Header did not restore at wider size');
+
+                    result.emptyListsHidden=![...find('.view-buttons').querySelectorAll('button')].some(b=>/^(Desequenced|Missed Approach|Errors)\s+0$/.test(b.textContent.trim()));
+                    result.thinHorizontalSlider=find('.horizontal-slider').getBoundingClientRect().height<=9;
+                    result.horizontalEndMargin=Number(find('[aria-label="Scroll between timeline columns"]').max)>=192;
+                    result.localNeverLive=!find('.live-indicator');
+                    if(!result.emptyListsHidden||!result.thinHorizontalSlider||!result.horizontalEndMargin||!result.localNeverLive)throw Error('Compact controls or local LIVE status incorrect');
+                    await rpc('host:test-frame',{width:260});await wait(200);const tinyNav=find('.view-buttons');
+                    result.narrowPane=tinyNav.scrollWidth<=tinyNav.clientWidth+1&&find('.toolbar').scrollWidth<=find('.toolbar').clientWidth+1;
+                    if(!result.narrowPane)throw Error('260px pane clips its controls');
+                    await rpc('host:test-frame',{capture:'narrow'});await rpc('host:test-frame',{width:wideFrame.width,height:wideFrame.height});await wait(150);
+                    if(window.__SAAMAN_HOST__.sdkSurfaces){
+                        const sdkClick=el=>{const win=el.ownerDocument.defaultView,r=el.getBoundingClientRect(),s=win.devicePixelRatio||1,args={x:(r.left+r.width/2)*s,y:(r.top+r.height/2)*s,screenX:100,screenY:100,button:0};win.__SAAMAN_SDK_INPUT__({...args,type:'down'});win.__SAAMAN_SDK_INPUT__({...args,type:'up'});};
+                        const captureProbe=document.createElement('div');captureProbe.style.cssText='position:fixed;left:5px;top:5px;width:40px;height:20px;z-index:99999';document.body.appendChild(captureProbe);let capturedUp=false,clickX=0;
+                        captureProbe.addEventListener('pointerdown',e=>{e.stopPropagation();captureProbe.setPointerCapture(e.pointerId)});captureProbe.addEventListener('pointerup',e=>{e.stopPropagation();capturedUp=true});captureProbe.addEventListener('click',e=>{e.stopPropagation();clickX=e.clientX});
+                        for(const [type,x,y] of [['down',10,10],['move',200,80],['up',200,80]])window.__SAAMAN_SDK_INPUT__({type,x:x*devicePixelRatio,y:y*devicePixelRatio,screenX:x,screenY:y,button:0});
+                        captureProbe.remove();if(!capturedUp||clickX!==200)throw Error('SDK drag lost pointer capture or click coordinates');result.sdkPointerCapture=true;
+                        sdkClick(find('[data-action=configuration]'));await floatingReady('dialog','[data-dialog=configuration]');
+                        const runway=find('[data-input=arrival-runway]');sdkClick(runway);await wait(120);const editor=await rpc('host:test-sdk-editor');
+                        if(editor?.kind!=='select'||!editor.options.some(o=>o.value==='ESSA/19R'))throw Error('SDK dropdown did not offer runway values');
+                        await rpc('host:test-sdk-editor',{value:'ESSA/19R'});await wait(120);if(runway.value!=='ESSA/19R')throw Error('SDK dropdown did not update the Vue form');
+                        const slider=find('[data-input=apply-time-slider]');sdkClick(slider);await wait(100);if(Number(slider.value)<25||Number(slider.value)>35)throw Error('SDK range input did not update');
+                        sdkClick(find('.dialog-title button'));await wait(120);if(find('[data-dialog=configuration]'))throw Error('SDK submenu close did not work');
+                        result.sdkButtons=true;result.sdkDropdown=true;result.sdkRange=true;
+                    }
 
                     result.ok=true;
                 }catch(error){result.error=String(error.message||error)}
@@ -507,7 +580,7 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
             if(!auth&&message==WM_MOUSEMOVE&&(dragging||resizing)){
                 POINT current;GetCursorPos(&current);const int dx=current.x-dragStart.x,dy=current.y-dragStart.y;const auto area=host.radar;
                 int width=dragRect.right-dragRect.left,height=dragRect.bottom-dragRect.top,x=dragRect.left,y=dragRect.top;
-                if(resizing){width=std::max(360,std::min(width+dx,static_cast<int>(area.right-x)));height=std::max(380,std::min(height+dy,static_cast<int>(area.bottom-y)));}
+                if(resizing){width=std::max(260,std::min(width+dx,static_cast<int>(area.right-x)));height=std::max(380,std::min(height+dy,static_cast<int>(area.bottom-y)));}
                 else{x=std::max(static_cast<int>(area.left),std::min(x+dx,static_cast<int>(area.right)-width));y=std::max(static_cast<int>(area.top),std::min(y+dy,static_cast<int>(area.bottom)-height));}
                 SetWindowPos(hwnd,HWND_TOP,x,y,width,height,SWP_NOACTIVATE);return 0;
             }
@@ -528,6 +601,7 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                 }
             }
             if(message==WM_WINDOWPOSCHANGED){
+                SyncSurface();
                 if(controller)controller->NotifyParentWindowPositionChanged();
                 if(!auth&&havePreviousBounds){
                     const HWND parent=GetParent(hwnd);RECT current{},damage{};GetWindowRect(hwnd,&current);MapWindowPoints(HWND_DESKTOP,parent,reinterpret_cast<POINT*>(&current),2);UnionRect(&damage,&previousBounds,&current);
@@ -550,17 +624,24 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
             if(message==WM_CLOSE&&floating&&!host.stopping){Present(false);if(auto owner=floatingOwner.lock())if(owner->browser){const auto event=Wide(Json({{"event","floating-close"},{"key",floatingKey}}).dump());owner->browser->PostWebMessageAsJson(event.c_str());}return 0;}
             if(message==WM_CLOSE&&!auth&&!host.stopping){host.visible[supervisor?1:0].store(false);Present(false);return 0;}
             if(message==WM_CLOSE||message==CloseAuth){DestroyWindow(hwnd);return 0;}
-            if(message==WM_DESTROY){destroying=true;if(!auth&&!floating){host.visible[supervisor?1:0].store(false);host.panels[supervisor?1:0].store(nullptr);}if(openDeferral){openDeferral->Complete();openDeferral.Reset();openArgs.Reset();}if(auth&&!completed)if(auto owner=authOwner.lock())owner->Reply(authRequest,Json(),false,401,"Sign-in cancelled");if(controller)controller->Close();browser.Reset();controller.Reset();environment.Reset();return 0;}
+            if(message==WM_DESTROY){destroying=true;{std::lock_guard lock(host.surfaceMutex);host.surfaces.erase(surfaceId);}if(!auth&&!floating){host.visible[supervisor?1:0].store(false);host.panels[supervisor?1:0].store(nullptr);}if(openDeferral){openDeferral->Complete();openDeferral.Reset();openArgs.Reset();}if(auth&&!completed)if(auto owner=authOwner.lock())owner->Reply(authRequest,Json(),false,401,"Sign-in cancelled");if(controller)controller->Close();browser.Reset();controller.Reset();environment.Reset();return 0;}
             if(message==WM_NCDESTROY){const auto closing=hwnd;SetWindowLongPtrW(closing,GWLP_USERDATA,0);hwnd=nullptr;return DefWindowProcW(closing,message,w,l);}
             return DefWindowProcW(hwnd,message,w,l);
         }
     };
     HINSTANCE module;HMODULE retained=nullptr;std::shared_ptr<Context> context;HANDLE thread=nullptr,ready=nullptr,testDone=nullptr;DWORD threadId=0;double uiZoom=1.0;bool zoomInitialized=false,stopping=false;std::vector<std::shared_ptr<Window>> windows;
     std::unique_ptr<CoordinationPopup> coordination;
+    std::unique_ptr<PrivateEdit> privateEditor;
+    unsigned surfaceSerial=0;unsigned long long surfaceOrder=0;std::mutex surfaceMutex;std::map<unsigned,RadarSurface> surfaces;Json editor;
+    std::string inputCursor;
+    void SyncCoordination(){
+        if(!context->sdkSurfaces||!coordination)return;auto surface=coordination->Surface(parent);{std::lock_guard lock(surfaceMutex);surfaces[surface.id]=std::move(surface);}MarkRadarDirty();
+    }
     HWND parent=nullptr,testParent=nullptr,requestedParent=nullptr;RECT radar{},requestedRadar{};std::mutex binding;std::atomic<bool> visible[2]{};std::atomic<HWND> panels[2]{};std::atomic<bool> radarDirty{false};std::atomic<HWND> redrawTarget{nullptr};std::atomic<UINT> redrawMessage{0};
     HWND uiObserver=nullptr;bool hostUiBusy=false;
     void RefreshHostUi(){
         if(!IsWindow(parent))return;
+        if(context->sdkSurfaces){for(const auto& window:windows)if(!window->destroying)window->CaptureSurface();return;}
         const bool busy=HostMenuActive(parent);
         if(busy!=hostUiBusy){
             hostUiBusy=busy;
@@ -580,7 +661,7 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
     }
     void ShareZoom(double zoom){
         if(!std::isfinite(zoom)||zoom<0.25||zoom>5)return;
-        uiZoom=zoom;zoomInitialized=true;if(coordination)coordination->SetZoom(zoom);for(const auto& window:windows)if(!window->destroying)window->ApplyZoom(zoom);
+        uiZoom=zoom;zoomInitialized=true;if(coordination){coordination->SetZoom(zoom);SyncCoordination();}for(const auto& window:windows)if(!window->destroying)window->ApplyZoom(zoom);
     }
     void MarkRadarDirty(){const bool pending=radarDirty.exchange(true);const auto target=redrawTarget.load();if(target&&!pending)PostMessageW(target,redrawMessage.load(),0,0);}
     void EnsureBackground(){
@@ -608,7 +689,7 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
         if(self.context->test){WNDCLASSW mock{};mock.hInstance=self.module;mock.lpfnWndProc=DefWindowProcW;mock.lpszClassName=L"SAAMANTestRadar";RegisterClassW(&mock);self.parent=self.testParent=CreateWindowExW(0,mock.lpszClassName,L"Test radar",WS_OVERLAPPEDWINDOW,0,0,1200,1000,nullptr,nullptr,self.module,nullptr);GetClientRect(self.parent,&self.radar);}
 
         WNDCLASSW observer{};observer.hInstance=self.module;observer.lpfnWndProc=UiObserver;observer.lpszClassName=L"SAAMANHostUiObserver";RegisterClassW(&observer);
-        self.uiObserver=CreateWindowExW(0,observer.lpszClassName,L"SAAMAN host UI observer",0,0,0,0,0,HWND_MESSAGE,nullptr,self.module,&self);SetTimer(self.uiObserver,1,100,nullptr);
+        self.uiObserver=CreateWindowExW(0,observer.lpszClassName,L"SAAMAN host UI observer",0,0,0,0,0,HWND_MESSAGE,nullptr,self.module,&self);SetTimer(self.uiObserver,1,self.context->sdkSurfaces?16:100,nullptr);
         MSG msg{};PeekMessageW(&msg,nullptr,WM_USER,WM_USER,PM_NOREMOVE);SetEvent(self.ready);
         while(GetMessageW(&msg,nullptr,0,0)>0){
             if(!msg.hwnd&&msg.message==AttachMessage){std::unique_ptr<Attachment> data(reinterpret_cast<Attachment*>(msg.lParam));self.parent=data->parent;self.radar=data->radar;for(const auto& window:self.windows)if(!window->auth&&window->hwnd&&GetParent(window->hwnd)!=self.parent){window->hostOcclusion.Bind(self.parent);SetParent(window->hwnd,self.parent);}self.EnsureBackground();}
@@ -616,10 +697,12 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                 for(const auto& window:self.windows)if(!window->auth&&!window->floating&&window->supervisor==supervisor&&!window->destroying){existing=window;break;}
                 if(existing){const bool show=msg.message!=ToggleMessage||!self.visible[supervisor?1:0].load();self.visible[supervisor?1:0].store(show);if(show&&existing->supervisor&&existing->browser)existing->browser->Reload();existing->Present(show);}
                 else{auto window=std::make_shared<Window>(self,supervisor);self.windows.push_back(window);window->Create();}
-            }else if(!msg.hwnd&&msg.message==PulseMessage){self.EnsureBackground();for(const auto& window:self.windows)if(!window->auth&&window->browser)window->browser->PostWebMessageAsJson(L"{\"event\":\"pulse\"}");}
+            }else if(!msg.hwnd&&msg.message==InputMessage){std::unique_ptr<Json> input(reinterpret_cast<Json*>(msg.lParam));if(input->value("window",0u)==0xFFFFFFFFu&&self.coordination){if(input->value("button",0)==0)self.coordination->Pointer(self.parent,{input->at("x").get<int>(),input->at("y").get<int>()},input->value("type",std::string()));self.SyncCoordination();}else for(const auto& window:self.windows)if(window->surfaceId==input->value("window",0u)){window->DispatchInput(*input);break;}}
+            else if(!msg.hwnd&&msg.message==EditMessage){std::unique_ptr<Json> input(reinterpret_cast<Json*>(msg.lParam));for(const auto& window:self.windows)if(window->surfaceId==input->value("window",0u)&&window->browser&&!window->destroying){window->browser->ExecuteScript(Wide("window.__SAAMAN_SDK_EDIT__?.("+input->dump()+")").c_str(),nullptr);window->surfaceDirty=true;break;}}
+            else if(!msg.hwnd&&msg.message==PulseMessage){self.EnsureBackground();for(const auto& window:self.windows)if(!window->auth&&window->browser)window->browser->PostWebMessageAsJson(L"{\"event\":\"pulse\"}");}
             else if(!msg.hwnd&&msg.message==HideMessage){for(const auto& window:self.windows)if(!window->auth&&window->hwnd){self.visible[window->supervisor?1:0].store(false);window->Present(false);}}
-            else if(!msg.hwnd&&msg.message==StopMessage){self.stopping=true;self.coordination.reset();for(const auto& window:self.windows)if(window->hwnd)DestroyWindow(window->hwnd);self.windows.clear();break;}
-            else{if(self.coordination&&self.coordination->Route(msg))continue;TranslateMessage(&msg);DispatchMessageW(&msg);}
+            else if(!msg.hwnd&&msg.message==StopMessage){self.stopping=true;self.privateEditor.reset();self.coordination.reset();for(const auto& window:self.windows)if(window->hwnd)DestroyWindow(window->hwnd);self.windows.clear();break;}
+            else{if(self.privateEditor&&self.privateEditor->Route(msg))continue;if(self.coordination&&self.coordination->Route(msg))continue;TranslateMessage(&msg);DispatchMessageW(&msg);}
         }
         if(self.uiObserver){KillTimer(self.uiObserver,1);DestroyWindow(self.uiObserver);self.uiObserver=nullptr;}UnregisterClassW(L"SAAMANHostUiObserver",self.module);
         if(self.testParent){DestroyWindow(self.testParent);UnregisterClassW(L"SAAMANTestRadar",self.module);}UnregisterClassW(WindowClass,self.module);CoUninitialize();FreeLibraryAndExitThread(retained,0);
@@ -644,6 +727,22 @@ bool Host::ConsumeRadarRefresh(){return impl->radarDirty.exchange(false);}
 void Host::DrawChrome(HDC)const{
     // Chrome is in the child browser surface. A radar refresh must neither
     // write pane pixels to the SDK cache nor invalidate every browser child.
+}
+std::vector<Host::Pane> Host::PaintRadar(HDC dc)const{
+    std::vector<Pane> result;if(!impl->context->sdkSurfaces)return result;
+    std::lock_guard lock(impl->surfaceMutex);std::vector<const RadarSurface*> ordered;for(const auto& [id,surface]:impl->surfaces)if(surface.visible)ordered.push_back(&surface);
+    std::sort(ordered.begin(),ordered.end(),[](const auto* a,const auto* b){if(a==b)return false;if(a->id==0xFFFFFFFFu)return false;if(b->id==0xFFFFFFFFu)return true;return a->order<b->order;});
+    for(const auto* surface:ordered){PaintRadarSurface(dc,*surface);result.push_back({surface->id,surface->bounds});}return result;
+}
+void Host::Pointer(unsigned id,POINT point,POINT screen,const char* type,int button,int delta,unsigned modifiers){
+    auto input=std::make_unique<Json>(Json{{"window",id},{"type",type},{"x",point.x},{"y",point.y},{"screenX",screen.x},{"screenY",screen.y},{"button",button},{"delta",delta},{"ctrl",(modifiers&1)!=0},{"shift",(modifiers&2)!=0},{"alt",(modifiers&4)!=0}});
+    if(PostThreadMessageW(impl->threadId,InputMessage,0,reinterpret_cast<LPARAM>(input.get())))input.release();
+}
+Json Host::TakeEditor(){std::lock_guard lock(impl->surfaceMutex);auto result=std::move(impl->editor);impl->editor=nullptr;return result;}
+void Host::FinishEditor(const Json& editor,const std::string& value){auto input=std::make_unique<Json>(editor);(*input)["value"]=value;if(PostThreadMessageW(impl->threadId,EditMessage,0,reinterpret_cast<LPARAM>(input.get())))input.release();}
+HCURSOR Host::InputCursor()const{
+    std::lock_guard lock(impl->surfaceMutex);const auto& cursor=impl->inputCursor;
+    return LoadCursorW(nullptr,cursor=="pointer"?IDC_HAND:cursor=="text"?IDC_IBEAM:cursor=="move"?IDC_SIZEALL:cursor=="nwse-resize"?IDC_SIZENWSE:cursor=="ns-resize"?IDC_SIZENS:cursor=="ew-resize"?IDC_SIZEWE:IDC_ARROW);
 }
 
 }

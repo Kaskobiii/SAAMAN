@@ -15,6 +15,7 @@ if(-not $taskCmake -or -not(Test-Path -LiteralPath $taskCmake)){throw 'Install C
 if(-not $Generator){$Generator='Visual Studio 17 2022'}
 & $taskNode (Join-Path $PSScriptRoot 'import-performance.mjs');if($LASTEXITCODE){throw 'Performance data import failed'}
 & $taskNode (Join-Path $PSScriptRoot 'import-openap.mjs');if($LASTEXITCODE){throw 'OpenAP data import failed'}
+& $taskNode (Join-Path $PSScriptRoot 'check-sdk-input.mjs');if($LASTEXITCODE){throw 'SDK input script check failed'}
 Push-Location (Join-Path $taskRoot 'ui')
 try{
     if(-not(Test-Path 'node_modules')){& $taskNpm ci --no-audit --no-fund;if($LASTEXITCODE){throw 'Dependency installation failed'}}

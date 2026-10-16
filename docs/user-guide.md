@@ -15,6 +15,8 @@ Select the active ESSA runways in EuroScope for **both ARR and DEP**, then conne
 
 SAAMAN connects automatically in the background when the plugin is loaded and EuroScope has a connected controller callsign. Opening the AMAN pane is not required. It waits for login if you load it while disconnected, and keeps syncing when the pane is hidden.
 
+A red **LIVE** above the top-right clock indicates a fresh shared-backend connection. It disappears when that connection is unavailable and is not shown in local mode.
+
 To change connection settings, open **MAESTRO → Operation mode**. Choose **Shared backend**, select **vatIRIS · EuroScope callsign**, and use `https://backend.vatiris.se`. Select **VATSIM live**, **SweatBox 1** or **SweatBox 2**, matching your session, then press **Save connection**.
 
 A fresh installation starts in shared vatIRIS mode with VATSIM live selected. A mode you explicitly save is remembered; choose a SweatBox network for training.
@@ -55,6 +57,8 @@ If an aircraft bypasses its feeder fix, the current feeder ETA is shown as **—
 | Pink | Landed |
 
 Submenus and dialogs can be moved outside AMAN by dragging their title bars.
+
+The **Missed Approach**, **Desequenced** and **Errors** buttons appear when their lists contain something.
 
 Click a label to highlight and select it. Right-click it to open its callsign menu. Press **Escape** to cancel a selection or drag.
 

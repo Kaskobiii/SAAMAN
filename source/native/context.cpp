@@ -94,7 +94,7 @@ void Context::SeedRunwayConfig(){
 }
 Json Context::Request(const std::string& method,const Json& data,bool supervisor){
     std::lock_guard lock(mutex);
-    if(method=="host:info")return {{"shared",shared},{"backendBaseUrl",backend},{"authProvider",authProvider},{"controllerCid",controllerCid},{"relay",relay},{"instanceId",instanceId},{"view",supervisor?"supervisor":"aman"},{"test",test}};
+    if(method=="host:info")return {{"shared",shared},{"backendBaseUrl",backend},{"authProvider",authProvider},{"controllerCid",controllerCid},{"relay",relay},{"instanceId",instanceId},{"view",supervisor?"supervisor":"aman"},{"test",test},{"sdkSurfaces",sdkSurfaces}};
     if(method=="key:read")return {{"key",authProvider=="keys"?ReadControllerKey(storage,backend):std::string{}}};
     if(method=="mode:set"){
         if(supervisor)throw RequestError(403,"Change connection mode in the normal AMAN");

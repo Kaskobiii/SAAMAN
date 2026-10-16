@@ -3,7 +3,7 @@
 #include <iostream>
 #include <fstream>
 int wmain(int argc,wchar_t** argv){
-    if(argc!=2)return 2;
+    if(argc!=2&&argc!=3)return 2;
     GUITHREADINFO radarCapture{sizeof(GUITHREADINFO)};radarCapture.hwndCapture=GetDesktopWindow();
     if(saaman::HostMenuState(radarCapture)){std::cerr<<"Ordinary radar mouse capture suppressed AMAN\n";return 1;}
     for(const DWORD flags:{GUI_INMENUMODE,GUI_POPUPMENUMODE,GUI_SYSTEMMENUMODE}){
@@ -11,7 +11,7 @@ int wmain(int argc,wchar_t** argv){
     }
     const auto folder=std::filesystem::absolute(argv[1]);std::filesystem::create_directories(folder);
     const auto started=std::filesystem::file_time_type::clock::now();
-    auto context=std::make_shared<saaman::Context>(folder);context->test=true;context->shared=false;context->profile=folder/L"webview-profile";
+    auto context=std::make_shared<saaman::Context>(folder);context->test=true;context->sdkSurfaces=argc==3&&std::wstring(argv[2])==L"--sdk";context->shared=false;context->profile=folder/L"webview-profile";
     const auto now=saaman::Now();context->telemetry={{"source","SAAMAN_NATIVE_TEST"},{"timestamp",now},{"flights",saaman::Json::array({{
         {"callsign","SAAMAN_TEST"},{"aircraft","A320"},{"wake","M"},{"departure","EKCH"},{"arrival","ESSA"},{"runway","19R"},
         {"route",saaman::Json::array({{{"name","ELTOK"},{"seconds",600},{"latitude",60.0},{"longitude",16.8}}})},
@@ -58,6 +58,7 @@ int wmain(int argc,wchar_t** argv){
             SendMessageW(panel,WM_PRINTCLIENT,reinterpret_cast<WPARAM>(frame),PRF_CLIENT);
             chrome=chrome&&GetPixel(frame,3,3)==RGB(94,97,101)&&GetPixel(frame,1,40)==RGB(73,80,85)&&GetPixel(frame,20,40)==RGB(0,0,0);
             SelectObject(frame,previous);DeleteObject(surface);DeleteDC(frame);if(!chrome){std::cerr<<"Pane chrome leaked into radar cache or did not paint its own frame\n";return 1;}
+            if(!context->sdkSurfaces){
             // A reused EuroScope control can be BELOW the embedded pane.
             // Its native region must still receive painting and mouse input.
             RECT occlusionBounds{};GetWindowRect(panel,&occlusionBounds);MapWindowPoints(HWND_DESKTOP,GetParent(panel),reinterpret_cast<POINT*>(&occlusionBounds),2);
@@ -94,6 +95,18 @@ int wmain(int argc,wchar_t** argv){
             RECT afterOcclusion{};GetWindowRect(panel,&afterOcclusion);MapWindowPoints(HWND_DESKTOP,GetParent(panel),reinterpret_cast<POINT*>(&afterOcclusion),2);
             if(!EqualRect(&occlusionBounds,&afterOcclusion)){std::cerr<<"Yielding to host UI moved the pane\n";return 1;}
             DeleteObject(clip);DestroyWindow(hostMenu);
+            }else{
+                HDC radarDc=CreateCompatibleDC(nullptr);BITMAPINFO radarInfo{};radarInfo.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);radarInfo.bmiHeader.biWidth=1200;radarInfo.bmiHeader.biHeight=-1000;radarInfo.bmiHeader.biPlanes=1;radarInfo.bmiHeader.biBitCount=32;void* radarPixels=nullptr;auto radarBitmap=CreateDIBSection(radarDc,&radarInfo,DIB_RGB_COLORS,&radarPixels,nullptr,0);auto oldBitmap=SelectObject(radarDc,radarBitmap);
+                std::vector<saaman::Host::Pane> panes;for(int wait=0;wait<80;wait++){panes=host.PaintRadar(radarDc);if(!panes.empty()&&GetPixel(radarDc,panes[0].bounds.left+20,panes[0].bounds.top+40)!=RGB(73,80,85))break;Sleep(100);}
+                if(panes.empty()){std::cerr<<"SDK surfaces never appeared\n";return 1;}
+                for(const auto& pane:panes)if(GetWindowLongPtrW(host.PanelHandle(pane.id!=panes[0].id),GWL_STYLE)&WS_VISIBLE){std::cerr<<"A native overlay remained above the radar\n";return 1;}
+                const auto pane=panes.front();const auto beforeMenu=GetPixel(radarDc,pane.bounds.left+20,pane.bounds.top+40);
+                if(beforeMenu==RGB(73,80,85)||beforeMenu==RGB(0,0,0)){std::cerr<<"SDK display did not acquire its first browser frame\n";return 1;}
+                RECT menu{pane.bounds.left+10,pane.bounds.top+20,pane.bounds.left+160,pane.bounds.top+180};const auto menuBrush=CreateSolidBrush(RGB(0,60,47));FillRect(radarDc,&menu,menuBrush);DeleteObject(menuBrush);
+                if(GetPixel(radarDc,menu.left+3,menu.top+3)!=RGB(0,60,47)){std::cerr<<"A menu painted after AMAN was obscured\n";return 1;}
+                std::ofstream(folder/L"sdk-surface-check.txt")<<"SDK snapshots rendered; native overlays hidden; later host menu paint wins\n";
+                SelectObject(radarDc,oldBitmap);DeleteObject(radarBitmap);DeleteDC(radarDc);
+            }
             const UINT wakeMessage=WM_APP+77;const HWND redrawRelay=CreateWindowExW(0,L"STATIC",L"Owned redraw relay",0,0,0,0,0,HWND_MESSAGE,nullptr,GetModuleHandleW(nullptr),nullptr);
             if(!redrawRelay){std::cerr<<"Could not create redraw notification test window\n";return 1;}host.SetRadarRefreshTarget(redrawRelay,wakeMessage);
             for(const HWND moved:{panel,host.PanelHandle(true)}){

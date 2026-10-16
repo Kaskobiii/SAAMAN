@@ -17,7 +17,7 @@ struct Context {
     long long captureAttemptAt=0,captureSuccessAt=0;
     std::string captureError;
     unsigned receivers=0;
-    bool shared=true,test=false,runwayConfigInitialized=false;
+    bool shared=true,test=false,runwayConfigInitialized=false,sdkSurfaces=true;
     std::string backend="https://backend.vatiris.se",authProvider="vatiris-callsign";
     long long controllerCid=0;
     Json relay={{"network","live"},{"session","essa-test-01"},{"channel","saaman"}};

@@ -1,7 +1,7 @@
 # SAAMAN native plugin, 1.3.20
 
-SAAMAN.dll is an x86 EuroScope plugin with Win32 child panels hosting the AMAN UI
-through Microsoft WebView2. The calculation engine is editable TypeScript.
+SAAMAN.dll is an x86 EuroScope plugin with a retained WebView2 UI painted through
+EuroScope's radar callbacks. The calculation engine is editable TypeScript.
 Vite builds the UI; scripts/embed-assets.mjs embeds it as Windows resources;
 CMake builds the DLL. Its renderer serves assets at an internal HTTPS origin,
 with no AMAN HTTP listener, Node process or external browser.
@@ -13,14 +13,24 @@ native/radar_screen.cpp manages the COTS launcher and radar redraw notification.
 native/host.cpp owns the STA/WebView thread and embedded TopSky-style panes.
 native/context.cpp shares telemetry, plan, revision and guidance behind a mutex.
 
-native/host_ui_occlusion.h snapshots visible host layout controls before creating
-a pane. Only subsequently shown controls can remove paint/input space; permanent
-radar containers are ignored, and a late container enclosing the whole pane or
-combined exclusions producing an empty region are rejected. The host observer
-suspends AMAN panes and coordination notifications only while the EuroScope GUI
-thread reports a native menu. Ordinary mouse capture never hides them. Tests
-cover permanent inset containers, late containers covering both panes, hidden/
-moving popups and native menu flags; custom EuroScope menus require a live check.
+native/radar_surface.h decodes bounded asynchronous WebView PNG captures into
+owned BGRA frames. Native rendering HWNDs remain hidden. RadarScreen paints the
+cached main, supervision, floating and coordination surfaces in AFTER_LISTS,
+then registers their hit rectangles with AddScreenObject. EuroScope's own menus
+paint afterwards and keep input precedence. Cold opening paints a loading panel
+until the first browser frame is ready. The SDK thread never waits for WebView.
+Capture is limited to one outstanding request per view, 33ms during interaction
+or 100ms otherwise, and only runs after content/size/zoom/scroll changes. Images
+are bounded to 4096 by 4096 pixels. Frames and z order cross threads under a mutex.
+
+native/sdk_input.h forwards SDK-selected pointer/drag/wheel events to the single
+hidden Vue document, preserving capture and click coordinates. Field editing
+uses SDK popup lists/editors on EuroScope's thread; controller keys use a masked
+private dialog instead of the host's unmasked editor. The screen owns thread
+mouse/cursor hooks, removed before unload; it never subclasses the host WndProc.
+Screen-object id strings have stable storage. The old native occlusion path is
+retained solely for the isolated legacy comparison test; production uses SDK
+surfaces and does not guess menu state from capture or radar containers.
 
 ui/src/maestro-initial-profile.ts tracks a provisional initial climbing capture.
 A fresh aircraft profile must remain usable for 15 seconds before its one-time

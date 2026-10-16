@@ -15,16 +15,31 @@ class Plugin final:public EuroScopePlugIn::CPlugIn {
     Json winds=Json::object();
     HWND redrawWindow=nullptr;
     static constexpr UINT RedrawMessage=WM_APP+77;
+    Json activeEditor;
+    static constexpr int EditFunction=88300,SelectFunction=88301;
+    void DrainEditor(){
+        const auto pending=host->TakeEditor();if(!pending.is_object())return;activeEditor=pending;RadarScreen::ReleaseInput();
+        const auto& r=pending.at("rect");const auto& origin=pending.at("origin");RECT area{origin.at("x").get<int>()+r.at("left").get<int>(),origin.at("y").get<int>()+r.at("top").get<int>(),origin.at("x").get<int>()+r.at("right").get<int>(),origin.at("y").get<int>()+r.at("bottom").get<int>()};
+        if(pending.value("kind",std::string())=="select"){
+            OpenPopupList(area,pending.value("title",std::string("Value")).c_str(),1);int index=0;
+            for(const auto& option:pending.at("options")){if(index>=200)break;AddPopupListElement(option.value("text",std::string()).c_str(),"",SelectFunction+index,option.value("value",std::string())==pending.value("value",std::string()),EuroScopePlugIn::POPUP_ELEMENT_NO_CHECKBOX,option.value("disabled",false));++index;}
+        }else OpenPopupEdit(area,EditFunction,pending.value("value",std::string()).c_str());
+    }
     void RefreshRadar(){if(host&&host->ConsumeRadarRefresh())for(auto* screen:screens)screen->RequestRefresh();}
     static LRESULT CALLBACK RedrawProcedure(HWND window,UINT message,WPARAM w,LPARAM l){
         if(message==WM_NCCREATE)SetWindowLongPtrW(window,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(reinterpret_cast<CREATESTRUCTW*>(l)->lpCreateParams));
         auto* plugin=reinterpret_cast<Plugin*>(GetWindowLongPtrW(window,GWLP_USERDATA));
-        if(message==RedrawMessage&&plugin){try{plugin->RefreshRadar();}catch(...){/* Never unwind through the Windows message pump. */}return 0;}
+        if(message==RedrawMessage&&plugin){try{plugin->DrainEditor();plugin->RefreshRadar();}catch(...){/* Never unwind through the Windows message pump. */}return 0;}
         return DefWindowProcW(window,message,w,l);
     }
     std::vector<RadarScreen*> screens;
     void Report(const std::string& text){DisplayUserMessage("SAAMAN","SAAMAN",text.c_str(),true,true,false,false,false);}
 public:
+    void OnFunctionCall(int function,const char* text,POINT,RECT) override {
+        if(!activeEditor.is_object())return;
+        if(function==EditFunction){host->FinishEditor(activeEditor,text?text:"");activeEditor=nullptr;}
+        else if(function>=SelectFunction&&function<SelectFunction+200){const auto index=static_cast<size_t>(function-SelectFunction);const auto& options=activeEditor.at("options");if(index<options.size())host->FinishEditor(activeEditor,options[index].value("value",std::string()));activeEditor=nullptr;}
+    }
     Plugin():CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,"SAAMAN",SAAMAN_VERSION,"SAAMAN contributors; vatIRIS attribution retained","GPLv3"){
         wchar_t path[MAX_PATH]{};GetModuleFileNameW(reinterpret_cast<HINSTANCE>(&__ImageBase),path,MAX_PATH);
         wchar_t local[MAX_PATH]{};GetEnvironmentVariableW(L"LOCALAPPDATA",local,MAX_PATH);

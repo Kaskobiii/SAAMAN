@@ -8,6 +8,7 @@
 <h2>2. Connect for a session</h2>
 <p>Select the active ESSA runways in EuroScope for <strong>both ARR and DEP</strong>, then connect with your normal controller callsign.</p>
 <p>SAAMAN connects automatically in the background when the plugin is loaded and EuroScope has a connected controller callsign. Opening the AMAN pane is not required. It waits for login if you load it while disconnected, and keeps syncing when the pane is hidden.</p>
+<p>A red <strong>LIVE</strong> above the top-right clock indicates a fresh shared-backend connection. It disappears when that connection is unavailable and is not shown in local mode.</p>
 <p>To change connection settings, open <strong>MAESTRO → Operation mode</strong>. Choose <strong>Shared backend</strong>, select <strong>vatIRIS · EuroScope callsign</strong>, and use <code>https://backend.vatiris.se</code>. Select <strong>VATSIM live</strong>, <strong>SweatBox 1</strong> or <strong>SweatBox 2</strong>, matching your session, then press <strong>Save connection</strong>.</p>
 <p>A fresh installation starts in shared vatIRIS mode with VATSIM live selected. A mode you explicitly save is remembered; choose a SweatBox network for training.</p>
 <p>Shared operation requires the vatIRIS AMAN backend to be available. You do not need the vatIRIS desktop application, a separate vatIRIS login or an ordinary controller key. Controllers on the same network share one ESSA sequence; exercise/channel names do not create separate rooms in this mode.</p>
@@ -23,6 +24,7 @@
 <p>If an aircraft bypasses its feeder fix, the current feeder ETA is shown as <strong>—</strong>. The assigned feeder time and existing instruction remain until you change the sequence or Recompute.</p>
 <table><thead><tr><th>Callsign colour</th><th>State</th></tr></thead><tbody><tr><td>Blue</td><td>Unstable</td></tr><tr><td>Green</td><td>Stable</td></tr><tr><td>White</td><td>Superstable</td></tr><tr><td>Turquoise</td><td>Frozen</td></tr><tr><td>Pink</td><td>Landed</td></tr></tbody></table>
 <p>Submenus and dialogs can be moved outside AMAN by dragging their title bars.</p>
+<p>The <strong>Missed Approach</strong>, <strong>Desequenced</strong> and <strong>Errors</strong> buttons appear when their lists contain something.</p>
 <p>Click a label to highlight and select it. Right-click it to open its callsign menu. Press <strong>Escape</strong> to cancel a selection or drag.</p>
 <h2>5. Manage the sequence</h2>
 <p>Use <strong>Runway</strong> view when changing the overall landing order. Select an aircraft, then move the pointer onto its timeline: an arrow shows the proposed insertion point. Click to confirm. Hover over another callsign to show the swap icon, then click that callsign to exchange their slots. You can also drag to an arrow position or drop onto another callsign to swap. Frozen and Superstable aircraft can also be adjusted manually. Swaps use the same runway; feeder views also require the same feeder. Normal spacing and closures still apply.</p>

@@ -46,13 +46,17 @@ void CoordinationPopup::Update(HWND owner,const Json& data,std::function<void(co
         const int x=std::max(static_cast<int>(monitor.rcWork.left),std::min(static_cast<int>((area.left+area.right-width)/2),static_cast<int>(monitor.rcWork.right)-width));
         const int y=std::max(static_cast<int>(monitor.rcWork.top),std::min(static_cast<int>((area.top+area.bottom-height)/2),static_cast<int>(monitor.rcWork.bottom)-height));
         SetWindowPos(hwnd,HWND_TOP,x,y,0,0,SWP_NOSIZE|SWP_NOACTIVATE);
-        if(!test){ShowWindow(hwnd,SW_SHOWNORMAL);SetForegroundWindow(hwnd);SetFocus(button);FlashWindow(hwnd,TRUE);}
+        if(!test&&hostUiAllowed){ShowWindow(hwnd,SW_SHOWNORMAL);SetForegroundWindow(hwnd);SetFocus(button);FlashWindow(hwnd,TRUE);}
     }
 }
 void CoordinationPopup::Acknowledge(){
     if(!enabled||busy||current.is_null())return;
     const auto id=current.at("id").get<std::string>();busy=true;EnableWindow(button,FALSE);SetWindowTextW(button,L"Acknowledging\u2026");status=L"Waiting for confirmation\u2026";Layout();InvalidateRect(hwnd,nullptr,FALSE);
     if(acknowledge)acknowledge(id);
+}
+void CoordinationPopup::AllowHostUi(bool allowed){
+    if(hostUiAllowed==allowed)return;hostUiAllowed=allowed;
+    if(hwnd&&!test)ShowWindow(hwnd,allowed&&!current.is_null()?SW_SHOWNOACTIVATE:SW_HIDE);
 }
 void CoordinationPopup::Fonts(){
     if(messageFont)DeleteObject(messageFont);if(headingFont)DeleteObject(headingFont);if(bodyFont)DeleteObject(bodyFont);

@@ -12,9 +12,20 @@ export function observedFeeder(p:TelemetryFlight,old:EngineFlight|undefined,now:
   const threshold=p.threshold??STAR_RUNWAYS[p.runway],a=localPosition(p as any,fix as any),b=positioned(threshold)?localPosition(threshold!,fix as any):undefined
   crossed=distanceNm(p as any,fix as any)<.8||!!b&&a.x*b.x+a.y*b.y>0&&distanceNm(p as any,threshold!)<distanceNm(fix as any,threshold!)+1
  }
- const passed=old?.bufferedFeederVerified&&old.passedFeeder||crossed
+ const fresh=(p.positionAgeSeconds??0)<=15
+ const passed=old?.bufferedFeederVerified&&old.passedFeeder||fresh&&crossed
+ const rawIndex=p.route.findIndex(point=>point.name===name),directIndex=p.direct?p.route.findIndex(point=>point.name===p.direct):-1
+ const bypassed=directIndex>=0&&(rawIndex<0||directIndex>rawIndex)||!!raw&&raw.seconds<0&&!passed
+ if(!passed&&(bypassed||!raw)){
+  if(fresh&&positioned(p)&&positioned(fix)&&p.groundspeed>=60&&Number.isFinite(p.heading)){
+   const toFix=localPosition(fix as any,p as any),h=p.heading!*Math.PI/180
+   const along=toFix.x*Math.sin(h)+toFix.y*Math.cos(h),cross=Math.abs(toFix.x*Math.cos(h)-toFix.y*Math.sin(h))
+   if(along>0&&cross<=.8)return {feeder:name,seconds:Math.max(0,along/p.groundspeed*3600-(p.positionAgeSeconds??0)),passed:false,available:true,source:'track'}
+  }
+  return {feeder:name,seconds:Math.max(0,((old?.etaFf??old?.euroscopeBaseline?.etaFf??now)-now)/1000),passed:false,available:false,source:bypassed?'bypassed':'unavailable'}
+ }
  const seconds=passed?-1:raw&&raw.seconds>=0?raw.seconds:positioned(p)&&positioned(fix)&&p.groundspeed>=60?distanceNm(p as any,fix as any)/p.groundspeed*3600:Math.max(0,((old?.liveEuroscopeEtaFf??old?.euroscopeBaseline?.rawEtaFf??old?.euroscopeBaseline?.etaFf??now+(p.landingSeconds-(config.defaultFeederMinutes??15)*60)*1000)-now)/1000)
- return {feeder:name,seconds,passed:!!passed}
+ return {feeder:name,seconds,passed:!!passed,available:true,source:passed?'passed':'route'}
 }
 export function arrivalRoute(p:TelemetryFlight,old:EngineFlight|undefined,passed:boolean,runwayChanged=false){
  const names:string[]=FEEDERS.filter(f=>f.airport===p.arrival).flatMap(f=>[...f.fixes])

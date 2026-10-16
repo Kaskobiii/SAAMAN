@@ -1,4 +1,4 @@
-# SAAMAN native plugin, 1.3.19
+# SAAMAN native plugin, 1.3.20
 
 SAAMAN.dll is an x86 EuroScope plugin with Win32 child panels hosting the AMAN UI
 through Microsoft WebView2. The calculation engine is editable TypeScript.
@@ -12,6 +12,21 @@ clearances and active runways. All EuroScope SDK calls remain on its callbacks.
 native/radar_screen.cpp manages the COTS launcher and radar redraw notification.
 native/host.cpp owns the STA/WebView thread and embedded TopSky-style panes.
 native/context.cpp shares telemetry, plan, revision and guidance behind a mutex.
+
+native/host_ui_occlusion.h removes overlapping host child controls from the
+AMAN paint/input region. The host observer suspends AMAN panes and coordination
+notifications while the EuroScope GUI thread has an active native menu or mouse
+capture, then restores their logical visibility. Tests exercise moving/hidden
+overlapping child controls; EuroScope's own custom menus require a live check.
+
+ui/src/maestro-initial-profile.ts tracks a provisional initial climbing capture.
+A fresh aircraft profile must remain usable for 15 seconds before its one-time
+handover. Only Stable allocations are recaptured; Unstable allocations already
+follow the forecast. Manual edits and Superstable/Frozen commitments exclude
+automatic recapture. Constraint work, sequence order and initial history remain.
+Feeder observations can be route-based, track-projected, physically passed or
+unavailable. A bypass retains numeric recovery state and assigned instructions;
+the availability flag prevents displaying that retained value as a live ETA.
 
 ui/src/native-rpc.ts correlates privileged messages from the embedded origin.
 native-transport.ts maps UI operations to the local context or SharedRelay.

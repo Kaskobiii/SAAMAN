@@ -52,6 +52,20 @@ int wmain(int argc,wchar_t** argv){
             SendMessageW(panel,WM_PRINTCLIENT,reinterpret_cast<WPARAM>(frame),PRF_CLIENT);
             chrome=chrome&&GetPixel(frame,3,3)==RGB(94,97,101)&&GetPixel(frame,1,40)==RGB(73,80,85)&&GetPixel(frame,20,40)==RGB(0,0,0);
             SelectObject(frame,previous);DeleteObject(surface);DeleteDC(frame);if(!chrome){std::cerr<<"Pane chrome leaked into radar cache or did not paint its own frame\n";return 1;}
+            // A reused EuroScope control can be BELOW the embedded pane.
+            // Its native region must still receive painting and mouse input.
+            RECT occlusionBounds{};GetWindowRect(panel,&occlusionBounds);MapWindowPoints(HWND_DESKTOP,GetParent(panel),reinterpret_cast<POINT*>(&occlusionBounds),2);
+            HWND hostMenu=CreateWindowExW(0,L"STATIC",L"Host settings menu",WS_CHILD|WS_VISIBLE,occlusionBounds.left+70,occlusionBounds.top+30,160,180,GetParent(panel),nullptr,GetModuleHandleW(nullptr),nullptr);
+            SetWindowPos(hostMenu,HWND_BOTTOM,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);host.RefreshHostUi();
+            HRGN clip=CreateRectRgn(0,0,0,0);const int cut=GetWindowRgn(panel,clip);
+            if(cut==ERROR||PtInRegion(clip,80,40)||!PtInRegion(clip,20,100)){std::cerr<<"AMAN obscured the underlying host control\n";return 1;}
+            SetWindowPos(hostMenu,HWND_BOTTOM,occlusionBounds.left+250,occlusionBounds.top+30,160,180,SWP_NOACTIVATE);host.RefreshHostUi();GetWindowRgn(panel,clip);
+            if(!PtInRegion(clip,80,40)||PtInRegion(clip,260,40)){std::cerr<<"Host-control clipping did not follow its movement\n";return 1;}
+            ShowWindow(hostMenu,SW_HIDE);host.RefreshHostUi();
+            if(GetWindowRgn(panel,clip)!=ERROR||!host.IsVisible()){std::cerr<<"AMAN did not restore after the host menu closed\n";return 1;}
+            RECT afterOcclusion{};GetWindowRect(panel,&afterOcclusion);MapWindowPoints(HWND_DESKTOP,GetParent(panel),reinterpret_cast<POINT*>(&afterOcclusion),2);
+            if(!EqualRect(&occlusionBounds,&afterOcclusion)){std::cerr<<"Yielding to host UI moved the pane\n";return 1;}
+            DeleteObject(clip);DestroyWindow(hostMenu);
             const UINT wakeMessage=WM_APP+77;const HWND redrawRelay=CreateWindowExW(0,L"STATIC",L"Owned redraw relay",0,0,0,0,0,HWND_MESSAGE,nullptr,GetModuleHandleW(nullptr),nullptr);
             if(!redrawRelay){std::cerr<<"Could not create redraw notification test window\n";return 1;}host.SetRadarRefreshTarget(redrawRelay,wakeMessage);
             for(const HWND moved:{panel,host.PanelHandle(true)}){

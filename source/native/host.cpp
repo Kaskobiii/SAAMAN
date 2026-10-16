@@ -1,5 +1,6 @@
 #include "host.h"
 #include "panel_chrome.h"
+#include "host_ui_occlusion.h"
 #include "coordination_popup.h"
 #include <unknwn.h>
 #include <objbase.h>
@@ -32,6 +33,7 @@ bool Trusted(const std::wstring& url){return url.rfind(L"https://saaman.local/",
 struct Host::Impl {
     struct Window:std::enable_shared_from_this<Window>{
         Impl& host;bool supervisor=false,auth=false,floating=false,floatingVisible=false,completed=false,destroying=false,smokeStarted=false,zoomReady=false;
+        HostUiOcclusion hostOcclusion;
         std::string floatingKey;std::weak_ptr<Window> floatingOwner;
         ComPtr<ICoreWebView2NewWindowRequestedEventArgs> openArgs;ComPtr<ICoreWebView2Deferral> openDeferral;
         HWND hwnd=nullptr;ComPtr<ICoreWebView2Controller> controller;ComPtr<ICoreWebView2> browser;ComPtr<ICoreWebView2Environment> environment;
@@ -93,9 +95,9 @@ struct Host::Impl {
             if(!hwnd)return;
             if(floating)floatingVisible=show;
             if(!show&&!auth&&!floating)for(const auto& child:host.windows)if(child->floating&&child->floatingOwner.lock().get()==this&&!child->destroying){child->Present(false);if(browser){const auto event=Wide(Json({{"event","floating-close"},{"key",child->floatingKey}}).dump());browser->PostWebMessageAsJson(event.c_str());}}
-            if(controller){Bounds();controller->put_IsVisible(show?TRUE:FALSE);controller->NotifyParentWindowPositionChanged();}
+            if(controller){Bounds();controller->put_IsVisible(show&&!host.hostUiBusy?TRUE:FALSE);controller->NotifyParentWindowPositionChanged();}
             const bool wasVisible=IsWindowVisible(hwnd)!=FALSE;
-            ShowWindow(hwnd,show&&!host.context->test?SW_SHOW:SW_HIDE);
+            ShowWindow(hwnd,show&&!host.hostUiBusy&&!host.context->test?SW_SHOW:SW_HIDE);
             if(!auth&&wasVisible!=show)host.MarkRadarDirty();
             if(show){SetWindowPos(hwnd,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);RedrawWindow(hwnd,nullptr,nullptr,RDW_INVALIDATE|RDW_ALLCHILDREN|RDW_UPDATENOW);}
         }
@@ -190,6 +192,7 @@ struct Host::Impl {
                         }
                         if(method=="host:test-coordination"&&self->host.context->test){
                             if(!self->host.coordination)throw RequestError(400,"No coordination popup");
+                            if(data.contains("hostUiAllowed"))self->host.coordination->AllowHostUi(data.at("hostUiAllowed").get<bool>());
                             if(data.value("capture",false))self->host.coordination->Capture(self->host.context->directory/L"coordination-preview.bmp");
                             self->Reply(id,self->host.coordination->Inspect(data.value("click",false)));return S_OK;
                         }
@@ -411,6 +414,7 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     result.coordinationLayout=separate.status===''&&Math.abs(separate.buttonCenterX-separate.clientCenterX)<=1;
                     result.coordinationTopSky=!separate.systemCaption&&separate.titleDraggable&&separate.width<=400*separate.dpi/96+1&&separate.height<=200*separate.dpi/96+1&&separate.buttonBottom<separate.height;if(!result.coordinationTopSky)throw Error('Coordination must have a compact draggable TopSky frame without a system caption');
                     if(!result.coordinationLayout)throw Error('Coordination button must be centered without receipt instructions');
+                    const occludedCoordination=await rpc('host:test-coordination',{hostUiAllowed:false});if(occludedCoordination.message.id!==notification.id||!occludedCoordination.enabled)throw Error('Yielding to EuroScope discarded coordination');await rpc('host:test-coordination',{hostUiAllowed:true});result.coordinationHostYield=true;
                     await rpc('host:test-coordination',{click:true});await wait(50);await rpc('host:test-coordination',{click:true});await wait(50);
                     const awaiting=await rpc('host:test-coordination');result.coordinationAck=receivedAcks.length===1&&receivedAcks[0]===notification.id&&!awaiting.enabled&&awaiting.busy;
                     if(!result.coordinationAck)throw Error('Coordination acknowledgement did not forward exactly once');
@@ -553,6 +557,26 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
     HINSTANCE module;HMODULE retained=nullptr;std::shared_ptr<Context> context;HANDLE thread=nullptr,ready=nullptr,testDone=nullptr;DWORD threadId=0;double uiZoom=1.0;bool zoomInitialized=false,stopping=false;std::vector<std::shared_ptr<Window>> windows;
     std::unique_ptr<CoordinationPopup> coordination;
     HWND parent=nullptr,testParent=nullptr,requestedParent=nullptr;RECT radar{},requestedRadar{};std::mutex binding;std::atomic<bool> visible[2]{};std::atomic<HWND> panels[2]{};std::atomic<bool> radarDirty{false};std::atomic<HWND> redrawTarget{nullptr};std::atomic<UINT> redrawMessage{0};
+    HWND uiObserver=nullptr;bool hostUiBusy=false;
+    void RefreshHostUi(){
+        if(!IsWindow(parent))return;
+        const bool busy=HostMenuActive(parent);
+        if(busy!=hostUiBusy){
+            hostUiBusy=busy;
+            for(const auto& window:windows)if(!window->auth&&!window->destroying&&window->hwnd)window->Present(window->floating?window->floatingVisible:visible[window->supervisor?1:0].load());
+            if(coordination)coordination->AllowHostUi(!busy);
+            MarkRadarDirty();
+        }
+        bool changed=false;
+        for(const auto& window:windows)if(!window->auth&&!window->destroying&&window->hwnd)changed=window->hostOcclusion.Apply(window->hwnd,parent,context->test)||changed;
+        if(changed){RedrawWindow(parent,nullptr,nullptr,RDW_INVALIDATE|RDW_ALLCHILDREN);MarkRadarDirty();}
+    }
+    static LRESULT CALLBACK UiObserver(HWND hwnd,UINT message,WPARAM w,LPARAM l){
+        if(message==WM_NCCREATE)SetWindowLongPtrW(hwnd,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(reinterpret_cast<CREATESTRUCTW*>(l)->lpCreateParams));
+        auto* self=reinterpret_cast<Impl*>(GetWindowLongPtrW(hwnd,GWLP_USERDATA));
+        if(self&&(message==WM_TIMER||message==WM_APP+1)){try{self->RefreshHostUi();}catch(...){/* Do not unwind into the host message pump. */}return 0;}
+        return DefWindowProcW(hwnd,message,w,l);
+    }
     void ShareZoom(double zoom){
         if(!std::isfinite(zoom)||zoom<0.25||zoom>5)return;
         uiZoom=zoom;zoomInitialized=true;if(coordination)coordination->SetZoom(zoom);for(const auto& window:windows)if(!window->destroying)window->ApplyZoom(zoom);
@@ -582,6 +606,8 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
         WNDCLASSW type{};type.hInstance=self.module;type.lpfnWndProc=Procedure;type.lpszClassName=WindowClass;type.hCursor=LoadCursorW(nullptr,IDC_ARROW);type.hbrBackground=static_cast<HBRUSH>(GetStockObject(DKGRAY_BRUSH));RegisterClassW(&type);
         if(self.context->test){WNDCLASSW mock{};mock.hInstance=self.module;mock.lpfnWndProc=DefWindowProcW;mock.lpszClassName=L"SAAMANTestRadar";RegisterClassW(&mock);self.parent=self.testParent=CreateWindowExW(0,mock.lpszClassName,L"Test radar",WS_OVERLAPPEDWINDOW,0,0,1200,1000,nullptr,nullptr,self.module,nullptr);GetClientRect(self.parent,&self.radar);}
 
+        WNDCLASSW observer{};observer.hInstance=self.module;observer.lpfnWndProc=UiObserver;observer.lpszClassName=L"SAAMANHostUiObserver";RegisterClassW(&observer);
+        self.uiObserver=CreateWindowExW(0,observer.lpszClassName,L"SAAMAN host UI observer",0,0,0,0,0,HWND_MESSAGE,nullptr,self.module,&self);SetTimer(self.uiObserver,1,100,nullptr);
         MSG msg{};PeekMessageW(&msg,nullptr,WM_USER,WM_USER,PM_NOREMOVE);SetEvent(self.ready);
         while(GetMessageW(&msg,nullptr,0,0)>0){
             if(!msg.hwnd&&msg.message==AttachMessage){std::unique_ptr<Attachment> data(reinterpret_cast<Attachment*>(msg.lParam));self.parent=data->parent;self.radar=data->radar;for(const auto& window:self.windows)if(!window->auth&&window->hwnd&&GetParent(window->hwnd)!=self.parent)SetParent(window->hwnd,self.parent);self.EnsureBackground();}
@@ -594,6 +620,7 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
             else if(!msg.hwnd&&msg.message==StopMessage){self.stopping=true;self.coordination.reset();for(const auto& window:self.windows)if(window->hwnd)DestroyWindow(window->hwnd);self.windows.clear();break;}
             else{if(self.coordination&&self.coordination->Route(msg))continue;TranslateMessage(&msg);DispatchMessageW(&msg);}
         }
+        if(self.uiObserver){KillTimer(self.uiObserver,1);DestroyWindow(self.uiObserver);self.uiObserver=nullptr;}UnregisterClassW(L"SAAMANHostUiObserver",self.module);
         if(self.testParent){DestroyWindow(self.testParent);UnregisterClassW(L"SAAMANTestRadar",self.module);}UnregisterClassW(WindowClass,self.module);CoUninitialize();FreeLibraryAndExitThread(retained,0);
     }
 };
@@ -610,6 +637,7 @@ void Host::Attach(HWND parent,RECT radar){
 void Host::Toggle(bool supervisor){PostThreadMessageW(impl->threadId,ToggleMessage,supervisor?1:0,0);}
 bool Host::IsVisible(bool supervisor)const{return impl->visible[supervisor?1:0].load();}
 HWND Host::PanelHandle(bool supervisor)const{return impl->panels[supervisor?1:0].load();}
+void Host::RefreshHostUi(){if(impl->uiObserver)SendMessageW(impl->uiObserver,WM_APP+1,0,0);}
 void Host::SetRadarRefreshTarget(HWND target,UINT message){impl->redrawMessage.store(message);impl->redrawTarget.store(target);}
 bool Host::ConsumeRadarRefresh(){return impl->radarDirty.exchange(false);}
 void Host::DrawChrome(HDC)const{

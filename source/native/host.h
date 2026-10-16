@@ -13,6 +13,7 @@ public:
     void Show(bool supervisor=false);
     void Hide();
     void Pulse();
+    void RefreshHostUi();
     void Attach(HWND parent,RECT radar);
     void Toggle(bool supervisor=false);
     bool IsVisible(bool supervisor=false) const;

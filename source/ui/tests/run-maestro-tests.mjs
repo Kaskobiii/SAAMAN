@@ -7,7 +7,7 @@ import {spawn} from 'node:child_process'
 
 const directory=await mkdtemp(path.join(tmpdir(),'vatiris-maestro-'))
 try {
-    const tests=['maestro-engine','maestro-buffer','maestro-unstable','maestro-landing','maestro-route-timing','maestro-operations','maestro-manual-reservations','maestro-star-prediction','maestro-trajectory','maestro-recording','maestro-supervision','maestro-openap','shared-relay','shared-http','callsign-identity','legacy-relay','maestro-feeder-coverage','maestro-connection'].map(name=>({source:fileURLToPath(new URL(`./${name}.test.mjs`,import.meta.url)),output:path.join(directory,`${name}.mjs`)}))
+    const tests=['maestro-engine','maestro-buffer','maestro-unstable','maestro-initial-profile','maestro-landing','maestro-route-timing','maestro-operations','maestro-manual-reservations','maestro-star-prediction','maestro-trajectory','maestro-recording','maestro-supervision','maestro-openap','shared-relay','shared-http','callsign-identity','legacy-relay','maestro-feeder-coverage','maestro-connection'].map(name=>({source:fileURLToPath(new URL(`./${name}.test.mjs`,import.meta.url)),output:path.join(directory,`${name}.mjs`)}))
     await Promise.all(tests.map(test=>build({entryPoints:[test.source],bundle:true,platform:'node',format:'esm',outfile:test.output})))
     const exit=await new Promise((resolve,reject)=>{
         const child=spawn(process.execPath,['--test',...tests.map(test=>test.output)],{stdio:'inherit'})

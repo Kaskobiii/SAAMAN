@@ -224,3 +224,11 @@ A native ZoomFactorChanged handler shares the current WebView zoom across non-au
 Floating surfaces retain a CSS content width independent of viewport zoom, with automatic content height rather than a viewport-height minimum. Show and resize requests carry devicePixelRatio; the host converts CSS dimensions and anchor coordinates to native pixels and fits both width and height within the radar. ResizeObserver and window zoom/resize events batch measurements after layout, with cancelled work on close. Existing no-copy move repaint and normal resize paint remain in place. Native smoke checks 125%, 80%, restoration, zoom initiated in a submenu, reopening, physical frame/content agreement and coordination scaling.
 
 Container queries at 620 and 420 CSS pixels reduce header fonts, minimum widths, button padding and gaps as the pane narrows, including when browser zoom reduces available CSS width. Narrow-pane smoke checks 360 native pixels, two navigation rows, readable control overflow limits and restoration after widening.
+
+Multi-instance proxy operation: native telemetry exposes the SDK connection type.
+SharedRelay marks VIA_PROXY connections; the vatIRIS callsign adapter reads the
+checkpoint without owner polling, telemetry publication or callsign leave. Proxy
+commands use the existing command endpoint and recover acknowledgements from
+checkpoint receipts, because the direct instance can consume the same callsign's
+result queue. Only the direct connection is eligible to sequence; proxy runway
+selections cannot automatically reseed shared configuration.

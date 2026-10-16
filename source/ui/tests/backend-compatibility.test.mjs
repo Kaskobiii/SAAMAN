@@ -31,9 +31,9 @@ async function fixture(){
         if((lost==='command'&&path.endsWith('/command'))||(lost==='publication'&&method==='PUT')){lost='';throw Error('Response lost after server accepted it')}
         return result.data
     }
-    function client(id,callsign,cid=null,network='sweatbox1'){
+    function client(id,callsign,cid=null,network='sweatbox1',connectionType=1){
         const bridge=new LegacyRelay({network,instanceId:id,send,callsign:()=>callsign,cid:()=>cid,supervisor:async(_cs,claimed)=>claimed===1396125,now:()=>clock})
-        return new SharedRelay({network,session:'not-a-backend-room',channel:'saaman',instanceId:id},{cid:()=>cid,now:()=>clock,send:(method,path,body)=>bridge.send(method,path,body),telemetry:async()=>({timestamp:clock,source:callsign,connected:true,simulation:network!=='live',activeRunways:{arrivals:['ESSA/01R'],departures:['ESSA/01L']},flights:[{callsign:'TEST123',aircraft:'A320',wake:'M',departure:'EKCH',arrival:'ESSA',runway:'01R',route:[{name:'ELTOK',seconds:800}],landingSeconds:1400,distanceNm:100,groundspeed:250,altitude:15000}]})})
+        return new SharedRelay({network,session:'not-a-backend-room',channel:'saaman',instanceId:id},{cid:()=>cid,now:()=>clock,send:(method,path,body)=>bridge.send(method,path,body),telemetry:async()=>({timestamp:clock,source:callsign,connected:true,connectionType,simulation:network!=='live',activeRunways:{arrivals:['ESSA/01R'],departures:['ESSA/01L']},flights:[{callsign:'TEST123',aircraft:'A320',wake:'M',departure:'EKCH',arrival:'ESSA',runway:'01R',route:[{name:'ELTOK',seconds:800}],landingSeconds:1400,distanceNm:100,groundspeed:250,altitude:15000}]})})
     }
     return {client,raw,requests,feed,advance:ms=>clock+=ms,lose:value=>lost=value,async close(){
         server.closeAllConnections();await new Promise(resolve=>server.close(resolve));timers.forEach(clearInterval);Date.now=originalNow;delete globalThis.__SAAMAN_VATIRIS_TEST_FEED__
@@ -131,5 +131,23 @@ test('actual router stays unchanged by tower observers, including handover calls
   const receipt=await f.raw('POST','/aman/sweatbox1/ESSA/poll',{callsign:'ESSA_TWR',wait:false,version:0})
   assert.ok(receipt.data.results.some(r=>r.id===sent.data.id&&r.ok===false&&r.message==='Tower positions are observers only'))
 
+ }finally{await f.close()}
+})
+
+
+test('actual router supports same-callsign proxy following and acknowledged edits without a second sequencer',async()=>{
+ const f=await fixture();try{
+  const proxy=f.client('proxy','ESSA_FMP',1396125,'sweatbox1',2),owner=f.client('direct','ESSA_FMP',1396125),other=f.client('other','ESSA_W_APP')
+  assert.equal((await proxy.tick()).relayRole,'editor');assert.deepEqual((await f.raw('GET','/aman')).data,{})
+  await owner.tick();const base=await proxy.tick();assert.equal(base.relayRole,'editor');assert.deepEqual(base.snapshot,JSON.parse(JSON.stringify(owner.view().snapshot)))
+  const target=base.snapshot.flights[0].sta+120000,drive=setInterval(()=>void owner.tick().catch(()=>{}),25)
+  try{
+   const changed=await proxy.edit(base.revision,{TEST123:{target}},{...base.config,active:['ESSA/19R'],departureRunway:'ESSA/19L'})
+   assert.equal(changed.edits.TEST123.target,target);assert.deepEqual(changed.config.active,['ESSA/19R']);assert.equal(changed.config.departureRunway,'ESSA/19L')
+  }finally{clearInterval(drive)}
+  assert.ok(f.requests.filter(r=>r.method==='PUT').every(r=>r.body.sequence.saamanRelay.instanceId==='direct'))
+  assert.equal((await owner.tick()).relayRole,'sequencer')
+  f.advance(9000);await proxy.tick();assert.equal((await other.tick()).relayRole,'sequencer')
+  assert.equal((await proxy.tick()).relayRole,'editor');await proxy.leave();assert.equal((await other.tick()).relayRole,'sequencer')
  }finally{await f.close()}
 })

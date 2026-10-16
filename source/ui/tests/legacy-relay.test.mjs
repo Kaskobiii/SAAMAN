@@ -32,12 +32,12 @@ function setup(){
         if(failure==='publication'){failure='';error('Response lost',503)}
         return {version}
     }
-    const client=(instanceId,call,cid,initialRunways={arrivals:['ESSA/01R'],departures:['ESSA/01L']},runways)=>{
+    const client=(instanceId,call,cid,initialRunways={arrivals:['ESSA/01R'],departures:['ESSA/01L']},runways,connectionType=1)=>{
         let activeRunways=initialRunways
         const options={network:'sweatbox1',session:'ignored-exercise',channel:'ignored-channel',instanceId}
         const legacy=new LegacyRelay({network:'sweatbox1',instanceId,send,callsign:()=>call,cid:()=>cid,supervisor:async(cs,claimed)=>claimed===1396125,now:()=>now,requestId:()=>`relay-${++serial}`})
-        const relay=new SharedRelay(options,{send:(method,path,body)=>legacy.send(method,path,body),cid:()=>cid,now:()=>now,requestId:()=>`request-${++serial}`,telemetry:async()=>({source:call,connected:true,simulation:true,timestamp:now,activeRunways,runways,flights:[{callsign:'SAS123',aircraft:'A320',wake:'M',departure:'EKCH',arrival:'ESSA',runway:'01R',route:[{name:'ELTOK',seconds:800}],landingSeconds:1400,distanceNm:100,groundspeed:250,altitude:15000}]})})
-        return {relay,legacy,options,setRunways:value=>activeRunways=value,setCallsign:value=>call=value}
+        const relay=new SharedRelay(options,{send:(method,path,body)=>legacy.send(method,path,body),cid:()=>cid,now:()=>now,requestId:()=>`request-${++serial}`,telemetry:async()=>({source:call,connected:true,connectionType,simulation:true,timestamp:now,activeRunways,runways,flights:[{callsign:'SAS123',aircraft:'A320',wake:'M',departure:'EKCH',arrival:'ESSA',runway:'01R',route:[{name:'ELTOK',seconds:800}],landingSeconds:1400,distanceNm:100,groundspeed:250,altitude:15000}]})})
+        return {relay,legacy,options,setRunways:value=>activeRunways=value,setCallsign:value=>call=value,setConnectionType:value=>connectionType=value}
     }
     return {client,requests,advance:ms=>now+=ms,failure:value=>failure=value,reset:()=>{sequence=null;owner='';version=0;commands=[];results.clear()},state:()=>copy({sequence,commands,version,owner}),foreign:()=>{sequence={data:{icao:'ESSA'},sequence:[]};version=1}}
 }
@@ -184,4 +184,51 @@ test('changing from a center to tower login removes edit rights and stops public
  await assert.rejects(client.relay.edit(plan.revision,plan.edits,plan.config),/Tower positions are observers only/)
  await assert.rejects(client.relay.coordinate('Update finished'),/Tower positions are observers only/)
  assert.ok(f.requests.slice(sent).every(r=>r.method==='GET'))
+})
+
+
+test('same-callsign proxy follows direct runways and aircraft without claiming, publishing or releasing its owner',async()=>{
+    const f=setup(),a=f.client('direct','ESSA_FMP',1396125,{arrivals:['ESSA/19R'],departures:['ESSA/19L']}),p=f.client('proxy','ESSA_FMP',1396125,{arrivals:['ESSA/01R'],departures:['ESSA/01L']},undefined,2)
+    await a.relay.tick()
+    for(let i=0;i<5;i++){
+        const start=f.requests.length,before=f.state(),view=await p.relay.tick()
+        assert.equal(view.relayRole,'editor');assert.deepEqual(view.config.active,['ESSA/19R']);assert.equal(view.config.departureRunway,'ESSA/19L')
+        assert.deepEqual(view.snapshot,before.sequence.saamanRelay.checkpoint.snapshot)
+        assert.ok(f.requests.slice(start).every(r=>r.method==='GET'));assert.deepEqual(f.state(),before)
+        f.advance(1000);await a.relay.tick()
+    }
+    const start=f.requests.length;await p.relay.leave();assert.ok(f.requests.slice(start).every(r=>r.method==='GET'));assert.equal(f.state().owner,'ESSA_FMP')
+    assert.equal((await a.relay.tick()).relayRole,'sequencer')
+})
+
+test('proxy can open before the primary without seeding its different runway selections',async()=>{
+    const f=setup(),p=f.client('proxy','ESSA_FMP',1396125,undefined,undefined,2),a=f.client('direct','ESSA_FMP',1396125,{arrivals:['ESSA/19R'],departures:['ESSA/19L']})
+    const waiting=await p.relay.tick();assert.equal(waiting.relayRole,'editor');assert.equal(waiting.snapshot,null);assert.equal(f.state().owner,'')
+    await a.relay.tick();assert.deepEqual((await p.relay.tick()).config.active,['ESSA/19R'])
+})
+
+test('proxy runway and aircraft edits are acknowledged even when the direct instance drains their callsign results',async()=>{
+    const f=setup(),a=f.client('direct','ESSA_FMP',1396125),p=f.client('proxy','ESSA_FMP',1396125,undefined,undefined,2)
+    await a.relay.tick();await p.relay.tick();const base=p.relay.view(),target=base.snapshot.flights[0].sta+120000
+    const drive=setInterval(()=>void a.relay.tick().catch(()=>{}),20)
+    try{
+        const changed=await p.relay.edit(base.revision,{SAS123:{target}},{...base.config,active:['ESSA/19R'],departureRunway:'ESSA/19L'})
+        assert.equal(changed.edits.SAS123.target,target);assert.deepEqual(changed.config.active,['ESSA/19R']);assert.equal(changed.config.departureRunway,'ESSA/19L')
+    }finally{clearInterval(drive)}
+    assert.equal(f.state().sequence.saamanRelay.instanceId,'direct')
+    assert.equal(f.state().sequence.saamanRelay.receipts[Object.keys(f.state().sequence.saamanRelay.receipts)[0]].ok,true)
+})
+
+test('proxy polling does not keep a departed direct sequencer alive and follows another controller handover',async()=>{
+    const f=setup(),a=f.client('direct','ESSA_FMP',1396125),p=f.client('proxy','ESSA_FMP',1396125,undefined,undefined,2),b=f.client('other','ESSA_E_APP',null)
+    await a.relay.tick();await p.relay.tick();f.advance(9000);await p.relay.tick()
+    assert.equal((await b.relay.tick()).relayRole,'sequencer');assert.equal((await p.relay.tick()).relayRole,'editor')
+    assert.equal(f.state().sequence.saamanRelay.instanceId,'other')
+})
+
+test('direct-to-proxy connection transition stops publications and prevents leaving the shared callsign',async()=>{
+    const f=setup(),a=f.client('moving','ESSA_FMP',1396125)
+    await a.relay.tick();a.setConnectionType(2);const start=f.requests.length
+    assert.equal((await a.relay.tick()).relayRole,'editor');await a.relay.leave()
+    assert.ok(f.requests.slice(start).every(r=>r.method==='GET'))
 })

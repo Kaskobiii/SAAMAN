@@ -457,23 +457,12 @@ function openDialog(name: string) {
     if(pending)applyMinutes.value=Math.max(0,Math.min(60,Math.round((pending.at-applyBaseTime.value)/60000)))
     draftApplyRate.value=name==='configuration'&&!!nextConfiguration.value&&nextConfiguration.value.applyRate!==false
     draftRateSeconds.value=name==='rates'&&config.value.pendingRate&&config.value.pendingRate.at>now.value?config.value.pendingRate.seconds:draft.value.rates[draftArrival.value]
-    if(name==='rates'||name==='configuration'){clockOffset.value=0;focusArrivalColumn(rateRunway.value)}
     if(name==='arrival-profile')arrivalProfileDraft.value=edits.value[selected.value]?.arrivalProfile??''
     if (name === 'flight-slots' && current.value) {
         flightSlots.before = current.value.slotBefore; flightSlots.after = current.value.slotAfter
     }
 }
-function focusArrivalColumn(runway:string){
-    void changeView('Runway').then(()=>{
-        const index=groups.value.findIndex(g=>g.runways.includes(runway))
-        horizontalPosition.value=Math.max(0,Math.min(horizontalMax.value,horizontalMargin+index*columnWidth.value-(plotWidth.value-columnWidth.value)/2))
-        horizontalByView.Runway=horizontalPosition.value
-        void nextTick(scrollHorizontal)
-    })
-}
-
-watch(draftArrival,r=>{if(dialog.value==='configuration'){draftRateSeconds.value=draft.value.rates[r];draftApplyRate.value=false;focusArrivalColumn(r)}},{flush:'sync'})
-watch(rateRunway,r=>{if(dialog.value==='rates')focusArrivalColumn(r)})
+watch(draftArrival,r=>{if(dialog.value==='configuration'){draftRateSeconds.value=draft.value.rates[r];draftApplyRate.value=false}},{flush:'sync'})
 function editFlight(patch: FlightEdit) {
     if (!current.value) return
     const callsign = current.value.callsign

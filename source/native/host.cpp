@@ -48,7 +48,7 @@ struct Host::Impl {
         void SyncSurface(){
             if(auth||!host.context->sdkSurfaces||!hwnd)return;
             RECT rect{};GetWindowRect(hwnd,&rect);MapWindowPoints(HWND_DESKTOP,host.parent,reinterpret_cast<POINT*>(&rect),2);
-            std::lock_guard lock(host.surfaceMutex);auto& surface=host.surfaces[surfaceId];surface.id=surfaceId;surface.order=++host.surfaceOrder;surface.bounds=rect;surface.visible=RequestedVisible()&&!destroying;surface.supervisor=supervisor;surfaceDirty=true;
+            std::lock_guard lock(host.surfaceMutex);auto& surface=host.surfaces[surfaceId];surface.id=surfaceId;surface.order=++host.surfaceOrder;surface.bounds=rect;surface.visible=RequestedVisible()&&!destroying;surface.supervisor=supervisor;surface.resizeGrip=floating?0:static_cast<int>(std::ceil(22*host.uiZoom));surfaceDirty=true;
         }
         void CaptureSurface(){
             if(auth||!host.context->sdkSurfaces||!browser||!surfaceReady||!RequestedVisible()||!surfaceDirty||capturing||Now()-captureAt<(Now()-lastInputAt<300?33:100))return;
@@ -113,7 +113,7 @@ struct Host::Impl {
         void Fail(const wchar_t* message){if(openDeferral){openArgs->put_Handled(TRUE);openDeferral->Complete();openDeferral.Reset();openArgs.Reset();}SetWindowTextW(hwnd,message);if(host.context->test){std::ofstream(host.context->directory/L"host-test-failure.txt")<<Narrow(message);SetEvent(host.testDone);}else MessageBoxW(hwnd,message,L"SAAMAN",MB_ICONERROR|MB_OK);}
         void ApplyZoom(double zoom){
             if(auth||!controller)return;
-            surfaceDirty=true;
+            surfaceDirty=true;SyncSurface();
             double prior=1;controller->get_ZoomFactor(&prior);if(std::abs(prior-zoom)>0.000001)controller->put_ZoomFactor(zoom);
             if(browser)browser->ExecuteScript(L"window.dispatchEvent(new Event('saaman-zoom'))",nullptr);
         }
@@ -544,13 +544,50 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                         for(const [type,x,y] of [['down',10,10],['move',200,80],['up',200,80]])window.__SAAMAN_SDK_INPUT__({type,x:x*devicePixelRatio,y:y*devicePixelRatio,screenX:x,screenY:y,button:0});
                         captureProbe.remove();if(!capturedUp||clickX!==200)throw Error('SDK drag lost pointer capture or click coordinates');result.sdkPointerCapture=true;
                         sdkClick(find('[data-action=configuration]'));await floatingReady('dialog','[data-dialog=configuration]');
-                        const runway=find('[data-input=arrival-runway]');sdkClick(runway);await wait(120);const editor=await rpc('host:test-sdk-editor');
-                        if(editor?.kind!=='select'||!editor.options.some(o=>o.value==='ESSA/19R'))throw Error('SDK dropdown did not offer runway values');
-                        await rpc('host:test-sdk-editor',{value:'ESSA/19R'});await wait(120);if(runway.value!=='ESSA/19R')throw Error('SDK dropdown did not update the Vue form');
+                        const runway=find('[data-input=arrival-runway]'),departure=find('[data-input=departure-runway]');
+                        const chooseRunway=async(control,value)=>{
+                            sdkClick(control);await wait(120);const doc=control.ownerDocument,menu=doc.querySelector('.saaman-sdk-select'),choice=menu?.querySelector('[data-value="'+value+'"]');
+                            if(!choice||menu.getAttribute('role')!=='listbox')throw Error('AMAN runway choices did not open');
+                            const r=menu.getBoundingClientRect(),win=doc.defaultView;if(r.left<0||r.top<0||r.right>win.innerWidth+1||r.bottom>win.innerHeight+1)throw Error('Runway choices escaped the captured pane');
+                            if((await rpc('host:test-sdk-editor'))?.kind==='select')throw Error('Runway list still delegated to EuroScope');
+                            sdkClick(choice);await wait(120);if(control.value!==value||doc.querySelector('.saaman-sdk-select'))throw Error('AMAN dropdown selection did not update and close');
+                        };
+                        for(const [control,value] of [[runway,'ESSA/19R'],[departure,'ESSA/19L'],[runway,'ESSA/01R'],[runway,'ESSA/19R'],[departure,'ESSA/01L']])await chooseRunway(control,value);
+                        sdkClick(runway);await wait(80);sdkClick(runway);await wait(80);if(runway.ownerDocument.querySelector('.saaman-sdk-select'))throw Error('Runway dropdown did not toggle closed');
+                        sdkClick(runway);await wait(80);sdkClick(find('[data-input=apply-time-slider]'));await wait(80);if(runway.ownerDocument.querySelector('.saaman-sdk-select'))throw Error('Outside click did not dismiss runway list');
+                        for(const factor of [0.8,1.25,1]){await rpc('host:test-zoom',{factor});await wait(200);await chooseRunway(runway,'ESSA/19R');}
+                        sdkClick(runway);await wait(100);await rpc('host:test-floating',{key:'dialog',capture:true});sdkClick(runway);await wait(80);
+                        const gripRect=find('.frame-resize').getBoundingClientRect();result.resizeGrip=gripRect.width>=22&&gripRect.height>=22&&getComputedStyle(find('.frame-resize')).cursor==='nwse-resize';
+                        if(!result.resizeGrip)throw Error('Resize grip is too small or lacks diagonal cursor');
+                        const grip=find('.frame-resize'),frameBeforeCorner=await rpc('host:test-frame'),gx=gripRect.left+2,gy=gripRect.top+2;
+                        if(document.elementFromPoint(gx,gy)!==grip)throw Error('Expanded resize hit area is obstructed');
+                        for(const [type,delta] of [['down',0],['move',16],['up',16]])window.__SAAMAN_SDK_INPUT__({type,x:(gx+delta)*devicePixelRatio,y:(gy+delta)*devicePixelRatio,screenX:400+delta,screenY:400+delta,button:0});
+                        await wait(180);const frameAfterCorner=await rpc('host:test-frame');result.resizeOuterDrag=frameAfterCorner.width===frameBeforeCorner.width+16&&frameAfterCorner.height===frameBeforeCorner.height+16;
+                        if(!result.resizeOuterDrag)throw Error('Outer resize hit area did not resize pane');
+                        await rpc('host:test-frame',{width:frameBeforeCorner.width,height:frameBeforeCorner.height});await wait(100);
+                        result.sdkDropdownReopen=true;result.sdkDropdownZoom=true;result.sdkDropdownDismiss=true;
                         const slider=find('[data-input=apply-time-slider]');sdkClick(slider);await wait(100);if(Number(slider.value)<25||Number(slider.value)>35)throw Error('SDK range input did not update');
                         sdkClick(find('.dialog-title button'));await wait(120);if(find('[data-dialog=configuration]'))throw Error('SDK submenu close did not work');
                         result.sdkButtons=true;result.sdkDropdown=true;result.sdkRange=true;
                     }
+
+                    // Opening/editing settings must not navigate the controller's timeline.
+                    const viewportState=()=>({view:find('.view-buttons button.active')?.textContent.trim(),left:find('.horizontal-scroll').scrollLeft,slider:find('[aria-label="Scroll between timeline columns"]').value,time:find('.time-overview').getAttribute('aria-valuenow')});
+                    const sameViewport=before=>{const after=viewportState();if(after.view!==before.view||Math.abs(after.left-before.left)>1||after.slider!==before.slider||after.time!==before.time)throw Error('Configuration changed timeline position: '+JSON.stringify({before,after}))};
+                    const originalFrame=await rpc('host:test-frame');await rpc('host:test-frame',{width:340});await wait(180);
+                    for(const label of ['Runway','FLOW',controllerData.source==='ESSA_W_APP'?'ARR-W':'ACC']){
+                        const button=findAll('.view-buttons button').find(b=>b.textContent.trim()===label);if(!button)continue;button.click();await wait(140);
+                        const horizontal=find('[aria-label="Scroll between timeline columns"]');horizontal.value=String(Math.min(57,Number(horizontal.max)));horizontal.dispatchEvent(new Event('input',{bubbles:true}));
+                        find('.time-overview').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true}));await wait(120);const before=viewportState();
+                        if(before.left<1||Number(before.time)<1)throw Error('Viewport preservation fixture did not scroll');
+                        for(const action of ['configuration','rates','configuration','rates']){
+                            find('[data-action='+action+']').click();await floatingReady('dialog','[data-dialog='+action+']');sameViewport(before);
+                            if(action==='configuration'){const input=find('[data-input=arrival-runway]');input.value=input.value==='ESSA/19R'?'ESSA/01R':'ESSA/19R';input.dispatchEvent(new Event('change',{bubbles:true}));await wait(100);sameViewport(before);}
+                            find('.dialog-title button').click();await wait(100);sameViewport(before);
+                        }
+                    }
+                    result.configurationPreservesViewport=true;result.ratePreservesViewport=true;
+                    find('.time-overview').dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true}));findAll('.view-buttons button').find(b=>b.textContent.trim()==='Runway').click();await rpc('host:test-frame',{width:originalFrame.width});await wait(100);
 
                     result.ok=true;
                 }catch(error){result.error=String(error.message||error)}
@@ -740,8 +777,13 @@ void Host::Pointer(unsigned id,POINT point,POINT screen,const char* type,int but
 }
 Json Host::TakeEditor(){std::lock_guard lock(impl->surfaceMutex);auto result=std::move(impl->editor);impl->editor=nullptr;return result;}
 void Host::FinishEditor(const Json& editor,const std::string& value){auto input=std::make_unique<Json>(editor);(*input)["value"]=value;if(PostThreadMessageW(impl->threadId,EditMessage,0,reinterpret_cast<LPARAM>(input.get())))input.release();}
-HCURSOR Host::InputCursor()const{
-    std::lock_guard lock(impl->surfaceMutex);const auto& cursor=impl->inputCursor;
+HCURSOR Host::InputCursor(unsigned id,POINT point)const{
+    std::lock_guard lock(impl->surfaceMutex);
+    // Resolve the corner on the radar thread, before the asynchronous browser reply.
+    const auto pane=impl->surfaces.find(id);
+    if(pane!=impl->surfaces.end()){const auto& s=pane->second;const RECT grip{s.bounds.right-s.resizeGrip,s.bounds.bottom-s.resizeGrip,s.bounds.right,s.bounds.bottom};if(s.visible&&s.resizeGrip&&PtInRect(&grip,point))return LoadCursorW(nullptr,IDC_SIZENWSE);}
+    const auto& cursor=impl->inputCursor;
+    if(pane!=impl->surfaces.end()&&pane->second.resizeGrip&&cursor=="nwse-resize")return LoadCursorW(nullptr,IDC_ARROW);
     return LoadCursorW(nullptr,cursor=="pointer"?IDC_HAND:cursor=="text"?IDC_IBEAM:cursor=="move"?IDC_SIZEALL:cursor=="nwse-resize"?IDC_SIZENWSE:cursor=="ns-resize"?IDC_SIZENS:cursor=="ew-resize"?IDC_SIZEWE:IDC_ARROW);
 }
 

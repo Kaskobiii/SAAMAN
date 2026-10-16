@@ -141,7 +141,23 @@ Json Context::Request(const std::string& method,const Json& data,bool supervisor
     if(method=="plan:snapshot"){
         if(supervisor||plan["masterCid"]!=0)throw RequestError(403,"Only the normal local MASTER processes telemetry");
         if(data.at("revision")!=plan["revision"])throw RequestError(409,"Shared settings changed; retry with the current plan");
-        plan["snapshot"]=data.at("snapshot");plan["telemetry"]=data.at("telemetry");if(data.contains("edits"))plan["edits"]=data["edits"];if(Now()-lastSavedAt>=5000)SavePlan();return true;
+        plan["snapshot"]=data.at("snapshot");plan["telemetry"]=data.at("telemetry");if(data.contains("edits"))plan["edits"]=data["edits"];
+        bool retiredManual=false;
+        const auto& snapshot=plan["snapshot"];
+        if(snapshot.is_object()&&snapshot.contains("retiredManualFlights")&&snapshot["retiredManualFlights"].is_object()&&plan["config"].contains("manualFlights")&&plan["config"]["manualFlights"].is_array()){
+            auto remaining=Json::array();
+            for(const auto& entry:plan["config"]["manualFlights"]){
+                const auto name=entry.value("callsign",std::string());const auto marker=snapshot["retiredManualFlights"].find(name);
+                const bool consumed=marker!=snapshot["retiredManualFlights"].end()&&marker->is_object()&&marker->contains("reservation")&&(*marker)["reservation"]==entry&&
+                    (marker->value("reason",std::string())=="live"||marker->value("reason",std::string())=="elapsed")&&marker->contains("at")&&(*marker)["at"].is_number()&&(*marker)["at"]<=snapshot.value("timestamp",0LL);
+                if(consumed){
+                    retiredManual=true;
+                    if(marker->value("reason",std::string())=="elapsed"&&plan["edits"].contains(name)&&plan["edits"][name].value("changedAt",0LL)<=marker->value("at",0LL))plan["edits"].erase(name);
+                }else remaining.push_back(entry);
+            }
+            if(retiredManual){plan["config"]["manualFlights"]=std::move(remaining);plan["revision"]=plan["revision"].get<int>()+1;}
+        }
+        if(retiredManual||Now()-lastSavedAt>=5000)SavePlan();return true;
     }
     if(method=="plan:update"||method=="plan:settings"){
         const bool settings=method=="plan:settings";

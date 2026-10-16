@@ -30,9 +30,8 @@ void CoordinationPopup::Update(HWND owner,const Json& data,std::function<void(co
     current=incoming;acknowledge=std::move(callback);
     if(!hwnd){
         WNDCLASSW type{};type.hInstance=module;type.lpfnWndProc=Procedure;type.lpszClassName=PopupClass;type.hCursor=LoadCursorW(nullptr,IDC_ARROW);RegisterClassW(&type);
-        dpi=owner?static_cast<int>(GetDpiForWindow(owner)):96;if(!dpi)dpi=96;
-        const auto font=[&](int size,int weight){return CreateFontW(-Px(size),0,0,0,weight,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Arial");};
-        messageFont=font(16,FW_SEMIBOLD);headingFont=font(13,FW_SEMIBOLD);bodyFont=font(12,FW_NORMAL);
+        baseDpi=owner?static_cast<int>(GetDpiForWindow(owner)):96;if(!baseDpi)baseDpi=96;
+        dpi=static_cast<int>(std::round(baseDpi*zoom));Fonts();
         RECT rect{0,0,Px(400),Px(180)};
         hwnd=CreateWindowExW(WS_EX_CONTROLPARENT,PopupClass,L"AMAN coordination",WS_POPUP|WS_CLIPCHILDREN,0,0,rect.right-rect.left,rect.bottom-rect.top,owner,nullptr,module,this);
         if(!hwnd)throw RequestError(500,"Could not open coordination window");
@@ -54,6 +53,17 @@ void CoordinationPopup::Acknowledge(){
     if(!enabled||busy||current.is_null())return;
     const auto id=current.at("id").get<std::string>();busy=true;EnableWindow(button,FALSE);SetWindowTextW(button,L"Acknowledging\u2026");status=L"Waiting for confirmation\u2026";Layout();InvalidateRect(hwnd,nullptr,FALSE);
     if(acknowledge)acknowledge(id);
+}
+void CoordinationPopup::Fonts(){
+    if(messageFont)DeleteObject(messageFont);if(headingFont)DeleteObject(headingFont);if(bodyFont)DeleteObject(bodyFont);
+    const auto font=[&](int size,int weight){return CreateFontW(-Px(size),0,0,0,weight,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Arial");};
+    messageFont=font(16,FW_SEMIBOLD);headingFont=font(13,FW_SEMIBOLD);bodyFont=font(12,FW_NORMAL);
+}
+void CoordinationPopup::SetZoom(double factor){
+    if(!std::isfinite(factor)||factor<0.25||factor>5)return;
+    zoom=factor;if(!hwnd)return;
+    const int scaled=static_cast<int>(std::round(baseDpi*zoom));if(scaled==dpi)return;
+    dpi=scaled;Fonts();Layout();InvalidateRect(hwnd,nullptr,FALSE);InvalidateRect(button,nullptr,FALSE);
 }
 void CoordinationPopup::Layout(){
     const HDC dc=GetDC(hwnd);RECT text{0,0,Px(368),0};const auto old=SelectObject(dc,messageFont);

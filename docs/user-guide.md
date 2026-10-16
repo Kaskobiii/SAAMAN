@@ -7,7 +7,7 @@ SAAMAN is the arrival manager for ESSA in EuroScope. Use it to view the shared a
 1. Obtain the approved SAAMAN package from VATSIM Scandinavia or your test coordinator. Keep the included instructions and licenses.
 2. Unload the previous AMAN/MAESTRO plugin before loading `SAAMAN.dll` through **OTHER SET → Plug-ins → Load**. Microsoft Edge WebView2 Runtime must be installed.
 3. Allow SAAMAN to draw on your radar screen in the plug-in settings if required by your profile.
-4. Click the **COTS / AMAN** launcher, or enter `.saaman` in EuroScope. Move the pane by dragging its title bar; resize it from the bottom-right corner. The top-right close button hides the pane.
+4. Click the **COTS / AMAN** launcher, or enter `.saaman` in EuroScope. Move the pane by dragging its title bar; resize it from the bottom-right corner. The top-right close button hides the pane. Use **Ctrl + mouse wheel** to zoom; AMAN and its windows share the same scale.
 
 ## 2. Connect for a session
 

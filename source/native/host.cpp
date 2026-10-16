@@ -571,6 +571,24 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                         result.sdkButtons=true;result.sdkDropdown=true;result.sdkRange=true;
                     }
 
+                    // Opening/editing settings must not navigate the controller's timeline.
+                    const viewportState=()=>({view:find('.view-buttons button.active')?.textContent.trim(),left:find('.horizontal-scroll').scrollLeft,slider:find('[aria-label="Scroll between timeline columns"]').value,time:find('.time-overview').getAttribute('aria-valuenow')});
+                    const sameViewport=before=>{const after=viewportState();if(after.view!==before.view||Math.abs(after.left-before.left)>1||after.slider!==before.slider||after.time!==before.time)throw Error('Configuration changed timeline position: '+JSON.stringify({before,after}))};
+                    const originalFrame=await rpc('host:test-frame');await rpc('host:test-frame',{width:340});await wait(180);
+                    for(const label of ['Runway','FLOW',controllerData.source==='ESSA_W_APP'?'ARR-W':'ACC']){
+                        const button=findAll('.view-buttons button').find(b=>b.textContent.trim()===label);if(!button)continue;button.click();await wait(140);
+                        const horizontal=find('[aria-label="Scroll between timeline columns"]');horizontal.value=String(Math.min(57,Number(horizontal.max)));horizontal.dispatchEvent(new Event('input',{bubbles:true}));
+                        find('.time-overview').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true}));await wait(120);const before=viewportState();
+                        if(before.left<1||Number(before.time)<1)throw Error('Viewport preservation fixture did not scroll');
+                        for(const action of ['configuration','rates','configuration','rates']){
+                            find('[data-action='+action+']').click();await floatingReady('dialog','[data-dialog='+action+']');sameViewport(before);
+                            if(action==='configuration'){const input=find('[data-input=arrival-runway]');input.value=input.value==='ESSA/19R'?'ESSA/01R':'ESSA/19R';input.dispatchEvent(new Event('change',{bubbles:true}));await wait(100);sameViewport(before);}
+                            find('.dialog-title button').click();await wait(100);sameViewport(before);
+                        }
+                    }
+                    result.configurationPreservesViewport=true;result.ratePreservesViewport=true;
+                    find('.time-overview').dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true}));findAll('.view-buttons button').find(b=>b.textContent.trim()==='Runway').click();await rpc('host:test-frame',{width:originalFrame.width});await wait(100);
+
                     result.ok=true;
                 }catch(error){result.error=String(error.message||error)}
                 window.chrome.webview.postMessage({id:999999,method:'host:test-operations',data:result});

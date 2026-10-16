@@ -31,6 +31,8 @@ zoom support. The 22px resize corner has a synchronous radar-thread cursor,
 independent of browser reply timing. Controller keys use a masked
 private dialog instead of the host's unmasked editor. The screen owns thread
 mouse/cursor hooks, removed before unload; it never subclasses the host WndProc.
+Runway/rate configuration edits preserve the selected view and both horizontal
+and time offsets; opening settings never calls timeline navigation.
 Screen-object id strings have stable storage. The old native occlusion path is
 retained solely for the isolated legacy comparison test; production uses SDK
 surfaces and does not guess menu state from capture or radar containers.

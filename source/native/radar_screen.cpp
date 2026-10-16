@@ -6,8 +6,9 @@ namespace {
 constexpr int CotsMove=88001,CotsOpen=88002,SurfaceObject=88003;
 thread_local HHOOK wheelHook=nullptr,cursorHook=nullptr;thread_local RadarScreen* wheelScreen=nullptr;
 LRESULT CALLBACK CursorHook(int code,WPARAM w,LPARAM l){
+    const auto result=CallNextHookEx(cursorHook,code,w,l);
     if(code==HC_ACTION&&wheelScreen){const auto* message=reinterpret_cast<CWPRETSTRUCT*>(l);if(message->message==WM_SETCURSOR&&LOWORD(message->lParam)==HTCLIENT)SetCursor(wheelScreen->Cursor());}
-    return CallNextHookEx(cursorHook,code,w,l);
+    return result;
 }
 LRESULT CALLBACK WheelHook(int code,WPARAM message,LPARAM data){
     if(code==HC_ACTION&&wheelScreen){
@@ -25,7 +26,7 @@ void RadarScreen::Input(const char* id,POINT point,const char* type,int button){
     if(!host||!id)return;unsigned pane=0;try{pane=static_cast<unsigned>(std::stoul(id));}catch(...){return;}
     POINT screen=point;if(parent)ClientToScreen(parent,&screen);const unsigned modifiers=(GetKeyState(VK_CONTROL)<0?1:0)|(GetKeyState(VK_SHIFT)<0?2:0)|(GetKeyState(VK_MENU)<0?4:0);
     if(hoverPane&&hoverPane!=pane)host->Pointer(hoverPane,point,screen,"leave");
-    host->Pointer(pane,point,screen,type,button,0,modifiers);hoverPane=pane;
+    host->Pointer(pane,point,screen,type,button,0,modifiers);hoverPane=pane;hoverPoint=point;SetCursor(Cursor());
     if(!wheelHook)wheelHook=SetWindowsHookExW(WH_MOUSE,WheelHook,nullptr,GetCurrentThreadId());if(!cursorHook)cursorHook=SetWindowsHookExW(WH_CALLWNDPROCRET,CursorHook,nullptr,GetCurrentThreadId());wheelScreen=this;
 }
 void RadarScreen::Wheel(POINT screen,int delta){if(!host||!hoverPane||!parent)return;POINT point=screen;ScreenToClient(parent,&point);host->Pointer(hoverPane,point,screen,"wheel",0,delta,(GetKeyState(VK_CONTROL)<0?1:0)|(GetKeyState(VK_SHIFT)<0?2:0));}

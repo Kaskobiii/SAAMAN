@@ -100,7 +100,9 @@ int wmain(int argc,wchar_t** argv){
                 std::vector<saaman::Host::Pane> panes;for(int wait=0;wait<80;wait++){panes=host.PaintRadar(radarDc);if(!panes.empty()&&GetPixel(radarDc,panes[0].bounds.left+20,panes[0].bounds.top+40)!=RGB(73,80,85))break;Sleep(100);}
                 if(panes.empty()){std::cerr<<"SDK surfaces never appeared\n";return 1;}
                 for(const auto& pane:panes)if(GetWindowLongPtrW(host.PanelHandle(pane.id!=panes[0].id),GWL_STYLE)&WS_VISIBLE){std::cerr<<"A native overlay remained above the radar\n";return 1;}
-                const auto pane=panes.front();const auto beforeMenu=GetPixel(radarDc,pane.bounds.left+20,pane.bounds.top+40);
+                const auto pane=panes.front();
+                if(host.InputCursor(pane.id,{pane.bounds.right-20,pane.bounds.bottom-20})!=LoadCursorW(nullptr,IDC_SIZENWSE)){std::cerr<<"Expanded resize corner did not return its cursor synchronously\n";return 1;}
+                const auto beforeMenu=GetPixel(radarDc,pane.bounds.left+20,pane.bounds.top+40);
                 if(beforeMenu==RGB(73,80,85)||beforeMenu==RGB(0,0,0)){std::cerr<<"SDK display did not acquire its first browser frame\n";return 1;}
                 RECT menu{pane.bounds.left+10,pane.bounds.top+20,pane.bounds.left+160,pane.bounds.top+180};const auto menuBrush=CreateSolidBrush(RGB(0,60,47));FillRect(radarDc,&menu,menuBrush);DeleteObject(menuBrush);
                 if(GetPixel(radarDc,menu.left+3,menu.top+3)!=RGB(0,60,47)){std::cerr<<"A menu painted after AMAN was obscured\n";return 1;}

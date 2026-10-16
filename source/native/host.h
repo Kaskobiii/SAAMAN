@@ -27,6 +27,6 @@ public:
     void Pointer(unsigned id,POINT point,POINT screen,const char* type,int button=0,int delta=0,unsigned modifiers=0);
     Json TakeEditor();
     void FinishEditor(const Json& editor,const std::string& value);
-    HCURSOR InputCursor()const;
+    HCURSOR InputCursor(unsigned id=0,POINT point={})const;
 };
 }

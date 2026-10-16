@@ -7,7 +7,7 @@
 namespace saaman {
 struct RadarSurface {
     unsigned id=0;unsigned long long order=0;RECT bounds{};bool visible=false,supervisor=false;
-    UINT width=0,height=0;std::vector<unsigned char> pixels;
+    int resizeGrip=0;UINT width=0,height=0;std::vector<unsigned char> pixels;
 };
 inline bool DecodeRadarSurface(IStream* stream,RadarSurface& surface){
     using Microsoft::WRL::ComPtr;

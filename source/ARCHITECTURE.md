@@ -1,4 +1,4 @@
-# SAAMAN native plugin, 1.3.20
+# SAAMAN native plugin, 1.3.21
 
 SAAMAN.dll is an x86 EuroScope plugin with a retained WebView2 UI painted through
 EuroScope's radar callbacks. The calculation engine is editable TypeScript.
@@ -25,7 +25,10 @@ are bounded to 4096 by 4096 pixels. Frames and z order cross threads under a mut
 
 native/sdk_input.h forwards SDK-selected pointer/drag/wheel events to the single
 hidden Vue document, preserving capture and click coordinates. Field editing
-uses SDK popup lists/editors on EuroScope's thread; controller keys use a masked
+uses SDK text editors on EuroScope's thread; select choices are styled DOM
+listboxes inside the captured document, with repeated selection/dismissal and
+zoom support. The 22px resize corner has a synchronous radar-thread cursor,
+independent of browser reply timing. Controller keys use a masked
 private dialog instead of the host's unmasked editor. The screen owns thread
 mouse/cursor hooks, removed before unload; it never subclasses the host WndProc.
 Screen-object id strings have stable storage. The old native occlusion path is

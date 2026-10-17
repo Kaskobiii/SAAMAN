@@ -1,6 +1,6 @@
 import {test} from 'node:test'
 import assert from 'node:assert/strict'
-import {DEFAULT_CONFIG,validateConfig,runEngine,euroscopeBufferMinutes,euroscopeFeederBufferMinutes,euroscopeInstruction,toJuhaSequence,delayLabel} from '../src/maestro-engine.ts'
+import {DEFAULT_CONFIG,validateConfig,runEngine,euroscopeBufferMinutes,euroscopeFeederBufferMinutes,euroscopeInstruction,toJuhaSequence,toTopSkySequence,delayLabel} from '../src/maestro-engine.ts'
 import {sharedSettings,mergeSharedSettings} from '../src/maestro-settings.ts'
 import {informationRoute} from '../src/maestro-operations.ts'
 import directFixture from './fixtures/skipped-feeder-direct.json' with {type:'json'}
@@ -373,6 +373,116 @@ test('a direct beyond NILUG and negative EuroScope feeder EET cannot make distan
  const next=runEngine(packet([b.flight],b.timestamp),c,{},first),f=next.flights[0]
  assert.equal(f.passedFeeder,false);assert.ok(f.state<2)
  assert.ok(f.etaFf-b.timestamp>240000);assert.equal(f.sta,f.liveBufferedEta)
+})
+
+test('Recompute after XILAN direct TEB updates landing time without resetting an established phase',()=>{
+ for(const feederSeconds of [600,60]){
+  const c=config(),p=flight({callsign:'BTI1M1',star:'XILAN6P',route:[
+   {name:'XILAN',seconds:feederSeconds},{name:'SA570',seconds:1000},
+   {name:'TEB',seconds:1200},{name:'SA19R',seconds:1500}
+  ]})
+  const first=runEngine(packet([p]),c,{}),initial=first.flights[0]
+  assert.equal(initial.state,feederSeconds===600?1:2)
+  const direct={...p,direct:'TEB',landingSeconds:900,route:p.route.map(point=>({...point,
+   seconds:['XILAN','SA570'].includes(point.name)?-60:point.name==='TEB'?300:900}))}
+  let previous=first
+  for(let i=1;i<=3;i++){
+   const at=now+i*1000,edits={BTI1M1:{recomputeAt:at,changedAt:at}}
+   const next=runEngine(packet([direct],at),c,edits,JSON.parse(JSON.stringify(previous))),f=next.flights[0]
+   assert.equal(f.issue,'');assert.equal(f.state,initial.state)
+   assert.ok(f.eta<initial.eta-300000,'the direct must still refresh the landing estimate')
+   assert.equal(f.euroscopeBaseline.at,at);assert.equal(f.recomputedAt,at)
+   assert.equal(f.passedFeeder,false,'a bypass must not invent physical feeder passage')
+   assert.equal(f.etaFf,initial.etaFf,'a bypass has no new XILAN crossing estimate')
+   previous=next
+  }
+  const heading={...direct,direct:'',assignedHeading:260,route:direct.route.slice(2)}
+  const at=now+4000,f=runEngine(packet([heading],at),c,{BTI1M1:{recomputeAt:at}},previous).flights[0]
+  assert.equal(f.issue,'');assert.equal(f.state,initial.state)
+  assert.equal(f.passedFeeder,false)
+ }
+})
+
+test('Recompute cannot promote a distant Unstable flight merely because a direct skips its feeder',()=>{
+ const c=config();c.active=['ESSA/01R'];c.departureRunway='ESSA/01L'
+ const b=directFixture[1],p={...b.flight,heading:90}
+ const first=runEngine(packet([p],b.timestamp-1000),c,{})
+ assert.equal(first.flights[0].state,0)
+ const next=runEngine(packet([p],b.timestamp),c,{TEST_DIRECT:{recomputeAt:b.timestamp}},first).flights[0]
+ assert.equal(next.issue,'');assert.equal(next.state,0);assert.equal(next.passedFeeder,false)
+})
+
+const xilanDirect=()=>{
+ const c=config(),p=flight({callsign:'BTI1M1',star:'XILAN6P',route:[
+  {name:'XILAN',seconds:600,latitude:59.659444,longitude:19.076111},
+  {name:'SA570',seconds:800},{name:'TEB',seconds:1000},{name:'SA19R',seconds:1500}
+ ]})
+ const initial=runEngine(packet([p]),c,{})
+ const direct={...p,direct:'TEB',landingSeconds:900,route:p.route.map(point=>({...point,
+  seconds:['XILAN','SA570'].includes(point.name)?-60:point.name==='TEB'?300:900}))}
+ const at=now+1000,edits={BTI1M1:{recomputeAt:at,changedAt:at}}
+ return {c,p,direct,edits,initial,next:runEngine(packet([direct],at),c,edits,initial)}
+}
+
+test('BTI1M1 feeder bypass clears native and TopSky guidance without removing it from the shared sequence',()=>{
+ const {c,edits,initial,next}=xilanDirect(),f=next.flights[0]
+ assert.equal(f.feederObservationSource,'bypassed');assert.equal(f.feederEtaAvailable,false)
+ assert.equal(f.passedFeeder,false);assert.equal(f.line0Suppressed,true)
+ assert.equal(f.state,initial.flights[0].state);assert.ok(f.eta<initial.flights[0].eta)
+ for(const seconds of [-120,0,120]){
+  const snapshot={...next,flights:[{...f,delay:seconds}]},saved=JSON.stringify(snapshot)
+  assert.equal(euroscopeInstruction(snapshot.flights[0]),0)
+  assert.deepEqual(toTopSkySequence(snapshot,c,edits).sequence,[],'zero is insufficient: TopSky can render G00')
+  const shared=toJuhaSequence(snapshot,c,edits).sequence
+  assert.equal(shared.length,1);assert.equal(shared[0].callsign,'BTI1M1')
+  assert.equal(shared[0].sta_ff,Math.round(f.staFf/1000));assert.equal(shared[0].state,f.state)
+  assert.equal(JSON.stringify(snapshot),saved)
+ }
+})
+
+test('a confirmed bypass stays hidden through heading and Recompute, then restores on a usable feeder route',()=>{
+ const {c,p,direct,next}=xilanDirect()
+ const heading={...direct,direct:'',assignedHeading:260,route:direct.route.slice(2)}
+ const at=now+2000,edits={BTI1M1:{recomputeAt:at,changedAt:at}}
+ const changed=runEngine(packet([heading],at),c,edits,JSON.parse(JSON.stringify(next))),f=changed.flights[0]
+ assert.equal(f.feederObservationSource,'unavailable');assert.equal(f.passedFeeder,false)
+ assert.equal(f.line0Suppressed,true);assert.equal(toTopSkySequence(changed,c,edits).sequence.length,0)
+ const back=runEngine(packet([p],now+3000),c,{},changed)
+ assert.equal(back.flights[0].feederObservationSource,'route');assert.equal(back.flights[0].passedFeeder,false)
+ assert.equal(back.flights[0].line0Suppressed,false)
+ assert.equal(toTopSkySequence(back,c,{}).sequence[0].callsign,'BTI1M1')
+})
+
+test('a bypass cutoff does not reappear when geometry subsequently confirms the feeder is behind',()=>{
+ const {c,direct,next}=xilanDirect()
+ const p={...direct,latitude:59.6,longitude:18.8,altitude:10000}
+ const after=runEngine(packet([p],now+2000),c,{},next),f=after.flights[0]
+ assert.equal(f.passedFeeder,true);assert.equal(f.feederObservationSource,'passed')
+ assert.equal(f.line0Suppressed,true);assert.equal(toTopSkySequence(after,c,{}).sequence.length,0)
+})
+
+test('a route outage alone does not invent a bypass and a manual feeder estimate restores guidance',()=>{
+ const {c,p,direct,initial,next}=xilanDirect()
+ const missing={...p,direct:'',route:p.route.slice(2)}
+ const outage=runEngine(packet([missing],now+2000),c,{},initial).flights[0]
+ assert.equal(outage.feederObservationSource,'unavailable');assert.equal(outage.line0Suppressed,false)
+ const at=now+3000,edits={BTI1M1:{etaFfOverride:at+120000,recomputeAt:at}}
+ const manual=runEngine(packet([direct],at),c,edits,next),f=manual.flights[0]
+ assert.equal(f.feederObservationSource,'manual');assert.equal(f.feederEtaAvailable,true)
+ assert.equal(f.passedFeeder,false);assert.equal(f.line0Suppressed,false)
+ assert.equal(toTopSkySequence(manual,c,edits).sequence[0].callsign,'BTI1M1')
+})
+
+test('TopSky clears only suppressed feeder rows and keeps other arrivals and the complete runway plan',()=>{
+ const {c,next}=xilanDirect(),f=next.flights[0]
+ const active={...f,callsign:'KEEP',line0Suppressed:false,delay:120}
+ const snapshot={...next,flights:[{...f,line0Suppressed:true},active]},saved=JSON.stringify(snapshot)
+ const local=toTopSkySequence(snapshot,c,{}),shared=toJuhaSequence(snapshot,c,{})
+ assert.deepEqual(local.sequence.map(f=>f.callsign),['KEEP']);assert.equal(local.sequence[0].ttlttg_ff,120)
+ assert.equal(shared.sequence.length,2);assert.deepEqual(local.runways,shared.runways)
+ assert.deepEqual(local.feeders,shared.feeders);assert.equal(JSON.stringify(snapshot),saved)
+ const zero={...snapshot,flights:[{...active,delay:0}]}
+ assert.equal(toTopSkySequence(zero,c,{}).sequence[0].ttlttg_ff,0,'a current zero instruction remains available to TopSky')
 })
 test('Information route ignores rerouting and Recompute; only observed passage removes route points',()=>{
  const c=config();c.active=['ESSA/01R'];c.departureRunway='ESSA/01L'

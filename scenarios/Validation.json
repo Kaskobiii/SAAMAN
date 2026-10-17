@@ -1,0 +1,117 @@
+{
+  "revision": 2,
+  "referenceSha256": "2bdbf9e33cac5b712e902e1001e50a1c3edb78b45c773b37d374e210d486d226",
+  "sector": "ESAA-Sweden_20261001222554-261001-0003.sct",
+  "sectorSha256": "dac9d407ae7cc43426faeecbc6117dc42072a2dd62cbfc3de7938e1eaaec0099",
+  "liveLoaded": false,
+  "aircraftTotal": 138,
+  "scenarios": [
+    {
+      "file": "ESSA_01R_Steady_v2.txt",
+      "reference": "ESSA_AMAN_1_Basic_19L.txt",
+      "aircraft": 18,
+      "initial_level_range": [
+        200,
+        360
+      ],
+      "starts_immediately": 11,
+      "latest_start_min": 18,
+      "feeder_distance_nm": [
+        30.0,
+        194.0
+      ],
+      "sha256": "122feb8b00070c932b81b113931b9f598e092a455d0da782233c09e4aa98af0d"
+    },
+    {
+      "file": "ESSA_01R_Peak_v2.txt",
+      "reference": "ESSA_AMAN_2_Peak_19L.txt",
+      "aircraft": 30,
+      "initial_level_range": [
+        180,
+        360
+      ],
+      "starts_immediately": 22,
+      "latest_start_min": 12,
+      "feeder_distance_nm": [
+        25.0,
+        150.0
+      ],
+      "sha256": "4e650806062e8e213a2218cb396e74823285a0d572e6a8611a9026caee8b1706"
+    },
+    {
+      "file": "ESSA_26_Steady_v2.txt",
+      "reference": "ESSA_AMAN_1_Basic_19L.txt",
+      "aircraft": 18,
+      "initial_level_range": [
+        200,
+        360
+      ],
+      "starts_immediately": 11,
+      "latest_start_min": 18,
+      "feeder_distance_nm": [
+        30.0,
+        194.0
+      ],
+      "sha256": "c27e77e0b84d9931d8b6a4a601084e9be8905ada70af0a653d1a9fe1dedbd62b"
+    },
+    {
+      "file": "ESSA_26_Peak_v2.txt",
+      "reference": "ESSA_AMAN_6_Peak_26.txt",
+      "aircraft": 24,
+      "initial_level_range": [
+        180,
+        360
+      ],
+      "starts_immediately": 18,
+      "latest_start_min": 13,
+      "feeder_distance_nm": [
+        25.0,
+        152.0
+      ],
+      "sha256": "d4ca3a2bfa887862ad04c3b897bf8959b1a542aa2d34091df558fc81a2f63777"
+    },
+    {
+      "file": "ESSA_19L_Steady_v2.txt",
+      "reference": "ESSA_AMAN_1_Basic_19L.txt",
+      "aircraft": 18,
+      "initial_level_range": [
+        200,
+        360
+      ],
+      "starts_immediately": 11,
+      "latest_start_min": 18,
+      "feeder_distance_nm": [
+        30.0,
+        194.0
+      ],
+      "sha256": "5395aa25d4723364e8c735e19480171e5de0a31165815507114962fe31886d19"
+    },
+    {
+      "file": "ESSA_19L_Peak_v2.txt",
+      "reference": "ESSA_AMAN_2_Peak_19L.txt",
+      "aircraft": 30,
+      "initial_level_range": [
+        180,
+        360
+      ],
+      "starts_immediately": 22,
+      "latest_start_min": 12,
+      "feeder_distance_nm": [
+        25.0,
+        150.0
+      ],
+      "sha256": "08e12ad70b73e30c86551ffac946d5990cddd26025d369c0eff2ea4f6c3ac001"
+    }
+  ],
+  "checks": [
+    "initial altitudes FL180-FL360; none at FL100",
+    "initial speed field 280/290, distinct from filed TAS",
+    "reference start times retained",
+    "unique callsigns and octal squawks",
+    "installed STAR/fix validation",
+    "one feeder per route",
+    "monotonically descending altitude targets",
+    "2500ft intercept then ILS",
+    "normal CRLF record boundaries"
+  ]
+}

@@ -131,6 +131,7 @@ export interface EngineFlight extends TelemetryFlight {
     feederDelayMs?:number
     feederDistanceNm?:number
     line0Suppressed?:boolean
+    feederGuidanceBypassed?:boolean
     tmaTiming?:{delay:number;rateSeconds:number;instructionSource?:'manual'|'constraint'|'none';referenceSta?:number;referenceDelay?:number;referenceSource?:'manual'|'constraint'|'none'}
     separation?:{leader:string;wakeNm:number;wakeSeconds:number;rateSeconds:number;scheduledSeconds:number}
     spacingActive?:boolean
@@ -765,7 +766,11 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         // A controller's Recompute accepts the current observation immediately;
         // a reconnected aircraft must not wait out its new-flight timer again.
         const phaseAge=recompute&&!modelRebase?config.unstableSeconds:(now-firstSeen)/1000
-        const state = issue ? 0 : landed ? 4 : missedRecovery ? 2 : retainRunwayPhase&&!resumed&&!requeued ? old!.state : e.target!==undefined&&old?.state===0 ? Math.max(1,chooseState(undefined,phaseFeederSeconds,phaseSeconds,config.unstableSeconds,config)) : requeued ? 1 : manualCalls.has(p.callsign)?Math.max(1,chooseState(phaseOld,phaseFeederSeconds,phaseSeconds,config.unstableSeconds,config)):chooseState(recompute&&phaseOld?.state!==3?undefined:phaseOld, phaseFeederSeconds, phaseSeconds, phaseAge, config)
+        // A direct can remove the feeder crossing estimate while leaving a valid
+        // landing estimate. Missing feeder timing cannot undo an accepted phase;
+        // it also cannot promote a new or Unstable flight or prove feeder passage.
+        const retainUnavailableFeederPhase=bufferMode&&feederEtaAvailable===false&&!resumed&&!requeued
+        const state = issue ? 0 : landed ? 4 : missedRecovery ? 2 : retainRunwayPhase&&!resumed&&!requeued ? old!.state : e.target!==undefined&&old?.state===0 ? Math.max(1,chooseState(undefined,phaseFeederSeconds,phaseSeconds,config.unstableSeconds,config)) : requeued ? 1 : manualCalls.has(p.callsign)?Math.max(1,chooseState(phaseOld,phaseFeederSeconds,phaseSeconds,config.unstableSeconds,config)):chooseState(recompute&&phaseOld?.state!==3&&!retainUnavailableFeederPhase?undefined:phaseOld, phaseFeederSeconds, phaseSeconds, phaseAge, config)
         const onFinal=!!final && final.along>=0 && final.along<=(config.maxFinalNm??15) && Math.abs(final.cross)<=.4 &&
             Number.isFinite(p.heading)&&headingDifference(p.heading!,threshold!.heading)<=20
         // A bootstrap list is not a stream of newly inserted aircraft. Do not
@@ -821,7 +826,12 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         if(fix&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)&&(p.positionAgeSeconds??0)<=15)
             emitted.feederDistanceNm=distanceNm(p as GeoPoint,fix)
         emitted.spacingActive=true
-        emitted.line0Suppressed=landed || !!passed && ((emitted.feederDistanceNm??0)>=12 || (!!old?.line0Suppressed&&old.ff===emitted.ff||!!feederMemory?.line0Suppressed&&feederMemory.ff===emitted.ff)&&!resumed&&!requeued)
+        // A skipped fix has no remaining feeder instruction. Remember that
+        // separately from passage so a subsequent heading cannot restore it.
+        // A usable crossing estimate or explicit override can restore guidance.
+        emitted.feederGuidanceBypassed=bufferMode&&e.etaFfOverride===undefined&&
+            (feederObservation?.source==='bypassed'||!!old?.feederGuidanceBypassed&&old.ff===emitted.ff&&!resumed&&!requeued&&(passed||feederObservation?.available===false))
+        emitted.line0Suppressed=landed || emitted.feederGuidanceBypassed || !!passed && ((emitted.feederDistanceNm??0)>=12 || (!!old?.line0Suppressed&&old.ff===emitted.ff||!!feederMemory?.line0Suppressed&&feederMemory.ff===emitted.ff)&&!resumed&&!requeued)
         if (issue) diagnostics.push(`${p.callsign}: ${issue}`)
     }
     // Confirmed landings remain as pink history for five minutes, even when
@@ -1270,5 +1280,11 @@ export function toJuhaSequence(snapshot: EngineSnapshot, config: EngineConfig, e
             state: f.state, delay_total: f.totalDelay, lost: f.lost, slot_before: f.slotBefore, slot_after: f.slotAfter,
         })),
     }
+}
+
+export function toTopSkySequence(snapshot:EngineSnapshot,config:EngineConfig,edits:Record<string,FlightEdit>){
+    // TopSky may display a numeric zero as G00. Omit obsolete feeder rows from
+    // the complete local replacement message; keep shared sequence data intact.
+    return toJuhaSequence({...snapshot,flights:snapshot.flights.filter(f=>!f.line0Suppressed&&f.state!==4)},config,edits)
 }
 

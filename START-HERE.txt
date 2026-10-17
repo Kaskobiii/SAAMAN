@@ -1,4 +1,4 @@
-SAAMAN 1.3.22
+SAAMAN 1.3.23
 Unload the previous DLL before loading SAAMAN.dll in every connected instance,
 including the sequencer and proxy. Keep SAAMAN above TopSky in the plug-in list.
 
@@ -7,11 +7,10 @@ on load/login. Set both ARR and DEP runways in EuroScope before joining.
 Backend: https://backend.vatiris.se
 No separate vatIRIS login or controller key is needed. Local mode is secondary.
 
-This release fixes individual inactive/departure-runway assignments, RNP text,
-post-feeder reconnect/Recompute, line-0 cutoff and rounding, Information sizing,
-coordination popups with direct/proxy connections, and recent direct-to timing
-when EuroScope restores STAR points after a heading assignment.
-No backend update is required. The DLL is identical to the live-tested test2.
+This release fixes runaway artificial delay during partial/group Recompute.
+Refreshed groups use the remaining scheduled slots, preserving manual targets
+and protected aircraft while applying real runway/wake/interval constraints.
+No backend update is required. The DLL is identical to the live-tested 1.3.23-test.
 
 Read docs/user-guide.html for the controller guide, docs/user-guide-wiki.html
-for wiki-ready content, and docs/RELEASE-NOTES-1.3.22.md for release details.
+for wiki-ready content, and docs/RELEASE-NOTES-1.3.23.md for release details.

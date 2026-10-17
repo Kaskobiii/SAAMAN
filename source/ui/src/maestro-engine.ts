@@ -902,13 +902,39 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             }else f.planningEtaCandidate=undefined
         }
         const freshOrderEdit=fixed.some(f=>edits[f.callsign]?.order!==undefined&&freshEdit(f.callsign))
-        const committed=fixed.filter(f=>f.state>=2&&(oldByCallsign.get(f.callsign)?.state??0)>=2&&oldByCallsign.get(f.callsign)?.mode==='sequenced')
+        const recomputing=new Set(fixed.filter(f=>{
+            const old=oldByCallsign.get(f.callsign)
+            return old?.mode==='sequenced'&&!f.runwayTransition?.pending&&(edits[f.callsign]?.recomputeAt??0)>old.recomputedAt
+        }).map(f=>f.callsign))
+        // A partial Recompute releases only the selected allocations. Keep
+        // the other established arrivals together as scheduled anchors before
+        // inserting the refreshed group. Mixing their forecast ranks with
+        // their retained, later STAs can otherwise rotate whole cohorts and
+        // turn previous automatic spacing into another independent delay.
+        const committed=fixed.filter(f=>oldByCallsign.get(f.callsign)?.mode==='sequenced'&&
+            (f.state>=2&&(oldByCallsign.get(f.callsign)?.state??0)>=2||
+                recomputing.size&&!recomputing.has(f.callsign)&&f.state>=1&&(oldByCallsign.get(f.callsign)?.state??0)>=1))
         const accepted=(f:EngineFlight)=>edits[f.callsign]?.target??(f.passedFeeder&&oldByCallsign.get(f.callsign)?.mode==='sequenced'&&(edits[f.callsign]?.recomputeAt??0)<=oldByCallsign.get(f.callsign)!.recomputedAt?oldByCallsign.get(f.callsign)?.tmaAssignment?.sta??oldByCallsign.get(f.callsign)?.sta:undefined)??(f.state<3?f.planningEta:undefined)??oldByCallsign.get(f.callsign)?.committedSta??oldByCallsign.get(f.callsign)?.tmaTiming?.referenceSta??
             (oldByCallsign.get(f.callsign)?oldByCallsign.get(f.callsign)!.sta-(oldByCallsign.get(f.callsign)!.closureDelayMs||0)-(oldByCallsign.get(f.callsign)!.rateDelayMs||0)-(oldByCallsign.get(f.callsign)!.wakeDelayMs||0):f.eta)
         if(committed.length&&!freshOrderEdit){
-            const provisional=fixed.filter(f=>!committed.includes(f))
+            const pending=fixed.filter(f=>!committed.includes(f))
+            const provisional=recomputing.size?sequenceCandidates(pending):pending
             const legacyOrder=committed.some(f=>!oldByCallsign.get(f.callsign)?.editTracking)
-            const merged=[...committed].sort((a,b)=>legacyOrder?accepted(a)-accepted(b)||a.order-b.order:a.order-b.order)
+            const merged=[...committed].sort((a,b)=>recomputing.size?
+                oldByCallsign.get(a.callsign)!.order-oldByCallsign.get(b.callsign)!.order:
+                legacyOrder?accepted(a)-accepted(b)||a.order-b.order:a.order-b.order)
+            const scheduled=new Map<string,number>()
+            if(recomputing.size){
+                let prior:EngineFlight|undefined,time=-Infinity
+                for(const f of merged){
+                    const old=oldByCallsign.get(f.callsign)!,rate=windConfig(effectiveConfig(config,f.planningEta!),f.arrival,winds,now)
+                    const gap=ms(Math.max(rate.rates[runway],prior?wakeInterval(prior.wake,f.wake,runway,rate):0))+ms(((prior?.slotAfter??0)+f.slotBefore)*60)
+                    const anchor=edits[f.callsign]?.target??(recomputing.has(f.callsign)?f.planningEta!:old.tmaAssignment?.sta??old.sta)
+                    time=afterSlots(Math.max(anchor,f.minimumArrival,prior?time+gap:-Infinity),runway,config)
+                    scheduled.set(f.callsign,time);prior=f
+                }
+            }
+            const insertionTime=(f:EngineFlight)=>scheduled.get(f.callsign)??accepted(f)
             let preceding:EngineFlight|undefined,precedingTime=-Infinity
             for(const f of provisional){
                 const old=oldByCallsign.get(f.callsign)
@@ -923,17 +949,18 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
                 }
                 const candidate=edits[f.callsign]?.target??Math.max(f.planningEta!,f.minimumArrival)
                 const rate=windConfig(effectiveConfig(config,candidate),f.arrival,winds,now)
-                const newcomerFloor=!old?Math.max(...committed.map(p=>accepted(p)+ms(Math.max(rate.rates[runway],wakeInterval(p.wake,f.wake,runway,rate))))):-Infinity
+                const newcomerFloor=!old?Math.max(...committed.filter(p=>p.state>=2).map(p=>insertionTime(p)+ms(Math.max(rate.rates[runway],wakeInterval(p.wake,f.wake,runway,rate))))):-Infinity
                 const earliest=Math.max(candidate,newcomerFloor,preceding?precedingTime+ms(Math.max(rate.rates[runway],wakeInterval(preceding.wake,f.wake,runway,rate))):-Infinity)
                 let start=earliest,index=merged.length
                 for(let j=0;j<merged.length;j++){
                     const prior=merged[j-1],next=merged[j]
-                    const priorTime=prior===preceding?precedingTime:prior?accepted(prior):-Infinity
-                    start=Math.max(earliest,prior?priorTime+ms(Math.max(rate.rates[runway],wakeInterval(prior.wake,f.wake,runway,rate))):-Infinity)
+                    const priorTime=prior===preceding?precedingTime:prior?insertionTime(prior):-Infinity
+                    start=Math.max(earliest,prior?priorTime+ms(Math.max(rate.rates[runway],wakeInterval(prior.wake,f.wake,runway,rate)))+ms((prior.slotAfter+f.slotBefore)*60):-Infinity)
                     start=afterSlots(start,runway,config)
-                    if(start+ms(Math.max(rate.rates[runway],wakeInterval(f.wake,next.wake,runway,rate)))<=accepted(next)){index=j;break;}
+                    if(start+ms(Math.max(rate.rates[runway],wakeInterval(f.wake,next.wake,runway,rate)))+ms((f.slotAfter+next.slotBefore)*60)<=insertionTime(next)){index=j;break;}
                 }
-                if(index===merged.length&&merged.length){const prior=merged.at(-1)!;start=Math.max(earliest,accepted(prior)+ms(Math.max(rate.rates[runway],wakeInterval(prior.wake,f.wake,runway,rate))))}
+                if(index===merged.length&&merged.length){const prior=merged.at(-1)!;start=afterSlots(Math.max(earliest,insertionTime(prior)+ms(Math.max(rate.rates[runway],wakeInterval(prior.wake,f.wake,runway,rate)))+ms((prior.slotAfter+f.slotBefore)*60)),runway,config)}
+                if(recomputing.size)scheduled.set(f.callsign,start)
                 merged.splice(index,0,f);preceding=f;precedingTime=start
             }
             fixed.splice(0,fixed.length,...merged)

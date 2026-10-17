@@ -1,5 +1,5 @@
-SAAMAN 1.3.23
-Unload the previous DLL before loading SAAMAN.dll in every connected instance,
+SAAMAN 1.3.24
+Unload the previous DLL and load SAAMAN.dll in every connected instance,
 including the sequencer and proxy. Keep SAAMAN above TopSky in the plug-in list.
 
 Fresh settings use shared vatIRIS mode and VATSIM live, connecting automatically
@@ -7,10 +7,15 @@ on load/login. Set both ARR and DEP runways in EuroScope before joining.
 Backend: https://backend.vatiris.se
 No separate vatIRIS login or controller key is needed. Local mode is secondary.
 
-This release fixes runaway artificial delay during partial/group Recompute.
-Refreshed groups use the remaining scheduled slots, preserving manual targets
-and protected aircraft while applying real runway/wake/interval constraints.
-No backend update is required. The DLL is identical to the live-tested 1.3.23-test.
+This release retains an established phase on Recompute after a feeder bypass,
+and clears obsolete feeder guidance from TopSky without leaving G00 behind.
+The DLL is identical to 1.3.24-test2. Automated checks passed; live confirmation
+of these changes is pending. No backend update is required.
+
+The scenarios folder contains six corrected SweatBox games for 01R, 26 and 19L.
+Use the v2 files instead of the earlier ESSA_Realistic pack. Read its README
+before use. Initial altitudes are FL180-FL360; FL100 is the feeder target.
+The revised files have passed file checks but have not yet been run live.
 
 Read docs/user-guide.html for the controller guide, docs/user-guide-wiki.html
-for wiki-ready content, and docs/RELEASE-NOTES-1.3.23.md for release details.
+for wiki-ready content, and docs/RELEASE-NOTES-1.3.24.md for release details.

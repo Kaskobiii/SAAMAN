@@ -73,7 +73,7 @@ function exportData(){
         <dt>Spacing leader</dt><dd>{{current.separation?.leader||'None'}}<template v-if="current.separation"> · {{seconds(current.separation.scheduledSeconds)}} scheduled · {{seconds(current.separation.rateSeconds)}} rate · {{seconds(current.separation.wakeSeconds)}} wake ({{current.separation.wakeNm}} NM)</template></dd>
         <dt>Engine constraint fields</dt><dd>Feeder {{seconds((current.feederDelayMs??0)/1000)}} · closure {{seconds((current.closureDelayMs??0)/1000)}} · protected wake {{seconds((current.wakeDelayMs??0)/1000)}} · protected rate {{seconds((current.rateDelayMs??0)/1000)}}. These fields can overlap; they are not an additive delay breakdown.</dd>
         <dt>Protected TMA instruction</dt><dd>{{current.tmaTiming?seconds(current.tmaTiming.delay)+' · '+(current.tmaTiming.instructionSource||'unknown source'):'Not active'}}</dd>
-        <dt>EuroScope line 0</dt><dd>{{seconds(euroscopeInstruction(current))}} · {{current.line0Suppressed?'suppressed after feeder cutoff / landing':'available to TopSky'}}</dd>
+        <dt>EuroScope line 0</dt><dd>{{seconds(euroscopeInstruction(current))}} · {{current.feederGuidanceBypassed?'suppressed after feeder bypass':current.line0Suppressed?'suppressed after feeder cutoff / landing':'available to TopSky'}}</dd>
         <dt>Controller edit</dt><dd><pre>{{JSON.stringify(edits[current.callsign]??{},null,2)}}</pre></dd>
         <dt>Issue</dt><dd>{{current.issue||'None'}}{{current.spacingConflict?' · spacing conflict':''}}</dd>
     </dl></article><article v-else><h3>Select an aircraft</h3><p>Active arrival {{active.active.join(', ')}} · EuroScope ETA buffer {{active.euroscopeBufferMinutes}} min</p></article>

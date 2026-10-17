@@ -15,7 +15,7 @@ import {isTowerCallsign} from '@/callsign-identity'
 
 import {STAR_PROFILES,STAR_SOURCE} from '@/maestro-star-prediction'
 import { useAuthStore, backendBaseUrl } from '@/stores/auth'
-import { DEFAULT_CONFIG, RUNWAYS, STATE_NAMES, STATE_COLORS, delayLabel, runEngine, toJuhaSequence, effectiveConfig, rateDistanceNm, validateLockedEdits, windConfig, reorderEdits, retimeEdits, dragChangesTime, euroscopeInstruction,
+import { DEFAULT_CONFIG, RUNWAYS, STATE_NAMES, STATE_COLORS, delayLabel, runEngine, toTopSkySequence, effectiveConfig, rateDistanceNm, validateLockedEdits, windConfig, reorderEdits, retimeEdits, dragChangesTime, euroscopeInstruction,
     reconcileRunwayAssignments, type EngineConfig, type EngineSnapshot, type EngineFlight, type FlightEdit, type Telemetry } from '@/maestro-engine'
 const auth = useAuthStore()
 const nativeInfo=(window as any).__SAAMAN_HOST__
@@ -748,7 +748,7 @@ async function publishTiming() {
     try {
         const response = await fetch('http://127.0.0.1:17777/timing', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
             signal: AbortSignal.timeout(2000), body: JSON.stringify({ airport: 'ESSA', generatedAt: Date.now(),
-                nativeSequence: !demo.value && !stale.value && sequence.value ? toJuhaSequence(sequence.value, config.value, edits.value) : null,
+                nativeSequence: !demo.value && !stale.value && sequence.value ? toTopSkySequence(sequence.value, config.value, edits.value) : null,
                 flights: demo.value || stale.value ? [] : sequenced.value.filter(f => f.arrival === 'ESSA').map(f => ({
                     callsign: f.callsign, runway: rwy(f).split('/')[1], eta: f.eta, sta: f.sta, deltaSeconds: euroscopeInstruction(f) })) }) })
         if (!response.ok) throw new Error('Bridge error')

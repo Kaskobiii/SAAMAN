@@ -1,5 +1,5 @@
 import axios from 'axios'
-import {DEFAULT_CONFIG,runEngine,validateConfig,validateEdits,validateTelemetry,validateLockedEdits,toJuhaSequence,reconcileRunwayAssignments,euroscopeInstruction,migrateSequenceEdits} from './maestro-engine'
+import {DEFAULT_CONFIG,runEngine,validateConfig,validateEdits,validateTelemetry,validateLockedEdits,toJuhaSequence,toTopSkySequence,reconcileRunwayAssignments,euroscopeInstruction,migrateSequenceEdits} from './maestro-engine'
 import {mergeSharedSettings,settingsUnchanged} from './maestro-settings'
 import {nativeRequest} from './native-rpc'
 import {APPLICATION_BUILD} from './build'
@@ -87,7 +87,7 @@ export async function installNativeTransport(){
                 running=true
                 try{await relay!.tick();announceRelay()}catch(e:any){announceRelay(e.message)}finally{running=false}
                 const plan=relay!.view(),snapshot=plan.snapshot
-                try{await nativeRequest('timing:set',{airport:'ESSA',generatedAt:Date.now(),nativeSequence:snapshot?toJuhaSequence(snapshot,plan.config,plan.edits):null,flights:snapshot?snapshot.flights.filter(f=>f.arrival==='ESSA'&&f.mode==='sequenced'&&!f.issue&&!f.lost).map(f=>({callsign:f.callsign,deltaSeconds:euroscopeInstruction(f)})):[]})}catch{ /* Next fresh pulse retries local guidance. */ }
+                try{await nativeRequest('timing:set',{airport:'ESSA',generatedAt:Date.now(),nativeSequence:snapshot?toTopSkySequence(snapshot,plan.config,plan.edits):null,flights:snapshot?snapshot.flights.filter(f=>f.arrival==='ESSA'&&f.mode==='sequenced'&&!f.issue&&!f.lost).map(f=>({callsign:f.callsign,deltaSeconds:euroscopeInstruction(f)})):[]})}catch{ /* Next fresh pulse retries local guidance. */ }
             }
             const clock=setInterval(()=>void refresh(),2000)
             window.addEventListener('saaman-pulse',()=>void refresh())

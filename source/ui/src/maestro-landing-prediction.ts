@@ -5,11 +5,12 @@ import {predictRouteTiming,type RouteTiming} from './maestro-route-timing'
 
 export interface LandingPrediction {
  seconds:number;rawSeconds:number;correctionSeconds:number
- reference:'threshold'|'airport';method:'aircraft-profile'|'route-slowdown'|'retained-slowdown'|'final-position'|'vector-position'|'fallback'
+ reference:'threshold'|'airport';method:'aircraft-profile'|'route-slowdown'|'retained-slowdown'|'final-position'|'vector-position'|'fallback'|'recovery-iaf'
  routeTiming?:RouteTiming
  distanceNm?:number;establishedFinal:boolean
  continuity?:{runway:string;seconds:number;at:number}
  directClearance?:{runway:string;point:string;at:number}
+ vectoringOnly?:boolean
 }
 const positioned=(p:any)=>Number.isFinite(p?.latitude)&&Math.abs(p.latitude)<=90&&Number.isFinite(p?.longitude)&&Math.abs(p.longitude)<=180
 // Nominal groundspeeds along the remaining approach, not aircraft performance
@@ -54,16 +55,23 @@ export function predictLanding(p:TelemetryFlight,config:EngineConfig,baseMinutes
   const distance=Math.max(0,relative!.along),seconds=Math.max(0,distance/p.groundspeed*3600-Math.max(0,p.positionAgeSeconds??0))
   return result({seconds,rawSeconds,correctionSeconds:seconds-rawSeconds,reference:'threshold',method:'final-position',distanceNm:distance,establishedFinal})
  }
- // A heading assignment can make the SDK restore waypoints skipped by a
- // direct clearance. In that case the old STAR EET is not a landing forecast.
- // Use the current track's turn/intercept path to the configured final instead.
- if(directClearance&&(p.assignedHeading??0)>0&&positionFresh&&positioned(threshold)&&p.altitude<=18000&&p.groundspeed>=60&&Number.isFinite(p.heading)){
+ // Heading clearances restore the original FLEG even without a recent direct.
+ // For fresh terminal traffic, estimate the current bounded-turn path to final
+ // instead. Recompute and a ten-minute-old direct must not revive that FLEG.
+ // This is an estimate of the vector path, not an inferred straight-in clearance.
+ const terminalVector=p.arrival==='ESSA'&&positionFresh&&positioned(threshold)&&distanceNm(p as any,threshold!)<=50&&p.altitude>=350&&p.altitude<=18000&&(p.verticalSpeed??0)<=300&&!p.topskyMissedApproach
+ if((directClearance||terminalVector)&&(p.assignedHeading??0)>0&&positionFresh&&positioned(threshold)&&p.altitude<=18000&&p.groundspeed>=60&&Number.isFinite(p.heading)){
   const path=vectoringDistance(p as any,p.heading!,threshold!,config.finalLengths?.[`${p.arrival}/${p.runway}`]??10,p.groundspeed)
   const distance=path.turnNm+path.finalNm
   const timing=predictRouteTiming({...p,assignedHeading:0,routeProblem:''},config,undefined,{distanceNm:distance})
   const seconds=timing?.seconds??routeSlowdownSeconds(distance,p.groundspeed)
   if(Number.isFinite(distance)&&distance>0&&distance<=200&&seconds!==undefined&&Number.isFinite(seconds))
-   return result({seconds,rawSeconds,correctionSeconds:seconds-rawSeconds,reference:'threshold',method:'vector-position',distanceNm:distance,routeTiming:timing,establishedFinal:false})
+   return result({seconds,rawSeconds,correctionSeconds:seconds-rawSeconds,reference:'threshold',method:'vector-position',distanceNm:distance,routeTiming:timing,establishedFinal:false,vectoringOnly:true})
+ }
+ if(p.departure==='ESSB'&&p.arrival==='ESSA'&&positionFresh&&positioned(threshold)&&p.altitude>=350&&p.altitude<=12000&&p.groundspeed>=60&&Number.isFinite(p.heading)&&!p.route.some(q=>q.name!==p.departure&&q.name!==p.arrival)){
+  const path=vectoringDistance(p as any,p.heading!,threshold!,config.finalLengths?.[`${p.arrival}/${p.runway}`]??10,p.groundspeed),distance=path.turnNm+path.finalNm
+  const timing=predictRouteTiming(p,config,undefined,{distanceNm:distance}),seconds=timing?.seconds??routeSlowdownSeconds(distance,p.groundspeed)
+  if(seconds!==undefined&&distance<100)return result({seconds,rawSeconds,correctionSeconds:seconds-rawSeconds,reference:'threshold',method:'vector-position',distanceNm:distance,routeTiming:timing,establishedFinal:false})
  }
  const routeTiming=predictRouteTiming(p,config)
  if(routeTiming){

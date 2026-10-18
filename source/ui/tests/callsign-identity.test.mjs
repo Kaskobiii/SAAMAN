@@ -1,6 +1,38 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {CallsignIdentity} from '../src/callsign-identity.ts'
+import {CallsignIdentity,canSequenceEssa,canAutoConnectShared} from '../src/callsign-identity.ts'
+
+test('ESSA sequencer eligibility includes local center, approach, planner and handover positions only',()=>{
+ for(const call of ['ESOS_CTR','ESOS_1_CTR','ESOS_3__CTR','ESAA_CTR','ESAA_S__CTR','ESSA_APP','ESSA_W_APP','ESSA_E__APP','ESSA_FMP','esos_1_ctr'])assert.equal(canSequenceEssa(call),true,call)
+ for(const call of ['ESMM_2_CTR','ESMM_CTR','ESSB_APP','ESSA_TWR','ESSA_1__TWR','ESOS_OBS','ESAA_FSS','NOTESOS_CTR','ESSA_FMP_OBS',''])assert.equal(canSequenceEssa(call),false,call)
+})
+
+test('ESMM shared autoconnect is excluded, including split and handover callsigns',()=>{
+ for(const call of ['ESMM','ESMM_CTR','ESMM_2_CTR','ESMM_2__CTR','esmm_3_ctr'])assert.equal(canAutoConnectShared(call),false,call)
+ for(const call of ['ESOS_1_CTR','ESAA_CTR','ESSA_FMP','ESSA_APP','ESSA_TWR'])assert.equal(canAutoConnectShared(call),true,call)
+})
+
+test('ESMM waits for explicit connection, then continues refreshing that callsign normally',async()=>{
+ const f=setup('sweatbox1');f.raw.source='ESMM_2_CTR'
+ await assert.rejects(f.identity.refresh(),/do not connect automatically/)
+ assert.equal(f.identity.identity,undefined);assert.equal(f.requests(),0)
+ await f.identity.refresh(true);assert.equal(f.identity.identity.callsign,'ESMM_2_CTR')
+ f.advance(2000);await f.identity.refresh();assert.equal(f.identity.identity.callsign,'ESMM_2_CTR')
+ f.raw.source='ESMM_3_CTR';await assert.rejects(f.identity.refresh(),/do not connect automatically/)
+ assert.equal(f.identity.identity,undefined)
+ f.raw.source='ESSA_APP';await f.identity.refresh();assert.equal(f.identity.identity.callsign,'ESSA_APP')
+})
+
+test('priming from excluded ESMM to ESOS, ESAA or ESSA automatically connects without reloading',async()=>{
+ for(const call of ['ESOS_1_CTR','ESAA_CTR','ESSA_APP','ESSA_FMP']){
+  const f=setup('sweatbox1');f.raw.source='ESMM_2_CTR'
+  await assert.rejects(f.identity.refresh(),/do not connect automatically/)
+  f.raw.source=call;f.advance(2000);await f.identity.refresh()
+  assert.equal(f.identity.identity.callsign,call)
+  f.raw.source='ESMM_2_CTR';await assert.rejects(f.identity.refresh(),/do not connect automatically/)
+  assert.equal(f.identity.identity,undefined)
+ }
+})
 function setup(network='live',cid){
     let now=100000,requests=0,fail=false,raw={source:'ESSA_APP',connected:true,timestamp:now,simulation:network!=='live'}
     const identity=new CallsignIdentity({network,cid,now:()=>now,telemetry:async()=>raw,changed:()=>{},controllers:async()=>{requests++;if(fail)throw new Error('Feed unavailable');return {controllers:[{callsign:'ESSA_APP',cid:1396125,facility:5},{callsign:'ESSA_FMP',cid:1396125,facility:6},{callsign:'ESOS_1_CTR',cid:1234567,facility:6},{callsign:'ESOS_1__CTR',cid:2345678,facility:6},{callsign:'OTHER_OBS',cid:2345678,facility:0}]}}})

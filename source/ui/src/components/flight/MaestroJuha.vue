@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import axios from 'axios'
 import {APPLICATION_BUILD} from '@/build'
 import MaestroInformation from './MaestroInformation.vue'
-import {gainDragEdits,dragTargetTime,swapFlightEdits,insertRelative,maximumDelayEdits,manualTransferSeconds,instructionColor,zulu,COORDINATION_MESSAGES} from '@/maestro-operations'
+import {reinsertRecoveryEdits,gainDragEdits,dragTargetTime,swapFlightEdits,insertRelative,maximumDelayEdits,manualTransferSeconds,instructionColor,zulu,COORDINATION_MESSAGES} from '@/maestro-operations'
 import {nativeRequest} from '@/native-rpc'
 import {useFloatingSurface} from '@/floating-surface'
 import {runwaySelections} from '@/maestro-runway-sync'
@@ -14,6 +14,7 @@ import {saveConnectionSettings} from '@/maestro-connection'
 import {isTowerCallsign} from '@/callsign-identity'
 
 import {STAR_PROFILES,STAR_SOURCE} from '@/maestro-star-prediction'
+import {recoveryIafOptions,type RecoveryEntry} from '@/maestro-recovery'
 import { useAuthStore, backendBaseUrl } from '@/stores/auth'
 import { DEFAULT_CONFIG, RUNWAYS, STATE_NAMES, STATE_COLORS, delayLabel, runEngine, toTopSkySequence, effectiveConfig, rateDistanceNm, validateLockedEdits, windConfig, reorderEdits, retimeEdits, dragChangesTime, euroscopeInstruction,
     reconcileRunwayAssignments, type EngineConfig, type EngineSnapshot, type EngineFlight, type FlightEdit, type Telemetry } from '@/maestro-engine'
@@ -205,9 +206,10 @@ const towerController=computed(()=>isTowerCallsign(auth.user?.callsign||localCov
 const editable = computed(() => !towerController.value&&(demo.value||localPreview?isMaster.value:auth.ready&&['sequencer','editor'].includes(sharedRole.value)) && !busy.value && !stale.value)
 const all = computed(() => (sequence.value?.flights || []).filter(f=>f.arrival==='ESSA'))
 const diagnosticFlights=computed(()=>all.value.filter(f=>f.state!==4&&(f.issue||f.dataWarnings?.length||f.trajectory?.feasible===false||f.maximumDelayExceeded)))
-const sequenced = computed(() => all.value.filter(f => f.mode === 'sequenced' && !f.issue && !f.lost && f.state !== 4))
+const sequenced = computed(() => all.value.filter(f => (f.landingEtaAvailable!==false||f.recoveryManualSlot)&&f.mode === 'sequenced' && !f.issue && !f.lost && f.state !== 4))
 const current = computed(() => all.value.find(f => f.callsign === selected.value))
-const unsequenced = computed(() => all.value.filter(f => f.mode === 'desequenced' || f.mode === 'missed').sort((a,b)=>(edits.value[a.callsign]?.changedAt||0)-(edits.value[b.callsign]?.changedAt||0)))
+const unsequenced = computed(() => all.value.filter(f => f.mode === 'desequenced' || f.mode === 'missed'||f.mode==='sequenced'&&f.landingEtaAvailable===false&&!f.recoveryManualSlot).sort((a,b)=>(edits.value[a.callsign]?.changedAt||0)-(edits.value[b.callsign]?.changedAt||0)))
+const missedFlights=computed(()=>unsequenced.value.filter(f=>f.mode==='missed'||f.mode==='sequenced'&&f.landingEtaAvailable===false&&!f.recoveryManualSlot))
 const currentConfig = computed(() => windConfig(effectiveConfig(config.value,now.value),'ESSA',sequence.value?.winds,now.value))
 const entryPoints=['NILUG','ELTOK','VACRA','XILAN']
 const displayRunways=computed(()=>[...new Set([...currentConfig.value.active,currentConfig.value.departureRunway,...(nextConfiguration.value?.active??[]),nextConfiguration.value?.departureRunway,
@@ -232,7 +234,7 @@ watch(()=>JSON.stringify([coverage.value.view,coverage.value.feeders]),()=>{
 const etaFfDraft=ref('')
 const maximumDelayDraft=ref<number|undefined>(undefined)
 const relativeOperation=ref<'arrival'|'closure'|'gap'>('arrival')
-const overshootFlights=computed(()=>all.value.filter(f=>f.mode!=='removed'&&(f.mode==='missed'||f.state===4&&(now.value-f.sta)<=300000)))
+const overshootFlights=computed(()=>all.value.filter(f=>f.mode!=='removed'&&(f.mode==='missed'||f.landingEtaAvailable===false||f.state===4&&(now.value-f.sta)<=300000)))
 const plannedFlights=computed(()=>(sequence.value?.knownFlights??[]).filter(f=>!all.value.some(p=>p.callsign===f.callsign&&p.mode!=='removed')))
 function chooseManualFlight(callsign:string){insertCallsign.value=callsign;const f=all.value.find(f=>f.callsign===callsign)??sequence.value?.knownFlights?.find(f=>f.callsign===callsign);if(f){manualAircraft.value=f.aircraft||'UNKN';manualWake.value=f.wake||'?';if('ff' in f&&typeof f.ff==='string')manualFeeder.value=f.ff;}}
 const relativeSide=ref<'before'|'after'>('after')
@@ -256,7 +258,7 @@ function nativeCoordinationAck(event:Event){
 }
 function closeCoordinationPopup(){if(!localPreview)void nativeRequest('host:coordination',{message:null}).catch(()=>{})}
 
-const visibleFlights = computed(() => all.value.filter(f=>!f.issue&&!f.lost&&f.mode==='sequenced'&&(view.value!=='Runway'||displayRunways.value.includes(rwy(f)))&&(view.value!=='ACC'||feederSelection.value.includes(f.ff))))
+const visibleFlights = computed(() => all.value.filter(f=>(f.landingEtaAvailable!==false||f.recoveryManualSlot)&&!f.issue&&!f.lost&&f.mode==='sequenced'&&(view.value!=='Runway'||displayRunways.value.includes(rwy(f)))&&(view.value!=='ACC'||feederSelection.value.includes(f.ff))))
 function labelY(f:EngineFlight){
     const anchor=y(displayedTime(f));let position=anchor
     if(view.value==='Runway')for(const slot of displayedGaps.value.filter(s=>s.runway===rwy(f))){
@@ -413,7 +415,7 @@ async function commit(nextEdits = edits.value, nextConfig = config.value) {
     } catch (e: any) { error.value = e.response?.data?.error || 'Change not saved';return false }
     finally { busy.value = false }
 }
-async function chooseMode(mode: string) {
+async function chooseMode(mode: string,automatic=false) {
     menu.value = ''
     if (mode === 'DEMO') {
         suspendSharedRoom(true)
@@ -424,7 +426,7 @@ async function chooseMode(mode: string) {
         sequence.value = runEngine(demoInput(demoEpoch), config.value, {}, seed)
         dialog.value = ''; return
     }
-    if (!localPreview && !auth.ready) { try{await auth.login();if(!auth.ready)error.value=auth.loginError}catch(e:any){error.value=e.response?.data?.error||e.message} if(!auth.ready)return }
+    if (!localPreview && !auth.ready) { try{await auth.login(!automatic);if(!auth.ready)error.value=auth.loginError}catch(e:any){error.value=e.response?.data?.error||e.message} if(!auth.ready)return }
     suspendSharedRoom(false)
     demo.value = false; revision.value = -1
     try {
@@ -734,6 +736,11 @@ async function saveRates() {
         await commit(edits.value,next);if(!error.value)dialog.value=''
     }catch(e:any){error.value=e.message}
 }
+function showRecoveryEntry(callsign:string){selected.value=callsign;openDialog('reinsert-on')}
+async function reinsertOn(fix:RecoveryEntry['fix']){
+ if(!sequence.value||!current.value)return
+ try{const next=reinsertRecoveryEdits(sequence.value,config.value,edits.value,current.value.callsign,fix);if(await commit(next))dialog.value=''}catch(e:any){error.value=e.message}
+}
 async function resumeList(remove = false) {
     const changes = { ...edits.value }
     const selected=[...listSelection.value]
@@ -760,7 +767,7 @@ onMounted(() => {
     window.addEventListener('beforeunload',closeCoordinationPopup)
     window.addEventListener('saaman-pulse',nativePulse)
     window.addEventListener('saaman-relay',relayChanged)
-    void refreshCoverage();void chooseMode('MASTER')
+    void refreshCoverage();void chooseMode('MASTER',true)
     timer = setInterval(() => now.value = Date.now(), 1000)
     pollingTimer = setInterval(()=>{void refreshCoverage();void poll()}, 3000)
     resizeObserver = new ResizeObserver(entries => {plotHeight.value=Math.max(200,entries[0].contentRect.height-28);plotWidth.value=Math.max(200,scrollElement.value?.clientWidth??entries[0].contentRect.width-19);void nextTick(()=>{fitPopup();fitDialog()})})
@@ -842,7 +849,7 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
     <nav class="view-buttons">
         <button @click="menu=menu==='maestro'?'':'maestro'">MAESTRO▼</button>
         <button v-for="v in ['ACC','Runway','FLOW'].filter(v=>v!=='ACC'||coverage.view!==null)" :key="v" :class="{active:view===v}" @click="changeView(v)">{{v==='ACC'?coverage.view:v}}</button>
-        <button v-if="unsequenced.length" data-action="desequenced" @click="openDialog('desequenced')">Desequenced {{unsequenced.length}}</button><button v-if="all.some(f=>f.mode==='missed')" data-action="missed" @click="openDialog('missed')">Missed Approach {{all.filter(f=>f.mode==='missed').length}}</button>
+        <button v-if="unsequenced.some(f=>f.mode==='desequenced')" data-action="desequenced" @click="openDialog('desequenced')">Desequenced {{unsequenced.filter(f=>f.mode==='desequenced').length}}</button><button v-if="missedFlights.length" data-action="missed" @click="openDialog('missed')">Missed Approach {{missedFlights.length}}</button>
         <button v-if="error||diagnosticFlights.length" class="errors-button" data-action="errors" @click="openDialog('diagnostics')">Errors {{diagnosticFlights.length+(error?1:0)}}</button>
         <button data-action="coordinations" @click="positionPopup($event,true);menu=menu==='coordination'?'':'coordination'">Coordinations</button>
     </nav>
@@ -933,7 +940,9 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
             <template v-else-if="dialog==='flight-slots'"><label>Before flight (min) <input v-model.number="flightSlots.before" type="number" min="0" max="999"></label><label>After flight (min) <input v-model.number="flightSlots.after" type="number" min="0" max="999"></label><button @click="editFlight({slotBefore:flightSlots.before,slotAfter:flightSlots.after});dialog=''">Apply</button><button @click="openFlightGap">Runway closure gap</button></template>
             <template v-else-if="dialog==='insert'"><div class="manual-flight-lists"><section><h3>Overshoot</h3><div class="flight-list" role="listbox" aria-label="Overshoot"><button v-for="f in overshootFlights" :key="f.callsign" role="option" :aria-selected="insertCallsign===f.callsign" :class="{chosen:insertCallsign===f.callsign}" @click="chooseManualFlight(f.callsign)">{{f.callsign}}</button><span v-if="!overshootFlights.length">No flights</span></div></section><section><h3>Planned</h3><div class="flight-list" role="listbox" aria-label="Planned"><button v-for="f in plannedFlights" :key="f.callsign" role="option" :aria-selected="insertCallsign===f.callsign" :class="{chosen:insertCallsign===f.callsign}" @click="chooseManualFlight(f.callsign)">{{f.callsign}}</button><span v-if="!plannedFlights.length">No flights</span></div></section></div><label>Callsign <input data-input="manual-callsign" v-model="insertCallsign" @keydown.enter="insertFlight" placeholder="SAS123"></label><label>Runway <select v-model="slotDraft.runway"><option v-for="r in RUNWAYS.filter(r=>r.startsWith('ESSA/'))" :key="r">{{r}}</option></select></label><label>{{view==='Runway'?'Arrival':'Feeder'}} UTC <input type="time" v-model="slotDraft.start"></label><label>Aircraft <input v-model="manualAircraft" placeholder="UNKN"></label><label>Wake <select v-model="manualWake"><option v-for="w in ['?','L','M','H','J']" :key="w">{{w}}</option></select></label><label>Entry point <select v-model="manualFeeder"><option v-for="fix in entryPoints" :key="fix">{{fix}}</option></select></label><button data-action="insert-flight" @click="insertFlight">Add flight</button><button @click="dialog=''">Cancel</button></template>
             <template v-else-if="dialog==='slot'"><label>Runway <select v-model="slotDraft.runway"><option v-for="r in RUNWAYS.filter(r=>r.startsWith('ESSA/'))" :key="r">{{r}}</option></select></label><label>Begin UTC <input data-input="gap-start" type="time" v-model="slotDraft.start"></label><label>Duration (min) <input data-input="gap-duration" v-model.number="slotDraft.duration" type="number" min="1" max="1440"></label><button data-action="save-gap" @click="saveSlot">Apply</button><button v-if="slotDraft.id" data-action="delete-gap" @click="commit(edits,{...config,slots:config.slots.filter(s=>s.id!==slotDraft.id)});dialog=''">Remove gap</button><button @click="dialog=''">Cancel</button></template>
-            <template v-else-if="dialog==='desequenced'||dialog==='missed'"><label v-for="f in unsequenced.filter(f=>dialog==='desequenced'||f.mode==='missed')" :key="f.callsign"><input v-model="listSelection" type="checkbox" :value="f.callsign">{{f.callsign}}</label><p v-if="!unsequenced.length">No flights</p><button :disabled="!editable||!listSelection.length" @click="resumeList()">Resume</button><button :disabled="!editable||!listSelection.length" @click="resumeList(true)">Remove</button></template>
+            <template v-else-if="dialog==='missed'"><div v-for="f in missedFlights" :key="f.callsign" class="recovery-row"><button data-action="recovery-aircraft" :data-callsign="f.callsign" @click="showRecoveryEntry(f.callsign)">{{f.callsign}} ▸</button><small v-if="f.landingEtaAvailable===false">Waiting for approach</small></div><p v-if="!missedFlights.length">No flights</p></template>
+            <template v-else-if="dialog==='reinsert-on'&&current"><button v-for="option in recoveryIafOptions(rwy(current).split('/')[1])" :key="option.fix" data-action="reinsert-on-iaf" :data-iaf="option.fix" :disabled="!editable||!option.available" :title="option.available?'':'No approach profile for this runway'" @click="reinsertOn(option.fix)">{{option.fix}}</button><button @click="openDialog('missed')">Back</button></template>
+            <template v-else-if="dialog==='desequenced'"><label v-for="f in unsequenced.filter(f=>f.mode==='desequenced')" :key="f.callsign"><input v-model="listSelection" type="checkbox" :value="f.callsign">{{f.callsign}}</label><button :disabled="!editable||!listSelection.length" @click="resumeList()">Resume</button><button :disabled="!editable||!listSelection.length" @click="resumeList(true)">Remove</button></template>
             <template v-else-if="dialog==='eta-ff'"><label>ETA-FF (UTC)<input v-model="etaFfDraft" placeholder="HH:MM:SS"></label><button :disabled="!editable" @click="saveEtaFf">Apply</button></template>
             <template v-else-if="dialog==='maximum-delay'"><button class="submenu-choice" v-for="n in [0,3,5,10,15]" :key="n" :disabled="!editable" @click="chooseMaximumDelay(n)">{{n}}</button><button class="submenu-choice" :disabled="!editable" @click="chooseMaximumDelay(undefined)">No limit</button></template>
             <template v-else-if="dialog==='relative-side'"><button class="submenu-choice" :disabled="!editable" @click="chooseRelativeSide('before')">Before</button><button class="submenu-choice" :disabled="!editable" @click="chooseRelativeSide('after')">After</button></template>
@@ -1197,3 +1206,6 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
 .native-dialog :deep(.information-table){font-size:11px}.native-dialog :deep(.information-table td),.native-dialog :deep(.information-table th){padding:4px 6px}
 @container aman (max-width:320px){.toolbar{gap:2px;padding:2px}.toolbar .configuration-button{min-width:60px}.toolbar .rate-button{min-width:74px}.toolbar .tracks{min-width:40px;padding:2px}.toolbar .updated{padding:2px;font-size:9px!important}.configuration-button span{font-size:10px!important}.view-buttons{gap:2px}.view-buttons button{padding:0 3px;font-size:10px!important;min-height:21px;line-height:16px!important}.live-indicator{font-size:8px}.toolbar>button{border-width:1px}}
 </style>
+
+
+

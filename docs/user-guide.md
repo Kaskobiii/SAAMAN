@@ -13,7 +13,7 @@ SAAMAN is the arrival manager for ESSA in EuroScope. Use it to view the shared a
 
 Select the active ESSA runways in EuroScope for **both ARR and DEP**, then connect with your normal controller callsign.
 
-SAAMAN connects automatically in the background when the plugin is loaded and EuroScope has a connected controller callsign. Opening the AMAN pane is not required. It waits for login if you load it while disconnected, and keeps syncing when the pane is hidden.
+In shared mode, SAAMAN connects automatically in the background when the plugin is loaded and EuroScope has a connected controller callsign, except at ESMM positions. ESMM can connect manually; priming to ESOS, ESAA or ESSA enables automatic connection. Opening the AMAN pane is not required. It waits for login if you load it while disconnected, and keeps syncing when the pane is hidden.
 
 With two EuroScope windows using the same callsign, keep SAAMAN loaded in the directly connected window. The proxy window follows the shared sequence and can submit edits to the sequencer; it does not start a second sequencer or replace the shared runway configuration from its own selections.
 
@@ -66,7 +66,7 @@ Click a label to highlight and select it. Right-click it to open its callsign me
 
 ## 5. Manage the sequence
 
-Use **Runway** view when changing the overall landing order. Select an aircraft, then move the pointer onto its timeline: an arrow shows the proposed insertion point. Click to confirm. Hover over another callsign to show the swap icon, then click that callsign to exchange their slots. You can also drag to an arrow position or drop onto another callsign to swap. Frozen and Superstable aircraft can also be adjusted manually. Swaps use the same runway; feeder views also require the same feeder. Normal spacing and closures still apply.
+Use **Runway** view when changing the overall landing order. Select an aircraft, then move the pointer onto its timeline: an arrow shows the proposed insertion point. Click to confirm. Hover over another callsign to show the swap icon, then click that callsign to exchange their sequence positions. Times are recalculated using the current estimates and required spacing. You can also drag to an arrow position or drop onto another callsign to swap. Frozen and Superstable aircraft can also be adjusted manually. Swaps use the same runway; feeder views also require the same feeder. Normal spacing and closures still apply.
 
 The callsign menu provides the main actions:
 
@@ -99,3 +99,11 @@ Click **Coordinations** and choose one of the listed messages. Incoming messages
 - `.saaman status` shows connection information. When reporting a problem, include the plugin version, callsign, network, action taken and diagnostic text.
 
 The supervisory pane is available with `.saaman supervisor` for authorised users. Its shared settings include feeder/fallback allowances and a landing correction limit. Landing ETA updates live; changing these settings leaves existing assigned slots in place until Recompute. Information shows the current ETA alongside the assigned STA. The aircraft performance profile used for the current forecast is shown in supervision. Blue Unstable aircraft have provisional scheduled times that update with the forecast and required spacing. Manual time targets remain fixed. Stable and later assignments retain their existing protection; use Recompute to accept a fresh estimate when needed. For an initial-timing test, start recording before the aircraft first appears in AMAN and continue through the feeder and landing. Captures made before recording started are marked as unavailable in the export. A confirmed runway change updates the approach and planning times while retaining sequence order. A dash at a route point means its crossing time is unavailable, for example during vectoring.
+
+## Shared connection and sequencer
+
+The sequencer supplies the EuroScope traffic and runway data for everyone. ESOS/ESAA CTR, ESSA APP and ESSA_FMP positions can be sequencer; handover callsigns are supported. Other positions may follow and edit but cannot take sequencing ownership. Tower positions remain observers. Set both ARR and DEP correctly in the sequencer's EuroScope. Changing the shared configuration does not change another controller's EuroScope settings or flight-plan runway assignments.
+
+Shared mode connects automatically after EuroScope login, except at ESMM positions. ESMM controllers may connect manually from Operation mode. Priming from ESMM to ESOS, ESAA or ESSA enables automatic connection without reloading the plugin. With no eligible sequencer connected, the shared sequence waits. Local mode remains a separate secondary mode.
+
+For a missed approach, open Missed Approach, select the aircraft and choose Reinsert on, then the initial approach fix. That selection immediately reinserts the aircraft. An estimate based on a heading alone is not treated as a new approach clearance.

@@ -1,5 +1,6 @@
 import {delayLabel,validateEdits,wakeInterval,effectiveConfig,type EngineSnapshot,type EngineFlight,type FlightEdit,type EngineConfig} from './maestro-engine'
 import {distanceNm,STAR_PROFILES,STAR_RUNWAYS,starTravelSeconds} from './maestro-star-prediction'
+import {recoveryIafOptions,type RecoveryEntry} from './maestro-recovery'
 
 export {COORDINATION_MESSAGES,type CoordinationMessage} from './maestro-coordination'
 export function instructionColor(seconds:number){return seconds<0?'#29ff28':seconds<=150?'#f0e129':'#e11919'}
@@ -11,7 +12,16 @@ export function manualTransferSeconds(config:EngineConfig,runway:string,feeder:s
  return distance?starTravelSeconds(distance,config.starEntryAltitude??18000,STAR_RUNWAYS[runway.split('/')[1]]?.heading??0,config,0,wake,aircraft):(config.defaultFeederMinutes??15)*60
 }
 function copyEdits(edits:Record<string,FlightEdit>):Record<string,FlightEdit>{return Object.fromEntries(Object.entries(edits).map(([key,value])=>[key,{...value}]))}
-function available(f:EngineFlight){return f.mode==='sequenced'&&f.state!==4&&!f.lost&&!f.issue}
+function available(f:EngineFlight){return (f.landingEtaAvailable!==false||f.recoveryManualSlot)&&f.mode==='sequenced'&&f.state!==4&&!f.lost&&!f.issue}
+export function reinsertRecoveryEdits(snapshot:EngineSnapshot,config:EngineConfig,edits:Record<string,FlightEdit>,callsign:string,fix:RecoveryEntry['fix']){
+ const f=snapshot.flights.find(f=>f.callsign===callsign)
+ if(!f||f.mode==='removed'||f.state===4||f.lost||(!f.missedRecovery&&f.mode!=='missed'&&f.landingEtaAvailable!==false))throw Error('Select a missed approach')
+ const runway=(edits[callsign]?.runway??`${f.arrival}/${f.runway}`).split('/')[1]
+ if(!recoveryIafOptions(runway).some(p=>p.fix===fix&&p.available))throw Error('No approach profile for this fix and runway')
+ if((f.positionAgeSeconds??0)>15||!Number.isFinite(f.latitude)||!Number.isFinite(f.longitude)||f.groundspeed<60)throw Error('Waiting for a fresh aircraft position and speed')
+ const stamp=Math.max(snapshot.timestamp+1,(edits[callsign]?.changedAt??0)+1,(edits[callsign]?.recomputeAt??0)+1)
+ return validateEdits({...copyEdits(edits),[callsign]:{...edits[callsign],mode:'sequenced',recoveryEntry:{fix,runway,at:stamp},changedAt:stamp,recomputeAt:stamp,target:undefined,order:undefined,orderGroup:undefined,swapAt:undefined,requeueAt:undefined,landedAt:undefined,closurePosition:undefined,etaFfOverride:undefined}})
+}
 export function dragTargetTime(snapshot:EngineSnapshot,callsign:string,time:number,view='Runway',config?:EngineConfig){
  const f=snapshot.flights.find(f=>f.callsign===callsign);if(!f||!available(f))throw Error('Select an available arrival')
  if(!Number.isFinite(time))throw Error('Choose a valid time')
@@ -27,16 +37,28 @@ export function gainDragEdits(snapshot:EngineSnapshot,edits:Record<string,Flight
  const target=dragTargetTime(snapshot,callsign,time,view,config)
  const queue=snapshot.flights.filter(p=>available(p)&&p.runway===f.runway&&p.callsign!==callsign).sort((a,b)=>a.order-b.order)
  const index=queue.findIndex(p=>p.sta>target);queue.splice(index<0?queue.length:index,0,f)
- const next=copyEdits(edits),group=`${snapshot.timestamp}-${Math.random().toString(36).slice(2,10)}`
- queue.forEach((p,order)=>{next[p.callsign]={...next[p.callsign],order,orderGroup:group,changedAt:snapshot.timestamp,targetKind:p.callsign===callsign?'time':next[p.callsign]?.targetKind}})
- next[callsign]={...next[callsign],target,targetKind:'time'}
+ const next=copyEdits(edits),stamp=Math.max(snapshot.timestamp+1,...queue.map(p=>(edits[p.callsign]?.releaseDelayAt??0)+1)),group=`${stamp}-${Math.random().toString(36).slice(2,10)}`
+ queue.forEach((p,order)=>{next[p.callsign]={...next[p.callsign],order,orderExplicit:p.callsign===callsign?true:next[p.callsign]?.orderExplicit??false,sequenceEditVersion:2,orderGroup:group,changedAt:stamp,targetKind:p.callsign===callsign?'time':next[p.callsign]?.targetKind}})
+ next[callsign]={...next[callsign],target,targetKind:'time',swapAt:undefined}
+ if(target<f.sta-1000){
+  // Release only removable work behind this deliberate advance. A swapped
+  // slot is movable; a separately requested time or Frozen arrival is a stop.
+  for(const follower of queue.slice(queue.indexOf(f)+1)){
+   const edit=next[follower.callsign]
+   if(follower.state>=3||edit.target!==undefined&&!edit.swapAt||follower.delay<=0)break
+   next[follower.callsign]={...edit,target:undefined,targetKind:'sequence',swapAt:undefined,releaseDelayAt:stamp}
+  }
+ }
  return validateEdits(next)
 }
 export function swapFlightEdits(snapshot:EngineSnapshot,edits:Record<string,FlightEdit>,callsign:string,other:string,view='Runway'){
  const a=snapshot.flights.find(f=>f.callsign===callsign),b=snapshot.flights.find(f=>f.callsign===other)
  if(!a||!b||a===b||!available(a)||!available(b)||a.arrival!==b.arrival||a.runway!==b.runway||(view!=='Runway'&&a.ff!==b.ff))throw Error('Select two available arrivals in the same sequence')
  const next=copyEdits(edits),stamp=Math.max(snapshot.timestamp+1,(edits[callsign]?.changedAt??0)+1,(edits[other]?.changedAt??0)+1),group=`${stamp}-${Math.random().toString(36).slice(2,10)}`
- for(const [flight,slot] of [[a,b],[b,a]])next[flight.callsign]={...next[flight.callsign],order:slot.order,target:slot.sta,targetKind:'time',orderGroup:group,changedAt:stamp,closurePosition:undefined,swapAt:undefined}
+ for(const [flight,slot] of [[a,b],[b,a]]){
+  const own=next[flight.callsign],manual=own?.target!==undefined&&!own.swapAt&&own.targetKind==='time'
+  next[flight.callsign]={...own,order:slot.order,orderExplicit:true,sequenceEditVersion:2,sequenceAt:stamp,target:manual?own.target:undefined,targetKind:manual?'time':'sequence',orderGroup:group,changedAt:stamp,recomputeAt:stamp,closurePosition:undefined,swapAt:undefined}
+ }
  return validateEdits(next)
 }
 export function insertRelative(snapshot:EngineSnapshot,edits:Record<string,FlightEdit>,callsign:string,anchor:string,side:'before'|'after'){
@@ -46,7 +68,7 @@ export function insertRelative(snapshot:EngineSnapshot,edits:Record<string,Fligh
  const index=queue.findIndex(p=>p.callsign===anchor);if(index<0)throw Error('The insertion aircraft is no longer available')
  queue.splice(index+(side==='after'?1:0),0,f)
  const next=copyEdits(edits),stamp=snapshot.timestamp+1,group=`${stamp}-${Math.random().toString(36).slice(2,10)}`
- queue.forEach((p,order)=>{next[p.callsign]={...next[p.callsign],order,orderGroup:group,changedAt:stamp}})
+ queue.forEach((p,order)=>{next[p.callsign]={...next[p.callsign],order,orderExplicit:p.callsign===callsign?true:next[p.callsign]?.orderExplicit??false,sequenceEditVersion:2,orderGroup:group,changedAt:stamp}})
  next[callsign]={...next[callsign],mode:'sequenced',runway:`ESSA/${a.runway}`,target:undefined,targetKind:'sequence',landedAt:undefined,requeueAt:undefined,recomputeAt:stamp}
  return validateEdits(next)
 }
@@ -93,6 +115,7 @@ export function informationRoute(f:EngineFlight,now:number){
  let points=route.slice(f.amanRoute?f.amanRoutePassed??0:Math.max(0,feeder),threshold>=0?threshold+1:undefined)
  if(!f.amanRoute&&f.passedFeeder&&Number.isInteger(f.calculatedRouteIndex))points=points.filter(p=>f.route.indexOf(p)>(f.calculatedRouteIndex??-1))
  if(!points.some(p=>p.name===f.arrival))points.push({name:f.arrival,seconds:0})
+ if(f.landingEtaAvailable===false)return points.map(p=>({name:p.name,time:NaN}))
  if(f.euroscopeBaseline){
   // Route-point observations use distance / current GS, independently of the
   // buffered landing forecast and the protected feeder allocation.

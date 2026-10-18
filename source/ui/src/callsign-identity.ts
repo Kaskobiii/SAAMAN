@@ -1,6 +1,6 @@
 export interface ControllerIdentity { cid:number|null; callsign:string; supervisor:boolean }
 export function isTowerCallsign(callsign:string){return callsign.toUpperCase().includes('TWR')}
-export function canAutoConnectShared(callsign:string){return !/^ESMM(?:_|$)/.test(callsign.trim().toUpperCase())}
+export function canAutoConnectShared(callsign:string){return canSequenceEssa(callsign)}
 /** Positions that may provide the ESSA sequence's authoritative telemetry. */
 export function canSequenceEssa(callsign:string){
     const call=callsign.trim().toUpperCase().replace(/_+/g,'_')
@@ -37,7 +37,7 @@ export class CallsignIdentity {
             if(raw.connected!==true||!Number.isFinite(raw.timestamp)||Math.abs(now-raw.timestamp)>10000||!/^[A-Z0-9_-]{1,20}$/.test(callsign)||['OFFLINE','DEMO'].includes(callsign))throw new Error('Waiting for a connected EuroScope callsign')
             if(callsign!==this.lastConnectedCallsign){this.lastConnectedCallsign=callsign;this.manuallyConnectedCallsign=''}
             if(manual)this.manuallyConnectedCallsign=callsign
-            if(!canAutoConnectShared(callsign)&&this.manuallyConnectedCallsign!==callsign)throw new Error('ESMM positions do not connect automatically. Select Shared mode to connect.')
+            if(!canAutoConnectShared(callsign)&&this.manuallyConnectedCallsign!==callsign)throw new Error('These positions do not connect automatically. Select Shared mode to connect.')
             if(this.deps.network==='live'&&raw.simulation===true)throw new Error('Select SweatBox in Operation mode for this simulator connection')
             if(this.identity?.callsign!==callsign)this.clear()
             const cid=this.deps.network==='live'?(await this.feed()).find(c=>c.callsign===callsign)?.cid:this.deps.cid||null

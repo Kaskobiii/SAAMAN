@@ -1367,7 +1367,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             }
             if(f.feederEtaAvailable===false&&!f.passedFeeder&&old&&!recomputed)f.delay=old.delay+Math.round((f.staFf-old.staFf)/1000)
             if(f.landingEtaAvailable===false){f.delay=0;f.totalDelay=0;f.runwayDelay=0}
-            f.maximumDelayExceeded=edits[f.callsign]?.maximumDelayMinutes!==undefined&&f.delay>edits[f.callsign].maximumDelayMinutes!*60
+            f.maximumDelayExceeded=!f.passedFeeder&&edits[f.callsign]?.maximumDelayMinutes!==undefined&&f.delay>edits[f.callsign].maximumDelayMinutes!*60
             f.planningDelaySeconds=f.delay
             if(!f.spacingActive&&edits[f.callsign]?.target===undefined)f.delay=0
             f.separation=last?{leader:last.callsign,wakeNm:wakeDistanceNm(last.wake,f.wake),wakeSeconds:wakeInterval(last.wake,f.wake,runway,arrivalConfig),rateSeconds:acceptedRate,scheduledSeconds:(f.sta-last.sta)/1000}:undefined
@@ -1389,6 +1389,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             if(f.state===3&&f.sta<guidanceReference-30000)constraints.push('frozen target earlier than current prediction; controller review required')
             f.guidance={point:f.passedFeeder?'runway threshold':f.ff,predicted:f.passedFeeder?f.liveBufferedEta??f.eta:f.etaFf,scheduled:f.passedFeeder?f.sta:f.staFf,reference:holdTma&&edits[f.callsign]?.target===undefined?(f.passedFeeder?f.sta:f.staFf)-ms(f.delay):f.passedFeeder?guidanceReference:guidanceReference-(f.eta-f.etaFf),instructionSeconds:f.delay,policy:holdTma?'accepted allocation; live prediction observational':f.state>=2&&f.trajectory?'filtered trajectory reference':tmaProtected?'accepted instruction policy':'current trajectory',constraints,earliestPlanningTime:f.eta-ms(f.gainCapacitySeconds??0),validUntil:now+15000,absorption:f.delay<0?{mode:'gain'}:f.delay===0?{mode:'none'}:f.delay<=150?{mode:'speed-or-vectors',maxIas:250}:{mode:'holding',maxIas:230}}
             f.totalDelay = Math.round((f.staFf - f.etaFf) / 1000)
+            if(f.passedFeeder&&f.guidance){f.guidance.instructionSeconds=0;f.guidance.policy='TMA sequence only';f.guidance.absorption={mode:'none'}}
             f.order = i
             f.planKey=planKey
             if(f.state===3&&f.sta-now>ms((config.frozenMinutes+(old?.state===3?1:0))*60))f.state=2
@@ -1416,7 +1417,9 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
 }
 
 function pMinuteResolution(f:EngineFlight){return f.predictionSource==='route' && f.landingSeconds%60===0 && f.route.every(r=>r.seconds%60===0)}
-export function euroscopeInstruction(f:EngineFlight){return f.landingEtaAvailable===false||f.line0Suppressed||f.state===4?0:f.delay}
+/** Runway slot differences remain planner data; TMA aircraft receive sequence times only. */
+export function controllerInstructionSeconds(f:EngineFlight){return f.passedFeeder?0:f.delay}
+export function euroscopeInstruction(f:EngineFlight){return f.landingEtaAvailable===false||f.line0Suppressed||f.state===4?0:controllerInstructionSeconds(f)}
 export function displayedInstructionSeconds(seconds:number){return (seconds<0?-Math.ceil(Math.abs(seconds)/60):Math.floor(seconds/60))*60}
 export function delayLabel(seconds: number) {
     const minutes=seconds<0?Math.ceil(Math.abs(seconds)/60):Math.floor(seconds/60)
@@ -1446,6 +1449,6 @@ export function toJuhaSequence(snapshot: EngineSnapshot, config: EngineConfig, e
 export function toTopSkySequence(snapshot:EngineSnapshot,config:EngineConfig,edits:Record<string,FlightEdit>){
     // TopSky may display a numeric zero as G00. Omit obsolete feeder rows from
     // the complete local replacement message; keep shared sequence data intact.
-    return toJuhaSequence({...snapshot,flights:snapshot.flights.filter(f=>!f.line0Suppressed&&f.state!==4)},config,edits)
+    return toJuhaSequence({...snapshot,flights:snapshot.flights.filter(f=>!f.passedFeeder&&!f.line0Suppressed&&f.state!==4)},config,edits)
 }
 

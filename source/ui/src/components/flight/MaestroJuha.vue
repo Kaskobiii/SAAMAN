@@ -16,7 +16,7 @@ import {isTowerCallsign} from '@/callsign-identity'
 import {STAR_PROFILES,STAR_SOURCE} from '@/maestro-star-prediction'
 import {recoveryIafOptions,type RecoveryEntry} from '@/maestro-recovery'
 import { useAuthStore, backendBaseUrl } from '@/stores/auth'
-import { DEFAULT_CONFIG, RUNWAYS, STATE_NAMES, STATE_COLORS, delayLabel, runEngine, toTopSkySequence, effectiveConfig, rateDistanceNm, validateLockedEdits, windConfig, reorderEdits, retimeEdits, dragChangesTime, euroscopeInstruction,
+import { DEFAULT_CONFIG, RUNWAYS, STATE_NAMES, STATE_COLORS, delayLabel, runEngine, toTopSkySequence, effectiveConfig, rateDistanceNm, validateLockedEdits, windConfig, reorderEdits, retimeEdits, dragChangesTime, euroscopeInstruction, controllerInstructionSeconds,
     reconcileRunwayAssignments, type EngineConfig, type EngineSnapshot, type EngineFlight, type FlightEdit, type Telemetry } from '@/maestro-engine'
 const auth = useAuthStore()
 const nativeInfo=(window as any).__SAAMAN_HOST__
@@ -54,6 +54,7 @@ const view = ref('Runway')
 const revision = ref(-1)
 const masterCid = ref<number | null>(null)
 const sharedRole=ref('disconnected')
+const sequencerWarning=ref('')
 const backendContact=ref(0)
 let relayEpoch=''
 const busy = ref(false)
@@ -174,7 +175,7 @@ async function syncEuroScope(){
  try{
   const selections=runwaySelections(await nativeRequest('telemetry:get'),Date.now())
   const next=clone(effectiveConfig(config.value,now.value));next.active=selections.active;next.departureRunway=selections.departureRunway;next.pending=undefined
-  if(await commit(edits.value,next)){draft.value=clone(next);applyMinutes.value=0;dialog.value=''}else runwaySyncError.value=error.value
+  if(await commit(edits.value,next,true)){draft.value=clone(next);applyMinutes.value=0;dialog.value=''}else runwaySyncError.value=error.value
  }catch(e:any){runwaySyncError.value=e.message}finally{runwaySyncBusy.value=false}
 }
 const listSelection = ref<string[]>([])
@@ -338,7 +339,7 @@ function delayColor(seconds:number){return instructionColor(seconds)}
 function stateColor(f: EngineFlight) { return f.lost ? '#606060' : STATE_COLORS[f.state] }
 function flightTooltip(f:EngineFlight){
     const target=edits.value[f.callsign]?.target
-    return `${f.callsign} · ${STATE_NAMES[f.state]} · Live ETA ${utc(f.eta)} · Assigned ${f.state===0?'not stable':utc(f.sta)} · ${f.delay<0?'TTG':'TTL'} ${Math.abs(f.delay)}s`+
+    return `${f.callsign} · ${STATE_NAMES[f.state]} · Live ETA ${utc(f.eta)} · Assigned ${f.state===0?'not stable':utc(f.sta)} · ${f.passedFeeder?'TMA sequence only':`${f.delay<0?'TTG':'TTL'} ${Math.abs(f.delay)}s`}`+
         (target!==undefined?` · Explicit time ${utc(target,true)} UTC; Recompute releases it`:'')+
         (f.state<4?' · Drag to gain time; restore up to the original allocation. Use Insert arrival for explicit before/after sequencing.':'')
 }
@@ -376,6 +377,7 @@ function receive(data: any) {
     if(coordinationBaseline.value===null)coordinationBaseline.value=new Set((data.config?.coordinations??[]).map((m:any)=>m.id))
     sequence.value = data.snapshot; masterCid.value = data.masterCid
     if(data.relayRole)sharedRole.value=data.relayRole
+    sequencerWarning.value=typeof data.sequencerWarning==='string'?data.sequencerWarning:''
 }
 async function poll() {
     now.value = Date.now()
@@ -400,14 +402,14 @@ async function poll() {
     finally { polling.value = false }
     if (bridge.value) await publishTiming()
 }
-async function commit(nextEdits = edits.value, nextConfig = config.value) {
+async function commit(nextEdits = edits.value, nextConfig = config.value,takeSequencer=false) {
     nextConfig={...nextConfig,...sharedSettings(config.value)}
     if (!editable.value) { error.value='Join as an editor to change a fresh sequence'; return false }
     try { validateLockedEdits(sequence.value,edits.value,nextEdits,nextConfig) } catch(e:any) {error.value=e.message;return false}
     if (demo.value) { edits.value = clone(nextEdits); config.value = clone(nextConfig); refreshDemo(true); error.value='';return true }
     busy.value = true
     try {
-        receive((await axios.put(`${apiBase}/maestro/ESSA`, { revision: revision.value, config: nextConfig, edits: nextEdits },
+        receive((await axios.put(`${apiBase}/maestro/ESSA`, { revision: revision.value, config: nextConfig, edits: nextEdits,takeSequencer },
             { headers: headers(), timeout: 7000 })).data)
         error.value = ''
         if(bridge.value)await publishTiming()
@@ -733,7 +735,7 @@ async function saveRates() {
             if(applyMinutes.value>0)next.pending={at,active:[...draft.value.active],rates,departureRunway:draft.value.departureRunway,applyRate:draftApplyRate.value}
             else{next.pending=undefined;next.active=[...draft.value.active];next.departureRunway=draft.value.departureRunway;next.rates=rates}
         }
-        await commit(edits.value,next);if(!error.value)dialog.value=''
+        await commit(edits.value,next,dialog.value==='configuration');if(!error.value)dialog.value=''
     }catch(e:any){error.value=e.message}
 }
 function showRecoveryEntry(callsign:string){selected.value=callsign;openDialog('reinsert-on')}
@@ -850,9 +852,10 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
         <button @click="menu=menu==='maestro'?'':'maestro'">MAESTRO▼</button>
         <button v-for="v in ['ACC','Runway','FLOW'].filter(v=>v!=='ACC'||coverage.view!==null)" :key="v" :class="{active:view===v}" @click="changeView(v)">{{v==='ACC'?coverage.view:v}}</button>
         <button v-if="unsequenced.some(f=>f.mode==='desequenced')" data-action="desequenced" @click="openDialog('desequenced')">Desequenced {{unsequenced.filter(f=>f.mode==='desequenced').length}}</button><button v-if="missedFlights.length" data-action="missed" @click="openDialog('missed')">Missed Approach {{missedFlights.length}}</button>
-        <button v-if="error||diagnosticFlights.length" class="errors-button" data-action="errors" @click="openDialog('diagnostics')">Errors {{diagnosticFlights.length+(error?1:0)}}</button>
+        <button v-if="error||diagnosticFlights.length||sequencerWarning" class="errors-button" data-action="errors" @click="openDialog('diagnostics')">Errors {{diagnosticFlights.length+(error?1:0)+(sequencerWarning?1:0)}}</button>
         <button data-action="coordinations" @click="positionPopup($event,true);menu=menu==='coordination'?'':'coordination'">Coordinations</button>
     </nav>
+    <p v-if="sequencerWarning" class="message" role="status">{{sequencerWarning}}</p>
     <Teleport :to="globalTarget||'body'" :disabled="!globalTarget">
     <div v-if="menu==='maestro'" class="popup global-menu" ><div class="menu-title" @pointerdown="globalSurface.startDrag">MAESTRO<button @click="menu=''">×</button></div><button @click="openDialog('setup')">ESSA · Operation mode</button><button @click="openDialog('feeders')">ACC feeders</button><small class="build-version">{{applicationBuild}}</small></div>
     </Teleport>
@@ -881,7 +884,7 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
                             <button v-if="y(s.begin)<=plotHeight" class="gap-handle begin" data-gap-handle="begin" :disabled="!editable" :aria-label="`Drag closure start for ${s.runway.split('/')[1]}`" @pointerdown.stop="startGapDrag(s.id,'begin',$event)" @click.stop><span>{{utc(s.begin,true)}} START</span></button>
                         </div>
                         <button v-for="f in visibleFlights.filter(f=>groupOf(f)===g.id&&y(displayedTime(f))>=0&&y(displayedTime(f))<=plotHeight)" :key="f.callsign" class="flight" :class="{right:rightSide(f),boxed:selected===f.callsign||recomputeSelection.includes(f.callsign),selected:selected===f.callsign,'swap-target':placementPreview?.other===f.callsign,movable:movable(f),dragging:drag?.callsign===f.callsign&&drag.moved}" :data-callsign="f.callsign" :aria-pressed="selected===f.callsign" :data-state="STATE_NAMES[f.state]" :style="{top:`${dragPosition(f)}px`,color:stateColor(f)}" :title="flightTooltip(f)" @click.stop="selectFlight(f)" @contextmenu.prevent.stop="flightClick(f,$event)" @pointerdown.stop="startDrag(f,$event)">
-                            <span v-if="labels.totalDelay">{{Math.round(f.totalDelay/60)}}</span><span v-if="labels.feeder">{{f.ff}}</span><span v-if="labels.runway">{{rwy(f).split('/')[1]}}</span><span class="type">{{f.aircraft||'UNKN'}}</span><span class="wake" :title="`Wake turbulence category: ${f.wake||'?'}`">{{f.wake||'?'}}</span><span v-if="delayLabel(f.delay)" class="delay" :style="{color:delayColor(f.delay)}">{{delayLabel(f.delay)}}</span><strong>{{f.callsign}}</strong><span class="ff-time" :title="`${view==='Runway'?'Scheduled landing':'Scheduled feeder crossing'} ${utc(view==='Runway'?f.sta:f.staFf,true)} UTC`">{{minutes(f.state===4||view==='Runway'?f.sta:f.staFf)}}</span><span v-if="f.spacingConflict" class="conflict" title="Check spacing after this sequence change">!</span>
+                            <span v-if="labels.totalDelay&&!f.passedFeeder">{{Math.round(f.totalDelay/60)}}</span><span v-if="labels.feeder">{{f.ff}}</span><span v-if="labels.runway">{{rwy(f).split('/')[1]}}</span><span class="type">{{f.aircraft||'UNKN'}}</span><span class="wake" :title="`Wake turbulence category: ${f.wake||'?'}`">{{f.wake||'?'}}</span><span v-if="delayLabel(controllerInstructionSeconds(f))" class="delay" :style="{color:delayColor(controllerInstructionSeconds(f))}">{{delayLabel(controllerInstructionSeconds(f))}}</span><strong>{{f.callsign}}</strong><span class="ff-time" :title="`${view==='Runway'?'Scheduled landing':'Scheduled feeder crossing'} ${utc(view==='Runway'?f.sta:f.staFf,true)} UTC`">{{minutes(f.state===4||view==='Runway'?f.sta:f.staFf)}}</span><span v-if="f.spacingConflict" class="conflict" title="Check spacing after this sequence change">!</span>
                         </button>
                     </div>
                     <div class="timeline-foot"><span class="foot-left">{{view==='Runway'?displayRunways.includes(g.runways[0])?g.runways[0].split('/')[1]:'':feederSelection.includes(g.fixes[0])||view==='FLOW'?g.fixes[0] || g.name:''}}</span><button class="column-clock" @click="openDialog('labels')">{{utc(now,true)}}</button><span class="foot-right">{{view==='Runway'?displayRunways.includes(g.runways[1])?g.runways[1].split('/')[1]:'':feederSelection.includes(g.fixes[1])||view==='FLOW'?g.fixes[1] || '':''}}</span></div>
@@ -948,7 +951,7 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
             <template v-else-if="dialog==='relative-side'"><button class="submenu-choice" :disabled="!editable" @click="chooseRelativeSide('before')">Before</button><button class="submenu-choice" :disabled="!editable" @click="chooseRelativeSide('after')">After</button></template>
             <template v-else-if="dialog==='relative-insert'"><label>Insert arrival {{relativeSide}} {{relativeAnchor}}<select v-model="insertCallsign"><option value="">Select flight</option><option v-for="f in arrivalOptions" :key="f.callsign" :value="f.callsign">{{f.callsign}}</option></select></label><button :disabled="!editable||!insertCallsign" @click="saveRelativeInsert">Insert</button></template>
             <template v-else-if="dialog==='feeders'"><label v-for="ff in feederOptions" :key="ff"><input type="checkbox" v-model="feederSelection" :value="ff">{{ff}}</label><p v-if="coverage.detected&&!feederOptions.length">No feeder fixes covered by this position.</p><button @click="dialog=''">Close</button></template>
-            <template v-else-if="dialog==='diagnostics'"><p v-if="error" role="alert">{{error}} <button @click="error=''">Dismiss</button></p><p v-for="f in diagnosticFlights" :key="f.callsign">{{f.callsign}} — {{f.issue}} <span v-for="warning in f.dataWarnings" :key="warning">{{warning}} </span><span v-if="f.maximumDelayExceeded">Required delay exceeds this aircraft’s maximum. Change the sequence or constraints.</span><span v-if="f.trajectory?.feasible===false">The model cannot meet the configured approach conditions on this path. Review the inputs in supervision.</span><button :disabled="!editable" @click="recomputeFlights([f.callsign])">Recompute</button></p></template>
+            <template v-else-if="dialog==='diagnostics'"><p v-if="sequencerWarning" role="alert">{{sequencerWarning}}</p><p v-if="error" role="alert">{{error}} <button @click="error=''">Dismiss</button></p><p v-for="f in diagnosticFlights" :key="f.callsign">{{f.callsign}} — {{f.issue}} <span v-for="warning in f.dataWarnings" :key="warning">{{warning}} </span><span v-if="f.maximumDelayExceeded">Required delay exceeds this aircraft’s maximum. Change the sequence or constraints.</span><span v-if="f.trajectory?.feasible===false">The model cannot meet the configured approach conditions on this path. Review the inputs in supervision.</span><button :disabled="!editable" @click="recomputeFlights([f.callsign])">Recompute</button></p></template>
         </div>
     </div>
     </Teleport>

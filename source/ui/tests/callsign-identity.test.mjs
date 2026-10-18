@@ -8,8 +8,8 @@ test('ESSA sequencer eligibility includes local center, approach, planner and ha
 })
 
 test('ESMM shared autoconnect is excluded, including split and handover callsigns',()=>{
- for(const call of ['ESMM','ESMM_CTR','ESMM_2_CTR','ESMM_2__CTR','esmm_3_ctr'])assert.equal(canAutoConnectShared(call),false,call)
- for(const call of ['ESOS_1_CTR','ESAA_CTR','ESSA_FMP','ESSA_APP','ESSA_TWR'])assert.equal(canAutoConnectShared(call),true,call)
+ for(const call of ['ESMM','ESMM_CTR','ESMM_2_CTR','ESMM_2__CTR','esmm_3_ctr','ESSA_TWR','ESSA_1__TWR','ESSB_APP','OTHER_OBS','ESOS_OBS'])assert.equal(canAutoConnectShared(call),false,call)
+ for(const call of ['ESOS_1_CTR','ESAA_CTR','ESSA_FMP','ESSA_APP'])assert.equal(canAutoConnectShared(call),true,call)
 })
 
 test('ESMM waits for explicit connection, then continues refreshing that callsign normally',async()=>{
@@ -59,7 +59,7 @@ test('disconnect, stale data, missing ATC, and feed failure clear identity',asyn
     const f=setup();await f.identity.refresh();f.raw.connected=false
     await assert.rejects(f.identity.refresh(),/connected EuroScope/);assert.equal(f.identity.identity,undefined)
     f.raw.connected=true;f.raw.timestamp=0;await assert.rejects(f.identity.refresh(),/connected EuroScope/)
-    f.advance(1);f.raw.source='OTHER_OBS';await assert.rejects(f.identity.refresh(),/not in the VATSIM ATC feed/)
+    f.advance(1);f.raw.source='OTHER_OBS';await assert.rejects(f.identity.refresh(true),/not in the VATSIM ATC feed/)
     f.raw.source='ESSA_APP';await f.identity.refresh();f.advance(15000);f.fail()
     await assert.rejects(f.identity.refresh(),/Feed unavailable/);assert.equal(f.identity.identity,undefined)
 })
@@ -85,6 +85,6 @@ test('background identity waiting before login recovers on login and reconnect w
 
 
 test('tower login cannot gain supervision from its controller CID',async()=>{
- const f=setup('sweatbox1',1396125);f.raw.source='ESSA_1__TWR';await f.identity.refresh()
+ const f=setup('sweatbox1',1396125);f.raw.source='ESSA_1__TWR';await assert.rejects(f.identity.refresh(),/do not connect automatically/);await f.identity.refresh(true)
  assert.equal(await f.identity.isSupervisor('ESSA_1__TWR',1396125),false)
 })

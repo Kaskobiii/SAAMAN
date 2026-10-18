@@ -39,3 +39,6 @@ jobs:
       - name: Check guide exports
         if: matrix.target == 'pinned'
         run: python3 ../scripts/build-user-guide.py --check
+      - name: Check illustrated controller guide
+        if: matrix.target == 'pinned'
+        run: python3 ../scripts/build-user-guide.py --controller --check

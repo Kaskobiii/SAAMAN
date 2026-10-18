@@ -615,10 +615,10 @@ test('shared checkpoint round trip keeps live forecasts separate from accepted s
  assert.ok(repeated.flights.find(f=>f.callsign==='SECOND').eta<repeated.flights.find(f=>f.callsign==='BUFFER').eta,'live forecast inversion does not reorder accepted sequence')
 })
 
-test('recording 7 clears line 0 just beyond twelve miles after ELTOK and retains its information delay',()=>{
+test('recording 7 clears line 0 at ELTOK while retaining its planner history',()=>{
  const {input,afterInput,config:c,edits,previous}=cutoffFixture
  const before=runEngine(input,c,edits,previous),a=before.flights.find(f=>f.callsign==='SAS1AB')
- assert.equal(a.passedFeeder,true);assert.ok(a.feederDistanceNm<12);assert.equal(euroscopeInstruction(a),102)
+ assert.equal(a.passedFeeder,true);assert.ok(a.feederDistanceNm<12);assert.equal(euroscopeInstruction(a),0)
  const after=runEngine(afterInput,c,edits,before),b=after.flights.find(f=>f.callsign==='SAS1AB')
  assert.ok(b.feederDistanceNm>=12);assert.equal(b.line0Suppressed,true);assert.equal(euroscopeInstruction(b),0);assert.equal(b.delay,102)
  assert.equal(toJuhaSequence(after,c,edits).sequence.find(f=>f.callsign==='SAS1AB').ttlttg_ff,0)

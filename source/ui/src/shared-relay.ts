@@ -7,7 +7,7 @@ import {COORDINATION_MESSAGES,validateCoordinations} from './maestro-coordinatio
 import {isTowerCallsign} from './callsign-identity'
 
 export interface RelayOptions { network:'live'|'sweatbox1'|'sweatbox2';session:string;channel:string;instanceId:string }
-type Plan = {epoch:string;revision:number;config:EngineConfig;edits:Record<string,FlightEdit>;snapshot:EngineSnapshot|null;masterCid:number|null;relayRole:string;stale:boolean}
+type Plan = {epoch:string;revision:number;config:EngineConfig;edits:Record<string,FlightEdit>;snapshot:EngineSnapshot|null;masterCid:number|null;relayRole:string;stale:boolean;sequencerWarning?:string}
 type Send = (method:string,path:string,body?:any)=>Promise<any>
 export interface RelayDependencies {send:Send;telemetry:()=>Promise<any>;cid:()=>number|null;compactPublication?:()=>boolean;now?:()=>number;requestId?:()=>string}
 const copy=<T>(v:T):T=>structuredClone(v)
@@ -61,6 +61,8 @@ export class SharedRelay {
         const reset=this.plan.epoch!==data.epoch
         if(!reset&&data.revision<this.plan.revision)return
         if(reset||data.role==='sequencer'&&(this.plan.relayRole!=='sequencer'||this.lease!==data.lease))this.initializeRunways=true
+        if(data.role==='sequencer'&&data.preserveRunwayPlan===true)this.initializeRunways=false
+        if(data.role!=='sequencer')this.pendingPublish=null
         if(reset){this.plan={...this.plan,epoch:data.epoch,config:copy(DEFAULT_CONFIG),edits:{},snapshot:null};this.history.clear();this.applied={};this.pendingPublish=null;this.pendingCommand=null;this.settings={}}
         if(data.settings!==undefined)this.settings=data.settings
         if(data.checkpoint!==undefined){
@@ -75,6 +77,7 @@ export class SharedRelay {
         }else this.plan.config=configuration(ops(this.plan.config),this.settings)
         this.plan.epoch=data.epoch;this.plan.revision=data.revision;this.settingsRevision=data.settingsRevision
         this.plan.relayRole=data.role;this.plan.masterCid=data.role==='sequencer'?this.deps.cid():null
+        this.plan.sequencerWarning=typeof data.sequencerWarning==='string'?data.sequencerWarning:''
         this.lease=data.lease||'';this.commands=data.commands||[]
         this.lastUpdated=data.updated||0;this.plan.stale=data.stale===true
         this.remember()
@@ -203,7 +206,7 @@ export class SharedRelay {
         }
         fail('Coordination submitted; waiting for the sequencer.',202)
     })}
-    edit(revision:number,nextEdits:any,nextConfig:any){return this.serial(async()=>{
+    edit(revision:number,nextEdits:any,nextConfig:any,takeSequencer=false){return this.serial(async()=>{
         if(this.pendingCommand)fail('A previous change is awaiting delivery; check the sequence before editing again')
         if(this.observer)fail('Observer cannot edit',403)
         await this.telemetry();if(isTowerCallsign(this.callsign))fail('Tower positions are observers only',403)
@@ -213,7 +216,7 @@ export class SharedRelay {
         if(!settingsUnchanged(base.config,config))fail('Use the separate supervisory window',403)
         validateLockedEdits(base.snapshot,base.edits,edits,config)
         const difference=(before:any,after:any,keys:string[])=>keys.filter(k=>canonical(before[k])!==canonical(after[k])).map(key=>({key,before:before[key]??null,after:after[key]??null}))
-        const changes={op:'plan',edits:difference(base.edits,edits,[...new Set([...Object.keys(base.edits),...Object.keys(edits)])]),operational:difference(base.config,config,[...OPERATIONAL_KEYS])}
+        const changes={op:'plan',...(takeSequencer?{takeSequencer:true}:{}),edits:difference(base.edits,edits,[...new Set([...Object.keys(base.edits),...Object.keys(edits)])]),operational:difference(base.config,config,[...OPERATIONAL_KEYS])}
         await this.pollRoom()
         this.pendingCommand={...this.identity(),epoch:this.plan.epoch,revision:this.plan.revision,requestId:this.id(),cmd:changes}
         let response:any

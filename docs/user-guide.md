@@ -1,5 +1,7 @@
 # SAAMAN user guide
 
+For practical ACC and APP workflows, worked L03 and holding examples, and illustrations, read the new controller guide (`controller-guide.html` or `controller-guide.md`).
+
 SAAMAN is the arrival manager for ESSA in EuroScope. Use it to view the shared arrival sequence, manage aircraft positions and coordinate with other controllers. All times shown are UTC.
 
 ## 1. Install and open
@@ -13,7 +15,7 @@ SAAMAN is the arrival manager for ESSA in EuroScope. Use it to view the shared a
 
 Select the active ESSA runways in EuroScope for **both ARR and DEP**, then connect with your normal controller callsign.
 
-In shared mode, SAAMAN connects automatically in the background when the plugin is loaded and EuroScope has a connected controller callsign, except at ESMM positions. ESMM can connect manually; priming to ESOS, ESAA or ESSA enables automatic connection. Opening the AMAN pane is not required. It waits for login if you load it while disconnected, and keeps syncing when the pane is hidden.
+In shared mode, SAAMAN connects automatically in the background when the plugin is loaded and EuroScope is connected as ESOS/ESAA CTR, ESSA APP or ESSA_FMP. Other positions can connect manually; priming to an eligible local position enables automatic connection. Opening the AMAN pane is not required. It waits for login if you load it while disconnected, and keeps syncing when the pane is hidden.
 
 With two EuroScope windows using the same callsign, keep SAAMAN loaded in the directly connected window. The proxy window follows the shared sequence and can submit edits to the sequencer; it does not start a second sequencer or replace the shared runway configuration from its own selections.
 
@@ -102,8 +104,14 @@ The supervisory pane is available with `.saaman supervisor` for authorised users
 
 ## Shared connection and sequencer
 
-The sequencer supplies the EuroScope traffic and runway data for everyone. ESOS/ESAA CTR, ESSA APP and ESSA_FMP positions can be sequencer; handover callsigns are supported. Other positions may follow and edit but cannot take sequencing ownership. Tower positions remain observers. Set both ARR and DEP correctly in the sequencer's EuroScope. Changing the shared configuration does not change another controller's EuroScope settings or flight-plan runway assignments.
+The sequencer supplies the EuroScope traffic and runway data for everyone. ESOS/ESAA CTR, ESSA APP and ESSA_FMP positions can be sequencer; handover callsigns are supported. Other positions may follow and edit but cannot take sequencing ownership. Tower positions remain observers. With the backend priority update deployed, ESSA_E_APP is preferred whenever its direct SAAMAN instance is connected, then ESSA_FMP, then another eligible local position. A runway Apply does not displace a higher-priority sequencer. Successful changes remain shared, and the new sequencer preserves that confirmed plan. Set both ARR and DEP correctly in EuroScope before Sync EuroScope. The first sequencer initializes the plan from EuroScope. Changing the shared configuration does not change another controller's EuroScope settings or flight-plan runway assignments.
 
-Shared mode connects automatically after EuroScope login, except at ESMM positions. ESMM controllers may connect manually from Operation mode. Priming from ESMM to ESOS, ESAA or ESSA enables automatic connection without reloading the plugin. With no eligible sequencer connected, the shared sequence waits. Local mode remains a separate secondary mode.
+Shared mode connects automatically after login only for ESOS/ESAA CTR, ESSA APP and ESSA_FMP. Other positions, including ESMM and TWR, may connect manually from Operation mode; TWR remains view-only. Priming from ESMM to ESOS, ESAA or ESSA enables automatic connection without reloading the plugin. With no eligible sequencer connected, the shared sequence waits. Local mode remains a separate secondary mode.
 
 For a missed approach, open Missed Approach, select the aircraft and choose Reinsert on, then the initial approach fix. That selection immediately reinserts the aircraft. An estimate based on a heading alone is not treated as a new approach clearance.
+
+## TMA instructions and version warnings
+
+After recorded feeder passage or accepted TMA entry, the timeline and Information show assigned sequence times without ACC gain/lose instructions. TopSky line 0 clears for those aircraft. Internal spacing and landing estimates remain available to the sequencer; Recompute and order changes still respect runway spacing. While holding at a feeder fix, use STA-FF and NOW to time the inbound release; entering the hold is not the release into TMA.
+
+A sequencer-version warning compares the reported sequencer build with the local build and other reported connected builds. An older build is flagged; a DLL that cannot report its build is marked version unknown. It does not query private GitHub releases anonymously.

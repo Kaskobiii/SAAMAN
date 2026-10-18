@@ -50,6 +50,32 @@ test('unchanged callsign API shares full engine state and active runways with no
     assert.ok(f.state().sequence.saamanRelay.checkpoint.snapshot.flights.length)
     assert.ok(f.requests.every(r=>!r.path.includes('/rooms/')&&!r.path.includes('/identity')))
 })
+
+test('ESMM follows and edits ESSA without claiming or keeping its sequencer alive',async()=>{
+    const f=setup(),south=f.client('south','ESMM_2_CTR',null),north=f.client('north','ESOS_1__CTR',null),app=f.client('app','ESSA_W_APP',null)
+    assert.equal((await south.relay.tick()).snapshot,null)
+    assert.equal(f.state().owner,'')
+    const first=await north.relay.tick();assert.equal(first.relayRole,'sequencer')
+    const following=await south.relay.tick();assert.equal(following.relayRole,'editor');assert.deepEqual(following.config.active,first.config.active)
+    const drive=setInterval(()=>void north.relay.tick().catch(()=>{}),20)
+    try{await south.relay.edit(following.revision,following.edits,{...following.config,active:['ESSA/19L'],departureRunway:'ESSA/19R'})}finally{clearInterval(drive)}
+    assert.deepEqual((await app.relay.tick()).config.active,['ESSA/19L'])
+    assert.equal(f.state().owner,'ESOS_1__CTR')
+    f.advance(9000);await south.relay.tick()
+    assert.equal((await app.relay.tick()).relayRole,'sequencer')
+    assert.equal(f.state().owner,'ESSA_W_APP')
+    const start=f.requests.length;await south.relay.leave()
+    assert.ok(f.requests.slice(start).every(r=>r.method==='GET'))
+    assert.ok(!f.requests.some(r=>r.body?.callsign==='ESMM_2_CTR'&&(r.path.endsWith('/poll')||r.method==='PUT'||r.path.endsWith('/leave'))))
+})
+
+test('changing from an eligible position to ESMM stops owner polling and publications',async()=>{
+    const f=setup(),a=f.client('changing','ESSA_FMP',1396125),b=f.client('new-owner','ESAA_CTR',null)
+    await a.relay.tick();a.setCallsign('ESMM_2_CTR');const start=f.requests.length
+    assert.equal((await a.relay.tick()).relayRole,'editor')
+    await a.relay.leave();assert.ok(f.requests.slice(start).every(r=>r.method==='GET'))
+    f.advance(9000);assert.equal((await b.relay.tick()).relayRole,'sequencer')
+})
 test('editor drag/reorder result survives destructive legacy result polling and handover',async()=>{
     const f=setup(),a=f.client('instance-a','ESSA_APP',1396125),b=f.client('instance-b','ESSA_E_APP',null)
     await a.relay.tick();await b.relay.tick();f.advance(1000)
@@ -59,6 +85,22 @@ test('editor drag/reorder result survives destructive legacy result polling and 
     assert.equal((await b.relay.tick()).edits.SAS123.target,target)
     await a.relay.leave();f.advance(1000)
     const taken=await b.relay.tick();assert.equal(taken.relayRole,'sequencer');assert.equal(taken.edits.SAS123.target,target)
+})
+
+test('runway configuration changes reach editors, tower observers, proxies and late joiners with different local selections',async()=>{
+    const f=setup(),a=f.client('direct','ESSA_FMP',1396125),b=f.client('editor','ESOS_1_CTR',null),p=f.client('proxy','ESSA_FMP',1396125,undefined,undefined,2),t=f.client('tower','ESSA_TWR',null)
+    await a.relay.tick();await b.relay.tick();await p.relay.tick();await t.relay.tick()
+    const base=b.relay.view(),next={...base.config,active:['ESSA/19L'],departureRunway:'ESSA/19R',rates:{...base.config.rates,'ESSA/19L':106}}
+    const drive=setInterval(()=>void a.relay.tick().catch(()=>{}),20)
+    try{await b.relay.edit(base.revision,base.edits,next)}finally{clearInterval(drive)}
+    const late=f.client('late','ESSA_W_APP',null,{arrivals:['ESSA/26'],departures:['ESSA/08']})
+    for(const client of [a,b,p,t,late]){
+        const view=await client.relay.tick()
+        assert.deepEqual(view.config.active,['ESSA/19L'])
+        assert.equal(view.config.departureRunway,'ESSA/19R')
+        assert.equal(view.config.rates['ESSA/19L'],106)
+    }
+    assert.equal(f.state().owner,'ESSA_FMP')
 })
 test('retry after a lost command response applies coordination once',async()=>{
     const f=setup(),a=f.client('instance-a','ESSA_APP',1396125),b=f.client('instance-b','ESSA_E_APP',null)

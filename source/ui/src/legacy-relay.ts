@@ -1,6 +1,6 @@
 import {DEFAULT_CONFIG} from './maestro-engine'
 import {mergeSharedSettings} from './maestro-settings'
-import {isTowerCallsign} from './callsign-identity'
+import {isTowerCallsign,canSequenceEssa} from './callsign-identity'
 type Send=(method:string,path:string,body?:any)=>Promise<any>
 type Receipt={digest:string;ok:boolean;message:string}
 type Envelope={protocol:'saaman-legacy-1';epoch:string;revision:number;owner:string;instanceId:string;lease:string;settingsRevision:number;settings:Record<string,unknown>;checkpoint:any;receipts:Record<string,Receipt>;publication:string;publishedAt:number}
@@ -92,7 +92,7 @@ export class LegacyRelay {
     }
     private async poll(body:any){
         this.callsign=body.callsign;this.observer=body.observer===true;this.proxy=body.proxy===true
-        if(this.observer||this.proxy){await this.read();this.role=this.observer?'observer':'editor';return this.snapshot()}
+        if(this.observer||this.proxy||!canSequenceEssa(this.callsign)){await this.read();this.role=this.observer?'observer':'editor';return this.snapshot()}
         // Empty role forces an immediate answer; the API's normal long poll is 20 s.
         const out=await this.deps.send('POST',this.room+'/poll',{callsign:this.callsign,role:'',version:body.revision||0,cmdAfter:0})
         if(!['sequencer','editor'].includes(out.role)||!Number.isSafeInteger(out.version))fail('Invalid vatIRIS AMAN response',502)
@@ -108,6 +108,7 @@ export class LegacyRelay {
         return {...this.snapshot(),commands}
     }
     private async publish(body:any){
+        if(!canSequenceEssa(body.callsign))fail('This position cannot sequence ESSA',403)
         if(this.proxy||body.proxy===true)fail('Proxy connections follow the direct sequencer',403)
         const local=copy(this.state)
         await this.read()
@@ -164,7 +165,7 @@ export class LegacyRelay {
         if(path.endsWith('/command'))return this.command(body)
         if(path.endsWith('/supervision'))return this.supervision()
         if(path.endsWith('/settings'))return this.settings(body)
-        if(path.endsWith('/leave')){if(!this.observer&&!this.proxy)return this.deps.send('POST',this.room+'/leave',{callsign:body.callsign});return {left:true}}
+        if(path.endsWith('/leave')){if(!this.observer&&!this.proxy&&canSequenceEssa(body.callsign))return this.deps.send('POST',this.room+'/leave',{callsign:body.callsign});return {left:true}}
         if(method==='PUT')return this.publish(body)
         fail('Unsupported legacy AMAN operation',400)
     }

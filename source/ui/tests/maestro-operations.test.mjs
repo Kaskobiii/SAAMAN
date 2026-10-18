@@ -79,16 +79,16 @@ test('a live flight matching an old manual reservation retains the live drag lim
  assert.equal(edits.LIVE.target,s.flights[0].originalAssignedSta)
 })
 
-test('swapping nonadjacent aircraft exchanges their slots, leaves the middle aircraft in place and survives the next update',()=>{
+test('swapping nonadjacent aircraft exchanges order and allocates feasible slots without moving the middle position',()=>{
  const c=config();c.frozenMinutes=0
  const input=packet([p('AA',1200),p('BB',1500),p('CC',1800)])
  const first=runEngine(input,c,{}),a=first.flights.find(f=>f.callsign==='AA'),b=first.flights.find(f=>f.callsign==='BB'),z=first.flights.find(f=>f.callsign==='CC')
  const edits=swapFlightEdits(first,{},'AA','CC')
  let next=runEngine({...input,timestamp:now+1000},c,edits,first)
  assert.deepEqual(next.flights.sort((a,b)=>a.order-b.order).map(f=>f.callsign),['CC','BB','AA'])
- assert.equal(next.flights.find(f=>f.callsign==='CC').sta,a.sta)
- assert.equal(next.flights.find(f=>f.callsign==='AA').sta,z.sta)
- assert.equal(next.flights.find(f=>f.callsign==='BB').sta,b.sta)
+ assert.equal(edits.AA.target,undefined);assert.equal(edits.CC.target,undefined)
+ for(const f of next.flights)assert.ok(f.sta>=f.eta)
+ const sorted=[...next.flights].sort((a,b)=>a.order-b.order);for(let i=1;i<sorted.length;i++)assert.ok(sorted[i].sta>sorted[i-1].sta)
  next=runEngine({...input,timestamp:now+2000},c,edits,next)
  assert.deepEqual(next.flights.sort((a,b)=>a.order-b.order).map(f=>f.callsign),['CC','BB','AA'])
  assert.ok(next.flights.every(f=>!f.spacingConflict))

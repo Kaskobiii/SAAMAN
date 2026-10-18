@@ -21,7 +21,7 @@ test('a heading after direct ERXEC does not restore the skipped STAR into the la
  assert.equal(again.method,'vector-position');assert.equal(again.seconds,f.landingPrediction.seconds,'restored SDK STAR EET does not change the geometric forecast')
  assert.equal(again.directClearance.at,now,'a heading does not renew the prior direct-clearance evidence')
  assert.notEqual(predictLanding({...restored,positionAgeSeconds:16},c,1,f.landingPrediction,now+4000).method,'vector-position')
- assert.notEqual(predictLanding(restored,c,1,f.landingPrediction,now+601000).method,'vector-position')
+ assert.equal(predictLanding(restored,c,1,f.landingPrediction,now+601000).method,'vector-position','an ongoing terminal heading does not expire with the last direct')
 })
 
 test('landing reference is the assigned threshold instead of the later airport endpoint',()=>{
@@ -51,8 +51,8 @@ test('the slowdown profile never accelerates slower aircraft and is continuous a
  assert.equal(routeSlowdownSeconds(20,0),undefined)
 })
 
-test('heading vectors, missing route geometry and stale positions use an explicit fallback without a speed-only addition',()=>{
- for(const extra of [{assignedHeading:210},{latitude:undefined},{positionAgeSeconds:16},{route:[{name:'SA19R',seconds:600}]}]){
+test('unsupported vectors, missing route geometry and stale positions use an explicit fallback without a speed-only addition',()=>{
+ for(const extra of [{assignedHeading:210,latitude:61},{latitude:undefined},{positionAgeSeconds:16},{route:[{name:'SA19R',seconds:600}]}]){
   const result=predictLanding(p(extra),config(),1)
   assert.equal(result.method,'fallback');assert.ok(result.correctionSeconds<=90)
  }

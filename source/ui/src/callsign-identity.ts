@@ -1,11 +1,19 @@
 export interface ControllerIdentity { cid:number|null; callsign:string; supervisor:boolean }
 export function isTowerCallsign(callsign:string){return callsign.toUpperCase().includes('TWR')}
+export function canAutoConnectShared(callsign:string){return !/^ESMM(?:_|$)/.test(callsign.trim().toUpperCase())}
+/** Positions that may provide the ESSA sequence's authoritative telemetry. */
+export function canSequenceEssa(callsign:string){
+    const call=callsign.trim().toUpperCase().replace(/_+/g,'_')
+    return /^(ESOS|ESAA)(?:_[A-Z0-9]+)*_CTR$/.test(call)||/^ESSA(?:_[A-Z0-9]+)*_APP$/.test(call)||call==='ESSA_FMP'
+}
 /** EuroScope callsign identity; the existing vatIRIS API checks live writers. */
 export class CallsignIdentity {
     identity:ControllerIdentity|undefined
     private running=false
     private controllers:{cid:number;callsign:string}[]=[]
     private feedAt=0
+    private manuallyConnectedCallsign=''
+    private lastConnectedCallsign=''
     constructor(private deps:{network:string;cid?:number;now:()=>number;telemetry:()=>Promise<any>;controllers:()=>Promise<any>;changed:(identity:ControllerIdentity|undefined)=>void}){}
     private async feed(){
         if(!this.feedAt||this.deps.now()-this.feedAt>=15000){
@@ -21,12 +29,15 @@ export class CallsignIdentity {
         if(this.deps.network!=='live')return claimedCid===1396125
         return (await this.feed()).some(c=>c.callsign===callsign&&c.cid===1396125)
     }
-    async refresh(){
+    async refresh(manual=false){
         if(this.running)return
         this.running=true
         try{
             const raw=await this.deps.telemetry(),now=this.deps.now(),callsign=String(raw.source||'').trim().toUpperCase()
             if(raw.connected!==true||!Number.isFinite(raw.timestamp)||Math.abs(now-raw.timestamp)>10000||!/^[A-Z0-9_-]{1,20}$/.test(callsign)||['OFFLINE','DEMO'].includes(callsign))throw new Error('Waiting for a connected EuroScope callsign')
+            if(callsign!==this.lastConnectedCallsign){this.lastConnectedCallsign=callsign;this.manuallyConnectedCallsign=''}
+            if(manual)this.manuallyConnectedCallsign=callsign
+            if(!canAutoConnectShared(callsign)&&this.manuallyConnectedCallsign!==callsign)throw new Error('ESMM positions do not connect automatically. Select Shared mode to connect.')
             if(this.deps.network==='live'&&raw.simulation===true)throw new Error('Select SweatBox in Operation mode for this simulator connection')
             if(this.identity?.callsign!==callsign)this.clear()
             const cid=this.deps.network==='live'?(await this.feed()).find(c=>c.callsign===callsign)?.cid:this.deps.cid||null

@@ -24,7 +24,7 @@ export const useAuthStore = defineStore("auth", () => {
     let nextAttempt=0
     async function refreshRegistered(force=false){
         if(!registered||(!force&&Date.now()<nextAttempt))return
-        try{await registered.refresh();loginError.value='';nextAttempt=0}
+        try{await registered.refresh(force);loginError.value='';nextAttempt=0}
         catch(e:any){loginError.value=e.response?.data?.error||e.message;nextAttempt=Date.now()+8000}
         finally{pending.value=false}
     }
@@ -145,8 +145,8 @@ export const useAuthStore = defineStore("auth", () => {
         })
     }
 
-    async function login() {
-        if(callsignMode){await refreshRegistered(true);return}
+    async function login(manual=true) {
+        if(callsignMode){await refreshRegistered(manual);return}
         if(controllerKeyMode){
             pending.value=true;loginError.value='';token.value={};user.value=undefined
             try{

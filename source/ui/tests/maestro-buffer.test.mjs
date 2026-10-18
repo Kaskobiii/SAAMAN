@@ -26,7 +26,7 @@ test('NOZ5PR retains ELTOK cutoff evidence across a reconnect with only an appro
  assert.equal(f.ff,'ELTOK');assert.equal(f.passedFeeder,true);assert.equal(f.line0Suppressed,true);assert.equal(euroscopeInstruction(f),0)
  const output=toJuhaSequence(next,c,{}).sequence[0]
  assert.equal(output.ttlttg_ff,0);assert.ok(output.eet_ff<0)
- assert.equal(f.firstSeen,at,'feeder memory must not resurrect the disconnected allocation')
+ assert.equal(f.firstSeen,original.firstSeen,'brief telemetry interruptions preserve accepted flight history')
  const expired=runEngine({...afterInput,timestamp:at+301000,flights:[rejoined]},c,{},disconnected).flights[0]
  assert.notEqual(expired.ff,'ELTOK','feeder memory expires after five minutes without an observation')
  const different=runEngine({...afterInput,timestamp:at,flights:[{...rejoined,departure:'EGLL'}]},c,{},disconnected).flights[0]

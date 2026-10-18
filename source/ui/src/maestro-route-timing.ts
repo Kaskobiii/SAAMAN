@@ -1,5 +1,6 @@
 import type {TelemetryFlight,EngineConfig} from './maestro-engine'
-import {distanceNm} from './maestro-star-prediction'
+import {distanceNm,STAR_RUNWAYS} from './maestro-star-prediction'
+import {finalPosition,headingDifference,bearingBetween} from './maestro-geometry'
 import {iasToTas,machToTas,performanceAt,aircraftType} from './maestro-aircraft-performance'
 import {bundledPhaseReferences,type PhaseReferences} from './maestro-phase-references'
 import phaseData from './data/eurocontrol-phase-profiles.json'
@@ -14,13 +15,31 @@ export interface RouteTiming {
 const positioned=(p:any)=>Number.isFinite(p?.latitude)&&Math.abs(p.latitude)<=90&&Number.isFinite(p?.longitude)&&Math.abs(p.longitude)<=180
 const feeders=['ELTOK','NILUG','XILAN','VACRA']
 const clamp=(v:number,a:number,b:number)=>Math.max(a,Math.min(b,v))
+function straightInPoints(p:TelemetryFlight){
+ // Some SDK routes append the cleared final fix after an obsolete STAR and
+ // mark even its runway point as passed. Recover only an explicit direct to
+ // a fix on this runway's extended centreline, never an arbitrary shortcut.
+ if(p.arrival!=='ESSA'||!p.direct||(p.assignedHeading??0)>0)return undefined
+ const threshold=p.threshold??STAR_RUNWAYS[p.runway]
+ const start=p.route.findIndex(q=>q.name===p.direct&&q.seconds>=0)
+ if(!positioned(threshold)||!Number.isFinite(threshold?.heading)||start<0)return undefined
+ const points=p.route.slice(start).filter(q=>q.seconds>=0&&q.name!==p.arrival)
+ if(!points.length||!points.every(positioned))return undefined
+ let along=Infinity
+ for(const point of points){
+  const relative=finalPosition(point as any,threshold!)
+  if(relative.along<1||relative.along>30||Math.abs(relative.cross)>.5||relative.along>=along||headingDifference(bearingBetween(point as any,threshold!),threshold!.heading)>10)return undefined
+  along=relative.along
+ }
+ return [...points,{name:`SA${p.runway}`,seconds:0,latitude:threshold!.latitude,longitude:threshold!.longitude}]
+}
 export function remainingRoute(p:TelemetryFlight){
  if(!positioned(p)||!Array.isArray(p.route)||p.route.length>512||!Number.isFinite(p.positionAgeSeconds??0)||(p.positionAgeSeconds??0)>15)return undefined
  const end=p.route.findIndex(q=>q.name===`SA${p.runway}`)
- if(end<0||!Number.isFinite(p.route[end].seconds)||p.route[end].seconds<0)return undefined
  const direct=p.direct?p.route.findIndex(q=>q.name===p.direct&&q.seconds>=0):-1
- const points=p.route.slice(0,end+1).filter((q,i)=>Number.isFinite(q.seconds)&&q.seconds>=0&&(direct<0||i>=direct))
- if(!points.length||points.at(-1)!==p.route[end]||!points.every(positioned))return undefined
+ const normal=end>=0&&Number.isFinite(p.route[end].seconds)&&p.route[end].seconds>=0&&direct<=end
+ const points=normal?p.route.slice(0,end+1).filter((q,i)=>Number.isFinite(q.seconds)&&q.seconds>=0&&(direct<0||i>=direct)):straightInPoints(p)
+ if(!points?.length||!points.every(positioned))return undefined
  let prior=p,distance=0,feeder:{name:string;distanceNm:number}|undefined
  for(const point of points){
   distance+=distanceNm(prior as any,point as any);prior=point as any

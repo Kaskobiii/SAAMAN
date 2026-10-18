@@ -411,9 +411,14 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     if(!result.informationNoHorizontalScroll)throw Error('Information did not fit its full table without a horizontal scrollbar');
                     const infoOriginalZoom=await rpc('host:test-zoom');
                     for(const factor of [1.25,0.8,infoOriginalZoom.zoom]){
-                        await rpc('host:test-zoom',{factor});await wait(180);
-                        const box=infoTable.getBoundingClientRect(),frame=await rpc('host:test-floating',{key:'dialog'}),panel=info.getBoundingClientRect(),scale=popWindow.devicePixelRatio;
-                        if(box.right>popWindow.innerWidth+1||info.ownerDocument.body.scrollWidth>info.ownerDocument.documentElement.clientWidth+1||Math.abs(frame.width-panel.width*scale)>2||Math.abs(frame.height-panel.height*scale)>2)throw Error('Information zoom clipped content or left old-size frame space');
+                        await rpc('host:test-zoom',{factor});let fit=false;
+                        for(let attempt=0;attempt<30;attempt++){
+                            await wait(100);
+                            const box=infoTable.getBoundingClientRect(),frame=await rpc('host:test-floating',{key:'dialog'}),panel=info.getBoundingClientRect(),scale=popWindow.devicePixelRatio;
+                            fit=Math.abs(frame.zoom-factor)<.01&&box.right<=popWindow.innerWidth+1&&info.ownerDocument.body.scrollWidth<=info.ownerDocument.documentElement.clientWidth+1&&Math.abs(frame.width-panel.width*scale)<=2&&Math.abs(frame.height-panel.height*scale)<=2;
+                            if(fit)break;
+                        }
+                        if(!fit)throw Error('Information zoom clipped content or left old-size frame space');
                     }
                     result.informationZoomFits=true;
                     find('.dialog-title button').click();await wait(40);
@@ -451,13 +456,13 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                         window.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:liveRect.left+15,clientY:liveRect.top+liveRect.height/2}));await wait(30);
                         const swap=find('[data-placement=swap]');result.swapPreview=swap?.dataset.target==='SAAMAN_TEST'&&live.classList.contains('swap-target')&&getComputedStyle(live).borderTopColor==='rgb(255, 229, 122)';if(!result.swapPreview)throw Error('Swap icon or destination highlight missing');
                         await rpc('host:test-frame',{capture:'swap'});live.click();await wait(250);
-                        const swappedManual=await planFlight('RESERVE_TEST'),swappedLive=await planFlight('SAAMAN_TEST');result.selectionSwap=swappedManual.sta===liveBefore.sta&&swappedLive.sta===inserted.sta;if(!result.selectionSwap)throw Error('Clicking the swap destination did not exchange the two slots');
+                        const swappedManual=await planFlight('RESERVE_TEST'),swappedLive=await planFlight('SAAMAN_TEST');result.selectionSwap=swappedManual.order===liveBefore.order&&swappedLive.order===inserted.order&&swappedManual.sta===inserted.sta&&swappedLive.sta>=swappedLive.eta;if(!result.selectionSwap)throw Error('Clicking the swap destination did not exchange positions with feasible times');
                         const dragManual=find('.flight[data-callsign=RESERVE_TEST]'),dragTarget=find('.flight[data-callsign=SAAMAN_TEST]'),from=dragManual.getBoundingClientRect(),to=dragTarget.getBoundingClientRect();
                         dragManual.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:86,clientX:from.left+15,clientY:from.top+from.height/2}));
                         window.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,buttons:1,pointerId:86,clientX:to.left+15,clientY:to.top+to.height/2}));await wait(30);
                         if(!find('[data-placement=swap]'))throw Error('Drag swap preview missing');
                         window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,button:0,pointerId:86,clientX:to.left+15,clientY:to.top+to.height/2}));await wait(250);
-                        result.dragSwap=(await planFlight('RESERVE_TEST')).sta===inserted.sta&&(await planFlight('SAAMAN_TEST')).sta===liveBefore.sta;if(!result.dragSwap)throw Error('Dropping onto another callsign did not swap slots');
+                        result.dragSwap=(await planFlight('RESERVE_TEST')).order===inserted.order&&(await planFlight('SAAMAN_TEST')).order===liveBefore.order;if(!result.dragSwap)throw Error('Dropping onto another callsign did not swap positions');
                         window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
                         if(find('[data-placement]'))throw Error('Escape did not clear the placement indicator');
                     }else{find('.dialog-title button').click();await wait(40)}
@@ -623,6 +628,18 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
                     result.inactiveRunwayLane=true;result.individualRunwayChoices=6;
                     await pickIndividualRunway(priorRunway);
                     if((await rpc('plan:get')).snapshot.flights.find(f=>f.callsign==='SAAMAN_TEST').runway!==priorRunway)throw Error('Individual runway cannot be restored');
+                    const recoveryLabel=find('.flight[data-callsign=SAAMAN_TEST]'),recoveryBounds=recoveryLabel.getBoundingClientRect();
+                    recoveryLabel.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,button:2,clientX:recoveryBounds.left+5,clientY:recoveryBounds.top+5}));await wait(50);
+                    find('[data-menu=missed]').click();await wait(300);
+                    find('[data-action=missed]').click();await floatingReady('dialog','[data-dialog=missed]');
+                    if(findAll('[data-dialog=missed] input[type=checkbox]').length)throw Error('Missed approach must use aircraft buttons, not checkboxes');
+                    find('[data-action=recovery-aircraft][data-callsign=SAAMAN_TEST]').click();await floatingReady('dialog','[data-dialog=reinsert-on]');
+                    const iafs=findAll('[data-action=reinsert-on-iaf]');if(iafs.length!==4)throw Error('Recovery IAF choices are missing');
+                    const selectedIaf=iafs.find(b=>!b.disabled);if(!selectedIaf)throw Error('No supported recovery IAF');const fix=selectedIaf.dataset.iaf;selectedIaf.click();
+                    let restored;for(let attempt=0;attempt<30;attempt++){await wait(100);restored=await rpc('plan:get');if(restored.edits?.SAAMAN_TEST?.recoveryEntry?.fix===fix&&restored.snapshot.flights.find(f=>f.callsign==='SAAMAN_TEST').mode==='sequenced')break;}
+                    if(restored.edits?.SAAMAN_TEST?.recoveryEntry?.fix!==fix||restored.snapshot.flights.find(f=>f.callsign==='SAAMAN_TEST').mode!=='sequenced')throw Error('Selecting IAF did not immediately reinsert the aircraft');
+                    if(find('[data-dialog=reinsert-on]'))throw Error('Recovery selection required another confirmation');
+                    result.missedReinsertNoCheckbox=true;result.missedReinsertImmediate=true;result.recoveryIaf=fix;
                     result.ok=true;
                 }catch(error){result.error=String(error.message||error)}
                 window.chrome.webview.postMessage({id:999999,method:'host:test-operations',data:result});

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {runEngine,DEFAULT_CONFIG,wakeInterval,effectiveConfig,windConfig} from '../src/maestro-engine.ts'
 import fixture from './fixtures/recording-18-partial-recompute.json' with {type:'json'}
 import entryFixture from './fixtures/recompute-arrival-gap.json' with {type:'json'}
+import promotionFixture from './fixtures/phase-promotion-queue.json' with {type:'json'}
 
 // Command IDs advance; traffic, clock and predictions deliberately do not.
 // This is the same forced evaluation used for edits between telemetry packets.
@@ -25,6 +26,27 @@ function spaced(snapshot,config=fixture.config){
  }
 }
 
+for(const scenario of promotionFixture.cases)test(`recording 1 frame ${scenario.frame}: phase promotion keeps existing positions and does not extend held slots`,()=>{
+ const saved=structuredClone(scenario),old=queue(scenario.previous),accepted=new Set(old.filter(f=>f.state>=1).map(f=>f.callsign))
+ const snapshot=runEngine(scenario.input,scenario.config,scenario.edits,scenario.previous)
+ assert.deepEqual(queue(snapshot).filter(f=>accepted.has(f.callsign)).map(f=>f.callsign),old.filter(f=>accepted.has(f.callsign)).map(f=>f.callsign),'a phase transition must not reinsert an accepted flight among later accepted slots')
+ const prior=new Map(old.map(f=>[f.callsign,f]))
+ for(const f of queue(snapshot).filter(f=>accepted.has(f.callsign)))assert.ok(f.sta<=prior.get(f.callsign).sta+1,`${f.callsign} gained ${(f.sta-prior.get(f.callsign).sta)/1000} seconds without a new constraint`)
+ const promoted={515:'AFR8120',532:'SAS8121',544:'RYR8122'}[scenario.frame]
+ assert.equal(prior.get(promoted).state,1);assert.equal(snapshot.flights.find(f=>f.callsign===promoted).state,2)
+ spaced(snapshot,scenario.config);assert.deepEqual(scenario,saved)
+})
+
+test('phase promotion during another aircraft partial Recompute does not postpone untouched accepted flights',()=>{
+ const scenario=promotionFixture.cases.find(f=>f.frame===532)
+ const {snapshot}=recompute(scenario.previous,scenario.edits,['SAS8127'],1,scenario.input,scenario.config)
+ const old=queue(scenario.previous).filter(f=>f.callsign!=='SAS8127'),calls=new Set(old.map(f=>f.callsign))
+ assert.deepEqual(queue(snapshot).filter(f=>calls.has(f.callsign)).map(f=>f.callsign),old.map(f=>f.callsign))
+ for(const f of old)assert.equal(snapshot.flights.find(p=>p.callsign===f.callsign).sta,f.sta,`${f.callsign}: unselected target changed on promotion`)
+ assert.equal(snapshot.flights.find(f=>f.callsign==='SAS8121').state,2)
+ spaced(snapshot,scenario.config)
+})
+
 test('recording 18 partial Recompute fills scheduled gaps without putting early arrivals behind late retained slots',()=>{
  const original=structuredClone(fixture),{snapshot}=recompute(fixture.previous,fixture.edits,fixture.groups[0])
  const by=new Map(snapshot.flights.map(f=>[f.callsign,f])),old=new Map(fixture.previous.flights.map(f=>[f.callsign,f]))
@@ -33,7 +55,7 @@ test('recording 18 partial Recompute fills scheduled gaps without putting early 
  for(const f of snapshot.flights)if(!fixture.groups[0].includes(f.callsign)&&old.get(f.callsign)?.state>=1){
   assert.equal(f.sta,old.get(f.callsign).sta,`${f.callsign}: an unchanged retained slot must remain protected`)
  }
- assert.ok(Math.max(...snapshot.flights.map(f=>f.sta))<=Math.max(...fixture.previous.flights.map(f=>f.sta))+1)
+ assert.ok(Math.max(...snapshot.flights.map(f=>f.sta))<=Math.max(...fixture.previous.flights.map(f=>f.sta))+Math.max(...snapshot.flights.map(f=>f.feederDelayMs??0))+1)
  spaced(snapshot);assert.deepEqual(fixture,original,'allocation must not mutate the recorded input/edits/checkpoint')
 })
 
@@ -50,7 +72,8 @@ test('recording 18 alternating partial Recomputes cannot ratchet automatic delay
  const maximum=Math.max(...snapshot.flights.map(f=>f.delay))
  for(let i=0;i<10;i++){
   ({snapshot,edits}=recompute(snapshot,edits,fixture.groups[i%2],i+1))
-  assert.ok(Math.max(...snapshot.flights.map(f=>f.sta))<=latest+1,`click ${i+1} extends the queue with unchanged forecasts`)
+  const repairedLatest=i===0?latest+Math.max(...snapshot.flights.map(f=>f.feederDelayMs??0)):latest
+  assert.ok(Math.max(...snapshot.flights.map(f=>f.sta))<=repairedLatest+1,`click ${i+1} extends the queue without a new feeder requirement`)
   assert.ok(Math.max(...snapshot.flights.map(f=>f.delay))<=maximum+102,`click ${i+1} accumulates prior automatic delay`)
   spaced(snapshot)
  }

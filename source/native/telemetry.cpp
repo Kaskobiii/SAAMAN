@@ -4,7 +4,7 @@
 #include <cmath>
 #include <cstring>
 namespace saaman {
-Json CaptureTelemetry(EuroScopePlugIn::CPlugIn& plugin,const Json& winds){
+Json CaptureTelemetry(EuroScopePlugIn::CPlugIn& plugin,const Json& winds,TopSkyHoldingCache& holding){
         nlohmann::json data = { {"source", plugin.ControllerMyself().IsValid() ? TelemetryText(plugin.ControllerMyself().GetCallsign(),"OFFLINE") : "OFFLINE"},
             {"timestamp", Now()}, {"flights", nlohmann::json::array()}, {"winds", winds}, {"terminatedCallsigns",nlohmann::json::array()}, {"knownFlights",nlohmann::json::array()}, {"captureErrors",nlohmann::json::array()} };
         data["controllerPositionId"]=plugin.ControllerMyself().IsValid()?TelemetryText(plugin.ControllerMyself().GetPositionId()):"";
@@ -104,6 +104,7 @@ Json CaptureTelemetry(EuroScopePlugIn::CPlugIn& plugin,const Json& winds){
                     {"clearedAltitude",ctr.GetClearedAltitude()}, {"finalAltitude",ctr.GetFinalAltitude()>0?ctr.GetFinalAltitude():fpd.GetFinalAltitude()},
                     {"assignedMach",ctr.GetAssignedMach()},
                     {"topskyMissedApproach",TopSkyMissedApproach(ctr.GetScratchPadString())},
+                    {"topskyHoldingPoint",holding.Observe(callsign,ctr.GetScratchPadString(),ctr.GetFlightStripAnnotation(6),Now())},
                     {"landingSeconds", points > 0 ? route.GetPointDistanceInMinutes(points - 1) * 60 : 0},
                     {"distanceNm", fp.GetDistanceToDestination()}, {"groundspeed", target.GetGS()},
                     {"altitude", position.GetPressureAltitude()}, {"heading", position.GetReportedHeadingTrueNorth()},

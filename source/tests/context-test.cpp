@@ -1,6 +1,7 @@
 #include "context.h"
 #include "auth_client.h"
 #include "topsky-status.h"
+#include "topsky-holding.h"
 #include "telemetry_fields.h"
 #include "controller_key.h"
 #include <iostream>
@@ -34,6 +35,18 @@ int RunTests(int argc,wchar_t** argv){
     CHECK(!saaman::TopSkyMissedApproach(nullptr));CHECK(!saaman::TopSkyMissedApproach(""));
     CHECK(saaman::TopSkyMissedApproach("MISAP_"));CHECK(saaman::TopSkyMissedApproach("IRREG_MISAP_WX_"));
     CHECK(!saaman::TopSkyMissedApproach("MAPP"));CHECK(!saaman::TopSkyMissedApproach("IRREG_"));
+    CHECK(saaman::TopSkyHoldingPoint("h/ELTOK/h")=="ELTOK");CHECK(saaman::TopSkyHoldingPoint("GRP/S/2 h/NILUG/h")=="NILUG");
+    CHECK(saaman::TopSkyHoldingPoint(nullptr).empty());CHECK(saaman::TopSkyHoldingPoint("t/ELTOK/t").empty());
+    CHECK(saaman::TopSkyHoldingPoint("h/ELTOK").empty());CHECK(saaman::TopSkyHoldingPoint("h/EL TOK/h").empty());
+    saaman::TopSkyHoldingCache hold;
+    CHECK(hold.Observe("SAS123","","h/ELTOK/h",1000)=="ELTOK");
+    hold.Command("SAS123","/HOLD/NILUG/",2000);CHECK(hold.Observe("SAS123","/HOLD/NILUG/","h/ELTOK/h",3000)=="NILUG");
+    CHECK(hold.Observe("SAS123","unrelated scratch","",4000)=="NILUG");
+    hold.Command("SAS123","/XHOLD/NILUG/",5000);CHECK(hold.Observe("SAS123","/XHOLD/NILUG/","h/NILUG/h",6000).empty());
+    hold.Command("SAS123","/HOLD/ELTOK/",7000);CHECK(hold.Observe("SAS123","/HOLD/ELTOK/","",8000)=="ELTOK");
+    hold.Command("SAS123","/HOLD_EAT/1215/",9000);CHECK(hold.Observe("SAS123","/HOLD_EAT/1215/","",10000)=="ELTOK");
+    hold.Command("SAS123","/XHOLD/",11000);CHECK(hold.Observe("SAS123","/XHOLD/","h/ELTOK/h",12000).empty());
+    hold.Clear();CHECK(hold.Observe("SAS123","","",13000).empty());
     if(argc!=2)return 2;std::filesystem::create_directories(argv[1]);saaman::Context context(argv[1]);context.shared=false;context.plan={{"revision",0},{"config",nullptr},{"edits",saaman::Json::object()},{"snapshot",nullptr},{"masterCid",nullptr}};
     context.captureError="Test incomplete SDK field";
     bool captureDiagnosed=false;try{context.Request("telemetry:get",saaman::Json::object(),false);}catch(const saaman::RequestError& e){captureDiagnosed=e.status==503&&std::string(e.what()).find("Test incomplete SDK field")!=std::string::npos;}CHECK(captureDiagnosed);

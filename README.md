@@ -159,4 +159,4 @@ SAAMAN includes GPLv3-derived vatIRIS work and is distributed under the
 
 ### Practical controller guide
 
-See [the illustrated ACC and APP controller guide](docs/controller-guide.md), including L03 vectoring, 250/230 kt entry speeds and holding at feeder fixes. The [standalone HTML](docs/controller-guide.html) embeds both pictures; the [wiki body](docs/controller-guide-wiki.html) is prepared for BookStack.
+See [the illustrated ACC and APP controller guide](docs/controller-guide.md), including L03 vectoring, 250/230 kt entry speeds and holding at feeder fixes. The [standalone HTML](docs/controller-guide.html) embeds the radar examples; the [wiki body](docs/controller-guide-wiki.html) is prepared for BookStack.

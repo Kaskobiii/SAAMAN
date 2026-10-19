@@ -112,6 +112,6 @@ For a missed approach, open Missed Approach, select the aircraft and choose Rein
 
 ## TMA instructions and version warnings
 
-After recorded feeder passage or accepted TMA entry, the timeline and Information show assigned sequence times without ACC gain/lose instructions. TopSky line 0 clears for those aircraft. Internal spacing and landing estimates remain available to the sequencer; Recompute and order changes still respect runway spacing. While holding at a feeder fix, use STA-FF and NOW to time the inbound release; entering the hold is not the release into TMA.
+After recorded feeder passage or accepted TMA entry, the timeline and Information show assigned sequence times without ACC gain/lose instructions. TopSky line 0 clears for those aircraft. Internal spacing and landing estimates remain available to the sequencer; Recompute and order changes still respect runway spacing. TopSky HOLD at the feeder keeps it upstream in AMAN and retains its line 0 instruction through holding crossings. The lose time reduces towards the protected feeder slot. Clear HOLD when leaving towards TMA.
 
 A sequencer-version warning compares the reported sequencer build with the local build and other reported connected builds. An older build is flagged; a DLL that cannot report its build is marked version unknown. It does not query private GitHub releases anonymously.

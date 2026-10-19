@@ -23,7 +23,7 @@ function setup(extensions=false){
         const call=body.callsign
         if(path.endsWith('/leave')){preferred.delete(call);if(owner===call)owner='';return 'ok'}
         if(path.endsWith('/command')){if(!alive())error('No sequencer',503);const id=++next;commands.push({id,from:call,cmd:copy(body.cmd),...(body.takeSequencer?{takeSequencer:true}:{})});if(failure==='command'){failure='';error('Response lost',503)}return {id}}
-        if(extensions&&path.endsWith('/poll')&&body.sequencerPolicy==='essa-priority-1')preferred.set(call,now)
+        if(extensions&&path.endsWith('/poll'))preferred.set(call,now)
         const elected=extensions&&best()
         if(elected&&elected!==owner){handover={from:owner,callsign:elected,version};owner=elected;seen=now}
         if(!alive())owner=call

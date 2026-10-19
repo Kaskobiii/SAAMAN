@@ -13,6 +13,7 @@ class Plugin final:public EuroScopePlugIn::CPlugIn {
     std::shared_ptr<Context> context;
     std::unique_ptr<Host> host;
     Json winds=Json::object();
+    TopSkyHoldingCache holding;
     HWND redrawWindow=nullptr;
     static constexpr UINT RedrawMessage=WM_APP+77;
     Json activeEditor;
@@ -82,7 +83,7 @@ public:
             bool captureDue=false;{std::lock_guard lock(context->mutex);captureDue=Now()-context->captureAttemptAt>=1500;}
             if(captureDue){
                 {std::lock_guard lock(context->mutex);context->captureAttemptAt=Now();}
-                try{auto data=CaptureTelemetry(*this,winds);std::lock_guard lock(context->mutex);context->telemetry=std::move(data);context->captureSuccessAt=Now();context->captureError.clear();context->SeedRunwayConfig();}
+                try{if(GetConnectionType()==EuroScopePlugIn::CONNECTION_TYPE_NO)holding.Clear();auto data=CaptureTelemetry(*this,winds,holding);std::lock_guard lock(context->mutex);context->telemetry=std::move(data);context->captureSuccessAt=Now();context->captureError.clear();context->SeedRunwayConfig();}
                 catch(const std::exception& error){std::lock_guard lock(context->mutex);context->captureError=std::string(error.what()).substr(0,240);}
                 catch(...){std::lock_guard lock(context->mutex);context->captureError="Unknown SDK capture error";}
                 host->Pulse();
@@ -100,6 +101,10 @@ public:
         if(std::regex_search(text,match,std::regex(R"((\d{3}|VRB)(\d{2,3})(?:G\d{2,3})?(KT|MPS))"))){
             const bool variable=match[1]=="VRB";winds[station]={{"direction",variable?0:std::stoi(match[1])},{"speed",std::stod(match[2])*(match[3]=="MPS"?1.943844:1.0)},{"timestamp",Now()}};
         }
+    }
+    void OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPlan flight,int type) override {
+        if(type!=EuroScopePlugIn::CTR_DATA_TYPE_SCRATCH_PAD_STRING||!flight.IsValid())return;
+        try{const auto fp=flight.GetFlightPlanData();const auto call=flight.GetCallsign();if(!call||!*call||!fp.IsReceived()||!fp.GetDestination()||strcmp(fp.GetDestination(),"ESSA"))return;holding.Command(call,flight.GetControllerAssignedData().GetScratchPadString(),Now());}catch(...){/* SDK callback must not unwind. */}
     }
     void OnGetTagItem(EuroScopePlugIn::CFlightPlan flight,EuroScopePlugIn::CRadarTarget,int item,int,char text[16],int* color,COLORREF* rgb,double*) override {
         if(item<71001||item>71003)return;text[0]='\0';if(color)*color=EuroScopePlugIn::TAG_COLOR_DEFAULT;

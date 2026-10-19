@@ -101,7 +101,7 @@ export class LegacyRelay {
         this.callsign=body.callsign;this.observer=body.observer===true;this.proxy=body.proxy===true
         if(this.observer||this.proxy||!canSequenceEssa(this.callsign)){await this.read();this.role=this.observer?'observer':'editor';return this.snapshot()}
         // Empty role forces an immediate answer; the API's normal long poll is 20 s.
-        const out=await this.deps.send('POST',this.room+'/poll',{callsign:this.callsign,role:'',version:body.revision||0,cmdAfter:0,sequencerPolicy:'essa-priority-1',engineVersion:body.engine?.version})
+        const out=await this.deps.send('POST',this.room+'/poll',{callsign:this.callsign,role:'',version:body.revision||0,cmdAfter:0,engineVersion:body.engine?.version})
         if(!['sequencer','editor'].includes(out.role)||!Number.isSafeInteger(out.version))fail('Invalid vatIRIS AMAN response',502)
         if(!out.sequence&&out.version===0&&this.state.revision>0)this.state=this.empty()
         this.adopt(out.sequence,out.version);this.state.revision=out.version;this.role=out.role

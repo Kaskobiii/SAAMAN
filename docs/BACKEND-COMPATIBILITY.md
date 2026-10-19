@@ -52,5 +52,5 @@ file checksum, align Express with its lockfile when needed, run both targets and
 the model tests, and review the repository change before adopting it.
 # ESSA priority extension (prepared for 1.3.34)
 
-The companion backend change is [vatIRIS PR #193](https://github.com/minsulander/vatiris/pull/193). Deploy it before using automatic ESSA_E_APP → ESSA_FMP priority or an editor's runway Apply ownership request. The client checks `/aman/capabilities` before requesting that transfer and gives a clear error on an unchanged backend. Priority polls and version metadata are optional additions to the original API. Existing sequencing, ordinary aircraft edits and follow mode remain compatible with older backends.
+The companion backend change is [vatIRIS PR #193](https://github.com/minsulander/vatiris/pull/193). Deploy it before using automatic ESSA_E_APP → ESSA_FMP priority or an editor's runway Apply ownership request. The client checks `/aman/capabilities` before requesting that transfer and gives a clear error on an unchanged backend. ESSA priority is mandatory on the updated backend, including for older clients; only version reporting is optional. Existing sequencing, ordinary aircraft edits and follow mode remain compatible with older backends.
 

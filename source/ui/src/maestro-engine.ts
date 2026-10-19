@@ -75,6 +75,7 @@ export const DEFAULT_CONFIG: EngineConfig = {
 export interface RoutePrediction { name: string; seconds: number; latitude?:number; longitude?:number }
 export interface TelemetryFlight {
     topskyMissedApproach?:boolean
+    topskyHoldingPoint?:string
     callsign: string; aircraft: string; wake: string; departure: string; arrival: string; runway: string
     route: RoutePrediction[]; landingSeconds: number; distanceNm: number; groundspeed: number; altitude: number
     speedDataValid?:boolean;dataWarnings?:string[]
@@ -283,6 +284,7 @@ export function validateTelemetry(value: any, now = Date.now()): Telemetry {
     const seen = new Set()
     for (const p of flights) {
         if(p?.topskyMissedApproach!==undefined&&typeof p.topskyMissedApproach!=='boolean')throw new Error('Invalid TopSky missed approach flag')
+        if(p?.topskyHoldingPoint!==undefined&&(typeof p.topskyHoldingPoint!=='string'||! /^[A-Z0-9_-]{0,12}$/.test(p.topskyHoldingPoint)))throw new Error('Invalid TopSky holding point')
         if (!p || !/^[A-Z0-9_-]{2,16}$/.test(p.callsign) || seen.has(p.callsign) ||
             !['ESSA', 'ESSB'].includes(p.arrival) || !Number.isFinite(p.landingSeconds) ||
             !Number.isFinite(p.distanceNm) || !Number.isFinite(p.groundspeed) || !Number.isFinite(p.altitude) ||
@@ -804,15 +806,16 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         // second fixed buffer or feed the assigned instruction back into ETA.
         const profileFeeder=landingPrediction?.routeTiming?.feeder
         const useProfileFeeder=profileFeeder&&!feederObservation?.passed&&profileFeeder.name===feederObservation?.feeder&&e.etaFfOverride===undefined
-        const liveBufferedEtaFf=liveEuroscopeEtaFf===undefined?undefined:feederObservation?.available===false&&e.etaFfOverride===undefined?old?.etaFf??old?.euroscopeBaseline?.etaFf??liveEuroscopeEtaFf:feederObservation?.source==='track'&&e.etaFfOverride===undefined?now+ms(feederObservation.seconds):useProfileFeeder?now+ms(profileFeeder.seconds):liveEuroscopeEtaFf+ms(feederBufferMinutes*60)
+        const liveBufferedEtaFf=liveEuroscopeEtaFf===undefined?undefined:feederObservation?.source==='holding'&&e.etaFfOverride===undefined?now+ms(feederObservation.seconds):feederObservation?.available===false&&e.etaFfOverride===undefined?old?.etaFf??old?.euroscopeBaseline?.etaFf??liveEuroscopeEtaFf:feederObservation?.source==='track'&&e.etaFfOverride===undefined?now+ms(feederObservation.seconds):useProfileFeeder?now+ms(profileFeeder.seconds):liveEuroscopeEtaFf+ms(feederBufferMinutes*60)
         const liveBufferedEta=waitingRecovery||liveEuroscopeEta===undefined?undefined:now+ms(landingPrediction!.seconds)
         const euroscopeBaseline=bufferMode?(captureBaseline?{at:now,runway:p.runway?`${p.arrival}/${p.runway}`:runway,eta:liveBufferedEta!+manualFeederShift,rawEta:liveEuroscopeEta!,etaFf:liveBufferedEtaFf!,rawEtaFf:liveEuroscopeEtaFf,feederBuffered:true,bufferMinutes:selectedBufferMinutes,feederBufferMinutes:useProfileFeeder?(liveBufferedEtaFf!-liveEuroscopeEtaFf!)/60000:feederBufferMinutes,groundspeed:p.groundspeed,landingReference:landingPrediction!.reference,landingMethod:landingPrediction!.method}:old?.euroscopeBaseline&&!old.euroscopeBaseline.feederBuffered?{...old.euroscopeBaseline,etaFf:old.euroscopeBaseline.etaFf+ms((old.euroscopeBaseline.feederBufferMinutes??old.euroscopeBaseline.bufferMinutes)*60),rawEtaFf:old.euroscopeBaseline.etaFf,feederBuffered:true}:old?.euroscopeBaseline):undefined
         const eta = euroscopeBaseline?.eta??now + ms(prediction.seconds)+manualFeederShift
         const missedRecovery=bufferMode?recoveryContext&&!freshNewApproach:!!resumedMissed||airborneAgain||!!old?.missedRecovery&&!freshNewApproach
         const group = prediction.feeder?FEEDERS.find(g=>g.airport===p.arrival&&g.name===prediction.feeder):(!recompute && !resumed && old?.passedFeeder ? FEEDERS.find(g=>g.airport===p.arrival&&g.id===old.feederId) : undefined) ?? FEEDERS.find(g => g.airport === p.arrival && p.route.some(r => g.fixes.some(f => f === r.name)))
         const feederPoint = prediction.feederSeconds!==undefined?(prediction.passedFeeder?undefined:{name:prediction.feeder!,seconds:prediction.feederSeconds}):group && p.route.find(r => group.fixes.some(f => f === r.name) && r.seconds >= 0)
-        const retainedEntry=!!old?.passedFeeder&&(!bufferMode||old.bufferedFeederVerified)&&!requeued&&!resumed&&(prediction.feeder?old.ff===prediction.feeder:old.feederId===group?.id)
-        const localTma=bufferMode&&p.arrival==='ESSA'&&(recompute||old?.tmaEntryAccepted||!prediction.feeder&&p.departure==='ESSB')&&
+        const feederHolding=feederObservation?.source==='holding'
+        const retainedEntry=!feederHolding&&!!old?.passedFeeder&&(!bufferMode||old.bufferedFeederVerified)&&!requeued&&!resumed&&(prediction.feeder?old.ff===prediction.feeder:old.feederId===group?.id)
+        const localTma=!feederHolding&&bufferMode&&p.arrival==='ESSA'&&(recompute||old?.tmaEntryAccepted||!prediction.feeder&&p.departure==='ESSB')&&
             (p.positionAgeSeconds??0)<=15&&p.groundspeed>=60&&p.altitude>=350&&p.altitude<=12000&&
             !!threshold&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)&&distanceNm(p as GeoPoint,threshold)<25&&
             !!landingPrediction&&Number.isFinite(landingPrediction.seconds)&&landingPrediction.seconds>0&&usableEuroScope&&!waitingRecovery
@@ -1366,6 +1369,10 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
                 f.delay=Math.max(f.initialProfile.workSeconds,Math.ceil(spacingWork),Math.ceil((f.closureDelayMs??0)/1000))
             }
             if(f.feederEtaAvailable===false&&!f.passedFeeder&&old&&!recomputed)f.delay=old.delay+Math.round((f.staFf-old.staFf)/1000)
+            // A feeder hold is still upstream delivery work. Count down to
+            // the protected crossing slot using the current trip back to the
+            // fix, rather than a racetrack FLEG or the pre-hold instruction.
+            if(f.feederObservationSource==='holding')f.delay=Math.max(0,Math.round((f.staFf-f.etaFf)/1000))
             if(f.landingEtaAvailable===false){f.delay=0;f.totalDelay=0;f.runwayDelay=0}
             f.maximumDelayExceeded=!f.passedFeeder&&edits[f.callsign]?.maximumDelayMinutes!==undefined&&f.delay>edits[f.callsign].maximumDelayMinutes!*60
             f.planningDelaySeconds=f.delay

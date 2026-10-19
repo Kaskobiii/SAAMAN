@@ -32,6 +32,6 @@ operation only; calculation details remain in the development documentation.
 
 ## Illustrated controller guide
 
-The new practical guide is `controller-guide.md`. Open `controller-guide.html` for a standalone preview with its two pictures embedded. `controller-guide-wiki.html` is the HTML body for BookStack. Upload `docs/images/acc-l03-example.png` and `docs/images/acc-holding-example.png` with the wiki image picker, then replace the two relative image paths in the pasted fragment with the resulting wiki image URLs. Review the ACC, L03, holding and APP sections before publishing. These files do not alter the live wiki.
+The new practical guide is `controller-guide.md`. Open `controller-guide.html` for a standalone preview with its four radar-style pictures embedded. `controller-guide-wiki.html` is the HTML body for BookStack. Upload `docs/images/acc-read-label.png`, `docs/images/acc-l03-example.png`, `docs/images/acc-holding-example.png` and `docs/images/app-sequence-example.png` with the wiki image picker, then replace the four relative image paths in the pasted fragment with the resulting wiki image URLs. Review the ACC, L03, holding and APP sections before publishing. These files do not alter the live wiki.
 
-Regenerate with `python ./source/scripts/build-controller-illustrations.py` and `python ./source/scripts/build-user-guide.py --controller`; use `--controller --check` to verify the generated guide.
+Regenerate with `python ./source/scripts/build-radar-guide.py` and `python ./source/scripts/build-user-guide.py --controller`; use `--controller --check` to verify the generated guide.

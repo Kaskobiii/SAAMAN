@@ -6,7 +6,7 @@ An embedded EuroScope arrival manager for Stockholm Arlanda (ESSA), with shared
 
 sequencing and controller coordination through the existing vatIRIS backend.
 
-The current version is **1.3.35**. This release simplifies ACC aircraft labels and removes the empty Labels menu and text on the red current-time line. See the [release notes](docs/RELEASE-NOTES-1.3.35.md) for update instructions. The matching vatIRIS backend update is deployed.
+The current version is **1.3.36**. This release adds silent protection against paused airborne tracks and repairs unreliable initial low-speed timing captures. See the [release notes](docs/RELEASE-NOTES-1.3.36.md) for examples and update instructions. The matching vatIRIS backend update is deployed.
 
 
 
@@ -142,7 +142,7 @@ See [architecture](source/ARCHITECTURE.md),
 
 [operating requirements](source/OPERATING-REQUIREMENTS.md) and
 
-[latest release notes](docs/RELEASE-NOTES-1.3.35.md).
+[latest release notes](docs/RELEASE-NOTES-1.3.36.md).
 
 
 

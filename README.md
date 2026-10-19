@@ -6,7 +6,7 @@ An embedded EuroScope arrival manager for Stockholm Arlanda (ESSA), with shared
 
 sequencing and controller coordination through the existing vatIRIS backend.
 
-The current version is **1.3.33**. Shared sequencing uses the existing vatIRIS backend. This release improves vectoring estimates, Recompute, manual swaps and feeder spacing, and restricts ESSA sequencer ownership to local controller positions. See the [release notes](docs/RELEASE-NOTES-1.3.33.md) for examples and update instructions. Syncing between two EuroScope controllers has been confirmed in use.
+The current version is **1.3.34**. This release adds ESSA_E_APP / ESSA_FMP sequencer priority, confirmed runway handovers, TopSky feeder HOLD support and sequence-only TMA labels. See the [release notes](docs/RELEASE-NOTES-1.3.34.md) for examples and update instructions. The matching vatIRIS backend update is deployed.
 
 
 
@@ -28,9 +28,9 @@ the pane can stay closed.
 
 
 
-Read the [controller user guide](docs/user-guide.md). An [offline HTML version](docs/user-guide.html)
+Read the [illustrated controller guide](docs/controller-guide.md) or the [full user guide](docs/user-guide.md). An [offline HTML version](docs/controller-guide.html)
 
-and [wiki-ready HTML](docs/user-guide-wiki.html) are included, with
+and [wiki-ready HTML](docs/controller-guide-wiki.html) are included, with
 
 [publication instructions](docs/WIKI-UPLOAD.md) for the Scandinavia wiki.
 
@@ -40,7 +40,7 @@ and [wiki-ready HTML](docs/user-guide-wiki.html) are included, with
 
 
 
-Download the ZIP from [Releases](https://github.com/Kaskobiii/SAAMAN/releases).
+Download **SAAMAN.dll** directly from [Releases](https://github.com/Kaskobiii/SAAMAN/releases).
 
 Unload the previous plugin before replacing and loading `SAAMAN.dll`. Microsoft
 
@@ -142,7 +142,7 @@ See [architecture](source/ARCHITECTURE.md),
 
 [operating requirements](source/OPERATING-REQUIREMENTS.md) and
 
-[latest release notes](docs/RELEASE-NOTES-1.3.33.md).
+[latest release notes](docs/RELEASE-NOTES-1.3.34.md).
 
 
 

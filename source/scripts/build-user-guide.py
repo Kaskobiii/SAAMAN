@@ -10,9 +10,6 @@ def inline(text):
     text = html.escape(text)
     text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
     text = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', text)
-    if name=='controller-guide':
-        for speed,colour in [('250 kt IAS','#f0e129'),('230 kt IAS','#ff737b')]:
-            text=text.replace('<strong>'+speed+'</strong>','<strong style="color:'+colour+';background-color:#243845;padding:2px 5px">'+speed+'</strong>')
     return text
 lines = source.splitlines()
 blocks = []

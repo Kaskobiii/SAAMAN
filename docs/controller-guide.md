@@ -8,8 +8,9 @@ Load the current DLL in every instance, with SAAMAN above TopSky. Select ESSA AR
 
 - **ACC acts on lose instructions.** Use speed control, vectoring or holding to absorb the delay before the feeder.
 - **Gain is advisory:** a more direct routing may be useful when available.
-- **Entry speeds at the feeder:** **250 kt IAS** for a yellow delay number in AMAN; **230 kt IAS** for red.
 - **STA-FF** is the assigned feeder crossing time. Use it as AMAN’s **EAT (Expected Approach Time)** for entry into TMA.
+
+![AMAN feeder label examples: yellow delay number 2 means set 250 kt IAS for entry; red delay number 3 means set 230 kt IAS for entry](images/acc-entry-speeds.png)
 
 AMAN accounts for **wind** in its predictions and **wake-turbulence categories** in its sequencing.
 

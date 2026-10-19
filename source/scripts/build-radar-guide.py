@@ -79,6 +79,22 @@ for x,call,instruction,caption in [(42,'SAS123','L03','3 minutes to lose'),(920,
  txt(d,(x+28,541),caption,34,INK,True)
 im.save(out/'acc-read-label.png')
 
+# Match the AMAN feeder-row order: type, wake, coloured lose minutes, callsign, STA minute.
+im=Image.new('RGB',(W,410),BG);d=ImageDraw.Draw(im)
+for x,call,minutes,scheduled,colour,speed in [(42,'SAS123','2','10',YELLOW,'250'),(920,'FIN456','3','12',RED,'230')]:
+ d.rectangle((x,22,x+838,246),fill='#50585e')
+ txt(d,(x+26,46),'AMAN · ELTOK',29,WHITE,True)
+ axis=x+759;d.line((axis,102,axis,223),fill='#a8b5bd',width=2)
+ y=139;d.ellipse((axis-5,y-5,axis+5,y+5),fill=GREEN)
+ txt(d,(x+27,117),'A320',35,'#b0b8bb',mono=True)
+ txt(d,(x+145,117),'M',35,'#b0b8bb',mono=True)
+ txt(d,(x+202,117),minutes,35,colour,mono=True)
+ txt(d,(x+266,117),call,35,GREEN,mono=True)
+ txt(d,(axis-83,117),scheduled,35,GREEN,mono=True)
+ arrow(d,(x+419,263),(x+419,299),INK,3)
+ txt(d,(x+104,326),'Set '+speed+' kt IAS for entry',40,INK,True)
+im.save(out/'acc-entry-speeds.png')
+
 im,d=base('ACC · L03 → L00','Vector before the feeder. Turn towards it at L00.',height=1000)
 for x,instruction in [(42,'L03'),(920,'L00')]:
  xy=radar(im,(x,232,832,520));d=ImageDraw.Draw(im)
@@ -116,4 +132,4 @@ plane(d,xy,lat+dy*6,lon+dx*6,'RYR782',details='025 ↓ N180',offset=(-285,-130))
 card(d,42,900,1,'Landing times',['SAS123 12:18 → RYR782 12:20.'],w=838)
 card(d,920,900,2,'Swap order',['Click one callsign, then the other.'],w=838)
 im.save(out/'app-sequence-example.png')
-print('Built four ESSA controller illustrations with real geography.')
+print('Built five ESSA controller illustrations.')

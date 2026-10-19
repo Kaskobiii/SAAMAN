@@ -12,15 +12,15 @@ ESSA_E_APP is sequencer first, then ESSA_FMP. This priority is enforced by the u
 
 ## 2. ACC: read the label
 
-![Radar example with labelled line 0: 1210 is the feeder time, L03 means lose three minutes, red means 230 kt entry](images/acc-read-label.png)
+![Real ESSA geography with an illustrative vector before ELTOK: line 0 shows L03; yellow and red entry-speed guidance is shown separately for AMAN](images/acc-read-label.png)
 
-**1210:** cross the feeder at 12:10. **L03:** lose three minutes before entry. **G:** time to gain.
+**Line 0: L03** means lose three minutes before entry. **G** means time to gain. Find the assigned feeder time in **AMAN → Information → STA-FF**.
 
-**Yellow number → 250 kt entry. Red number → 230 kt entry.** These are IAS, not groundspeed.
+**In AMAN: yellow number → 250 kt entry; red number → 230 kt entry.** These are IAS, not groundspeed. Line 0 does not use these colours.
 
 ## 3. ACC: L03 → L00 → turn in
 
-![Two radar examples: vector SAS123 before ELTOK with 1210 L03, then turn it inbound with 1210 L00](images/acc-l03-example.png)
+![Two radar examples: vector SAS123 before ELTOK with L03 in line 0, then turn it inbound at L00](images/acc-l03-example.png)
 
 1. **L03:** turn the aircraft before the feeder to absorb time.
 2. **L00:** turn towards the feeder. The turn absorbs the remaining seconds. AMAN itself leaves the zero-minute number blank.
@@ -28,9 +28,11 @@ ESSA_E_APP is sequencer first, then ESSA_FMP. This priority is enforced by the u
 
 Use **ACC** for the feeders you cover. ESSA_W_APP uses **ARR-W** for ELTOK. **AMAN suggests a sequence; the final decision is yours.** To swap your feeder order, **click one aircraft, then the other**. Their assigned times and lose/gain instructions update to match the new order. AMAN gives aircraft separate feeder slots.
 
-## 4. ACC: five minutes or more — hold
+## 4. ACC: if you decide to hold
 
-![Radar holding example: SAS456 has 1215 L05, with steps to set TopSky HOLD, monitor the countdown, and leave at L00](images/acc-holding-example.png)
+![Real ELTOK holding geometry with an illustrative aircraft showing L05 in its normal radar text colour](images/acc-holding-example.png)
+
+**You decide** whether to use speed, vectors or holding. L05 is an example, not a threshold requiring a hold.
 
 1. **Set HOLD in TopSky** at the feeder and put the aircraft into the hold.
 2. **Watch the lose time reduce.** The holding flag keeps line 0 visible when it crosses the feeder while holding.
@@ -58,4 +60,4 @@ Inside TMA, use the assigned times: **there are no ACC-style L/G instructions**.
 | An aircraft has no flight plan | **MAESTRO → Insert flight.** |
 | Something looks wrong | Check **Information**, **Errors**, the runway and the sequencer-version warning. |
 
-Pictures are illustrated radar examples. The holding fix and timing shown are examples of the workflow.
+Pictures use ESSA fix/runway positions and the installed ESAA sector coastline and ELTOK holding geometry. Aircraft, times and vector paths are illustrative.

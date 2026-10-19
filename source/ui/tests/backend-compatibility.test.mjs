@@ -60,11 +60,32 @@ test('actual vatIRIS router shares one sequence, edits, coordination metadata/ac
   const base=await supervisor.supervision();await supervisor.saveSettings(base.revision,{euroscopeBufferMinutes:3})
   assert.equal((await b.tick()).config.euroscopeBufferMinutes,3)
   clearInterval(drive);drive=undefined;await a.leave()
-  const takeover=await c.tick();assert.equal(takeover.relayRole,'sequencer');assert.equal(takeover.edits.TEST123.target,target)
+  // The priority backend elects the already-present centre client when FMP leaves.
+  // Poll that client first so legacy first-poller backends exercise the same handover.
+  const takeover=await b.tick();assert.equal(takeover.relayRole,'sequencer');assert.equal(takeover.edits.TEST123.target,target)
   assert.equal(takeover.config.coordinations[0].senderCallsign,sent.senderCallsign);assert.equal(takeover.config.coordinations[0].at,sent.at)
   assert.ok(takeover.config.coordinations[0].acknowledgedBy.includes('c'));assert.equal(takeover.config.euroscopeBufferMinutes,3)
+  assert.equal((await c.tick()).relayRole,'editor')
   assert.ok(f.requests.every(r=>!r.path.includes('/rooms/')));assert.ok(f.requests.some(r=>r.method==='PUT'&&r.body.sequence.saamanRelay.checkpoint))
  }finally{clearInterval(drive);await f.close()}
+})
+
+test('actual priority-capable router promotes E APP, then falls back to FMP',async t=>{
+ const f=await fixture();try{
+  const capabilities=await f.raw('GET','/aman/capabilities')
+  if(capabilities.status!==200||capabilities.data.essaPriority!==1){t.skip('Legacy pinned backend has no ESSA-priority extension');return}
+  const centre=f.client('centre','ESOS_1__CTR'),fmp=f.client('fmp','ESSA_FMP',1396125),east=f.client('east','ESSA_E__APP')
+  assert.equal((await centre.tick()).relayRole,'sequencer')
+  assert.equal((await fmp.tick()).relayRole,'sequencer')
+  assert.equal((await centre.tick()).relayRole,'editor')
+  const preferred=await east.tick();assert.equal(preferred.relayRole,'sequencer')
+  assert.deepEqual(preferred.config.active,['ESSA/01R']);assert.equal(preferred.config.departureRunway,'ESSA/01L')
+  assert.equal((await fmp.tick()).relayRole,'editor')
+  assert.equal((await centre.tick()).relayRole,'editor')
+  await east.leave()
+  assert.equal((await fmp.tick()).relayRole,'sequencer')
+  assert.equal((await centre.tick()).relayRole,'editor')
+ }finally{await f.close()}
 })
 test('actual router preserves accepted publications and deduplicates coordination after lost responses',async()=>{
  const f=await fixture();try{

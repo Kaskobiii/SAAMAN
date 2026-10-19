@@ -2,6 +2,7 @@
 // All absolute times are Unix milliseconds internally; route EET inputs are seconds.
 import {initialProfileHandover,type InitialProfile} from './maestro-initial-profile'
 import {motionTiming,type MotionTiming} from './maestro-motion-timing'
+import {feederDelivery,type FeederDelivery} from './maestro-feeder-delivery'
 import {manualReservationLifecycle,pruneExpiredManualEdits,type ManualRetirement} from './maestro-manual-reservations'
 import {aircraftType,performanceAt,PERFORMANCE_SOURCE} from './maestro-aircraft-performance'
 import { finalPosition, headingDifference, bearingBetween, vectoringSeconds, vectoringDistance, type GeoPoint, type RunwayGeometry } from './maestro-geometry'
@@ -157,6 +158,7 @@ export interface EngineFlight extends TelemetryFlight {
     // absolute landing slot saved when the aircraft became Superstable.
     initialProfile?:InitialProfile
     motionTiming?:MotionTiming
+    feederDelivery?:FeederDelivery
     feederEtaAvailable?:boolean
     feederObservationSource?:string
     planningEta?:number
@@ -1160,11 +1162,17 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             const f=fixed[i],e=edits[f.callsign]??{}
             const rate=windConfig(effectiveConfig(config,f.eta),f.arrival,winds,now)
             const gap=ms(Math.max(rate.rates[runway],projected?wakeInterval(projected.flight.wake,f.wake,runway,rate):0))+ms(((projected?.flight.slotAfter??0)+f.slotBefore)*60)
-            const transfer=Math.max(0,provisionalTimings.has(f.callsign)?f.eta-f.etaFf:f.euroscopeBaseline?f.euroscopeBaseline.eta-f.euroscopeBaseline.etaFf:f.eta-f.etaFf),feederLeader=f.distanceProfile&&!f.passedFeeder?projectedFeeders.get(f.ff):undefined
+            const observation=f.liveBufferedEta??f.eta
+            const precedingBank=projected?.flight.feederDelivery
+            const blockingSlot=config.slots.find(s=>s.runway===runway&&s.end>now&&observation>=s.begin&&observation<s.end)??
+                (precedingBank&&projected&&observation<projected.time+gap+60000?config.slots.find(s=>s.id===precedingBank.gapId&&s.runway===runway&&s.end>now):undefined)
+            const delivery=config.timingModel==='euroscope-buffer'&&blockingSlot&&e.target===undefined&&!e.closurePosition&&!f.runwayTransition?.pending?feederDelivery(f,rate):undefined
+            f.feederDelivery=delivery?{...delivery,gapId:blockingSlot!.id}:undefined
+            const transfer=Math.max(0,delivery?ms(delivery.seconds):provisionalTimings.has(f.callsign)?f.eta-f.etaFf:f.euroscopeBaseline?f.euroscopeBaseline.eta-f.euroscopeBaseline.etaFf:f.eta-f.etaFf),feederLeader=f.distanceProfile&&!f.passedFeeder?projectedFeeders.get(f.ff):undefined
             const feederFloor=feederLeader===undefined?-Infinity:feederLeader+ms(rate.rates[runway])+ms((f.slotBefore+(projected?.flight.slotAfter??0))*60)+transfer
-            const projectedStart=afterSlots(Math.max(e.target??Math.max(f.planningEta??f.eta,f.eta),f.passedFeeder?-Infinity:f.minimumArrival,projected?projected.time+gap:-Infinity,feederFloor),runway,config)
+            const projectedStart=afterSlots(Math.max(e.target??(delivery?f.etaFf+transfer:Math.max(f.planningEta??f.eta,f.eta)),f.passedFeeder?-Infinity:f.minimumArrival,projected?projected.time+gap:-Infinity,feederFloor),runway,config)
             const start=feederScheduled(f)?entrySlot(projectedStart,transfer,f,entryReservations.get(f.ff)??[],config,ms(rate.rates[runway])).time:projectedStart
-            if(!f.passedFeeder&&e.order===undefined&&e.target===undefined&&!f.slotBefore&&!f.slotAfter&&!e.closurePosition&&!f.missedRecovery){
+            if(!f.feederDelivery&&!f.passedFeeder&&e.order===undefined&&e.target===undefined&&!f.slotBefore&&!f.slotAfter&&!e.closurePosition&&!f.missedRecovery){
                 const nextIndex=fixed.findIndex((p,j)=>j>i&&(p.passedFeeder||edits[p.callsign]?.target!==undefined&&!edits[p.callsign]?.requeueAt)&&oldByCallsign.get(p.callsign)?.mode==='sequenced'&&(oldByCallsign.get(p.callsign)?.state??0)>=1)
                 if(nextIndex>=0){
                     const next=fixed[nextIndex],followingGap=ms(Math.max(rate.rates[runway],wakeInterval(f.wake,next.wake,runway,rate)))+ms((f.slotAfter+next.slotBefore)*60)
@@ -1225,7 +1233,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             const targetRemoved=retiredTargets.has(f.callsign)||old?.appliedTarget!==undefined&&edits[f.callsign]?.target===undefined
             const releaseUpstream=!recomputing.size&&!freshOrderEdit&&f.state<=1&&!f.passedFeeder&&!!old&&old.delay>0&&old.mode==='sequenced'&&
                 edits[f.callsign]?.target===undefined&&!selectedClosure&&!f.slotBefore&&!f.slotAfter&&!f.missedRecovery&&(f.liveBufferedEta??f.eta)<old.sta-1000
-            const holdTma=!releaseUpstream&&!corrected.has(f.callsign)&&f.state>=1&&!!old&&old.mode==='sequenced'&&old.state>=1&&old.runway===f.runway&&!f.missedRecovery&&!old.missedRecovery&&!recomputed&&!explicitlyReordered&&!planChanged&&!closureMoved&&!leaderReplanned&&!targetRemoved&&!inconsistentHistory&&!releaseDelay
+            const holdTma=!f.feederDelivery&&!releaseUpstream&&!corrected.has(f.callsign)&&f.state>=1&&!!old&&old.mode==='sequenced'&&old.state>=1&&old.runway===f.runway&&!f.missedRecovery&&!old.missedRecovery&&!recomputed&&!explicitlyReordered&&!planChanged&&!closureMoved&&!leaderReplanned&&!targetRemoved&&!inconsistentHistory&&!releaseDelay
             const protectedFollower=!!old&&old.state>=1&&f.state===1&&fixed.slice(i+1).some(p=>p.state>=2&&(oldByCallsign.get(p.callsign)?.state??0)>=2)&&!recomputed&&!planChanged&&!explicitlyReordered&&(edits[fixed[i+1].callsign]?.changedAt||0)<(previous?.timestamp??0)
             let anchor=edits[f.callsign]?.target ?? (tmaProtected&&!explicitlyReordered||protectedBase?beforeClosure:reference)
             const modelTiming=['star-distance','vector-profile','final-position'].includes(f.predictionSource??'')
@@ -1248,9 +1256,10 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
                 anchor=Math.min(old.sta,Math.max(f.liveBufferedEta??f.eta,old.sta-Math.min(ms(old.delay),released)))
             }
             if(f.initialProfile?.appliedAt===now)anchor=Math.max(anchor,f.eta+ms(f.initialProfile.workSeconds))
+            if(f.feederDelivery)anchor=f.etaFf+ms(f.feederDelivery.seconds)
             if(selectedClosure&&closurePosition?.side==='before')anchor=Math.min(anchor,selectedClosure.begin-1)
             const rateGap=ms(acceptedRate)+ms(((last?.slotAfter||0)+f.slotBefore)*60)
-            const transfer = Math.max(0,f.motionTiming?.held&&old?old.sta-old.staFf:releaseUpstream?(f.liveBufferedEta??f.eta)-f.etaFf:provisionalTimings.has(f.callsign)?f.eta-f.etaFf:holdTma&&old&&!f.passedFeeder?old.sta-old.staFf:f.euroscopeBaseline?f.euroscopeBaseline.eta-f.euroscopeBaseline.etaFf:f.eta-f.etaFf)
+            const transfer = Math.max(0,f.feederDelivery?ms(f.feederDelivery.seconds):f.motionTiming?.held&&old?old.sta-old.staFf:releaseUpstream?(f.liveBufferedEta??f.eta)-f.etaFf:provisionalTimings.has(f.callsign)?f.eta-f.etaFf:holdTma&&old&&!f.passedFeeder?old.sta-old.staFf:f.euroscopeBaseline?f.euroscopeBaseline.eta-f.euroscopeBaseline.etaFf:f.eta-f.etaFf)
             const feederLeader=f.distanceProfile&&!f.passedFeeder?feederLeaders.get(f.ff):undefined
             const feederMinimum=feederLeader?feederLeader.staFf+rateGap+transfer:-Infinity
             const minimumForPlan=holdTma&&f.minimumArrivalSource!=='resume'?f.runwayAvailableFrom??-Infinity:f.minimumArrival
@@ -1404,6 +1413,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             else if(f.minimumArrival>f.eta)constraints.push('new / resumed flight minimum')
             if(f.slotBefore||last?.slotAfter)constraints.push('controller inserted interval')
             if(f.feederDelayMs)constraints.push('entry flow spacing')
+            if(f.feederDelivery)constraints.push('planned feeder delivery after runway gap')
             if(f.closureDelayMs)constraints.push('runway closure')
             if(last&&f.sta>=last.sta+gap-1&&Math.abs(f.sta-last.sta-gap)<1000)constraints.push(gap>rateGap?'wake separation':'runway arrival rate')
             if(f.automaticGainSeconds)constraints.push('feasible gain to relieve following aircraft')

@@ -8,22 +8,20 @@ Load the current DLL in every instance, with SAAMAN above TopSky. Select ESSA AR
 
 - **ACC acts on lose instructions.** Use speed control, vectoring or holding to absorb the delay before the feeder.
 - **Gain is advisory:** a more direct routing may be useful when available.
-- **Entry speeds:** a yellow delay number in AMAN means **250 kt IAS** at the feeder; red means **230 kt IAS**.
+- **Entry speeds at the feeder:** **250 kt IAS** for a yellow delay number in AMAN; **230 kt IAS** for red.
 - **STA-FF** is the assigned feeder crossing time. Use it as AMAN’s **EAT (Expected Approach Time)** for entry into TMA.
 
 AMAN accounts for **wind** in its predictions and **wake-turbulence categories** in its sequencing.
 
 ## Phases
 
-The callsign colour in AMAN shows the phase.
-
-| Phase | Colour | Meaning |
-|---|---|---|
-| Unstable | Blue | Provisional order and times; change as estimates update. |
-| Stable | Green | Accepted sequence; earlier new arrivals or manual edits can change the order. |
-| Superstable | White | Near the feeder or inside TMA; the accepted sequence is protected from automatic reordering. |
-| Frozen | Turquoise | Close to landing; the assigned slot is protected. |
-| Landed | Pink | Landing confirmed; retained briefly as history. |
+| Phase | Meaning |
+|---|---|
+| Unstable | Provisional order and times; change as estimates update. |
+| Stable | Accepted sequence; earlier new arrivals or manual edits can change the order. |
+| Superstable | Near the feeder or inside TMA; the accepted sequence is protected from automatic reordering. |
+| Frozen | Close to landing; the assigned slot is protected. |
+| Landed | Landing confirmed; retained briefly as history. |
 
 ## ACC: gain and lose time
 
@@ -47,7 +45,7 @@ Set **TopSky HOLD** at the feeder. Monitor the instruction, leave towards TMA at
 
 ![Runway 19L landing order with SAS123 followed by RYR782](images/app-sequence-example.png)
 
-Use **Runway** to build the landing order. **Click two aircraft to swap**, or **drag** one to the insertion arrow. Inside TMA, use sequence times; ACC lose/gain instructions are hidden.
+AMAN calculates a suggested sequence using the remaining flight distance along each aircraft’s STAR. **The landing sequence remains your responsibility.** Use **Runway** to manage it: **click two aircraft to swap**, or **drag** one to the insertion arrow.
 
 ## Advanced
 

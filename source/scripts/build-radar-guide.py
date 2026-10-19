@@ -12,7 +12,6 @@ def txt(d,xy,s,n=30,c=INK,b=False,mono=False):d.text(xy,s,font=f(n,b,mono),fill=
 def base(title,sub,height=H):
  im=Image.new('RGB',(W,height),BG);d=ImageDraw.Draw(im);d.rectangle((0,0,W,144),fill=INK)
  txt(d,(44,27),title,48,'white',True);txt(d,(46,91),sub,27,'#cae1ef')
- txt(d,(44,height-46),'ESSA · ILLUSTRATED TRAFFIC · UTC',21,'#536878')
  return im,d
 def arrow(d,a,b,c=PATH,width=4):
  d.line((a,b),fill=c,width=width);angle=math.atan2(b[1]-a[1],b[0]-a[0]);p=[(b[0]-15*math.cos(angle+v),b[1]-15*math.sin(angle+v)) for v in [-.5,.5]];d.polygon([b,*p],fill=c)
@@ -72,7 +71,7 @@ def example_vector(d,xy):
  # Illustrative upstream vector: turn south, then return towards the real feeder.
  path(d,[xy(59.99,16.40),xy(59.95,16.50),xy(59.82,16.50),xy(59.74,16.54),xy(59.73,16.64),xy(59.78,16.80),feeder(xy)])
 
-im,d=base('ACC · Gain and lose time','Time relative to the assigned feeder slot',height=650)
+im,d=base('ACC · Gain and lose time','Time relative to the assigned feeder slot',height=620)
 # Tag close-ups explain L/G; the separate vector figure explains the manoeuvre.
 for x,call,instruction,caption in [(42,'SAS123','L03','3 minutes to lose'),(920,'FIN456','G02','2 minutes to gain')]:
  d.rectangle((x,190,x+832,510),fill=RADAR)
@@ -80,7 +79,7 @@ for x,call,instruction,caption in [(42,'SAS123','L03','3 minutes to lose'),(920,
  txt(d,(x+28,541),caption,34,INK,True)
 im.save(out/'acc-read-label.png')
 
-im,d=base('ACC · L03 → L00','Vector before the feeder. Turn towards it at L00.')
+im,d=base('ACC · L03 → L00','Vector before the feeder. Turn towards it at L00.',height=1000)
 for x,instruction in [(42,'L03'),(920,'L00')]:
  xy=radar(im,(x,232,832,520));d=ImageDraw.Draw(im)
  txt(d,(x,180),'1 · ABSORB TIME' if instruction=='L03' else '2 · TURN TOWARDS ELTOK',30,INK,True)
@@ -91,7 +90,7 @@ card(d,42,804,1,'L03',['Turn before the feeder to absorb time.'],w=838)
 card(d,920,804,2,'L00',['Turn in; the turn absorbs the last seconds.'],w=838)
 im.save(out/'acc-l03-example.png')
 
-im,d=base('ACC · Holding','The controller decides whether to hold.')
+im,d=base('ACC · Holding','The controller decides whether to hold.',height=910)
 xy=radar(im,(42,190,1088,680),holding=True);d=ImageDraw.Draw(im)
 plane(d,xy,59.886,16.805,'SAS456','L05',offset=(-70,-150))
 # The green racetrack is the ELTOK holding geometry from the installed ESAA sector file.
@@ -99,8 +98,6 @@ txt(d,(73,794),'ELTOK hold',28,WHITE,True)
 card(d,1170,185,1,'Set TopSky HOLD',['Select the feeder fix.'])
 card(d,1170,365,2,'Monitor L05 → L00',['Keep the assigned slot.'])
 card(d,1170,545,3,'At L00: turn in',['Clear TopSky HOLD','when leaving.'])
-d.rounded_rectangle((42,900,1758,1020),radius=12,fill=INK)
-txt(d,(72,940),'TopSky HOLD keeps line 0 visible through feeder crossings.',33,WHITE)
 im.save(out/'acc-holding-example.png')
 
 im,d=base('APP · Landing sequence','Use normal speeds and vectors to build the assigned order.')

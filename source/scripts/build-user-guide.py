@@ -9,7 +9,11 @@ source = (root / f'docs/{name}.md').read_text(encoding='utf-8')
 def inline(text):
     text = html.escape(text)
     text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
-    return re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', text)
+    text = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', text)
+    if name=='controller-guide':
+        for speed,colour in [('250 kt IAS','#f0e129'),('230 kt IAS','#ff737b')]:
+            text=text.replace('<strong>'+speed+'</strong>','<strong style="color:'+colour+';background-color:#243845;padding:2px 5px">'+speed+'</strong>')
+    return text
 lines = source.splitlines()
 blocks = []
 i = 0
@@ -34,10 +38,12 @@ while i < len(lines):
             rows.append([cell.strip() for cell in lines[i].strip('|').split('|')])
             i += 1
         assert len(rows) > 2 and all(re.fullmatch(r':?-+:?', cell) for cell in rows[1])
-        phase_colours = {'Blue':'#16417c','Green':'#96d796','White':'#ffffff','Turquoise':'#40e0d0','Pink':'#dc7daf'} if rows[0]==['Phase','Colour','Meaning'] else {}
+        phase_colours = {'Unstable':'#16417c','Stable':'#96d796','Superstable':'#ffffff','Frozen':'#40e0d0','Landed':'#dc7daf'} if rows[0]==['Phase','Meaning'] else {}
         def table_cell(c):
-            swatch = '<span aria-hidden="true" style="display:inline-block;width:0.85em;height:0.85em;vertical-align:middle;margin-right:0.4em;border:1px solid #77858d;background-color:'+phase_colours[c]+'"></span>' if c in phase_colours else ''
-            return '<td>'+swatch+inline(c)+'</td>'
+            if c in phase_colours:
+                background='#edf3f7' if c=='Unstable' else '#243845'
+                return '<td><strong style="color:'+phase_colours[c]+';background-color:'+background+';padding:2px 5px">'+inline(c)+'</strong></td>'
+            return '<td>'+inline(c)+'</td>'
         blocks.append('<table><thead><tr>' + ''.join('<th>' + inline(c) + '</th>' for c in rows[0]) + '</tr></thead><tbody>' + ''.join('<tr>' + ''.join(table_cell(c) for c in row) + '</tr>' for row in rows[2:]) + '</tbody></table>')
     elif line.startswith('- ') or re.match(r'^\d+\. ', line):
         ordered = not line.startswith('- ')
@@ -64,7 +70,14 @@ version=json.loads((root/'source/version.json').read_text(encoding='utf-8'))['ve
 document=document.replace('SAAMAN user guide',title).replace('SAAMAN 1.3.33','SAAMAN '+version)
 for path in re.findall(r'src="(images/[a-z0-9-]+\.png)"',document):
     document=document.replace('src="'+path+'"','src="data:image/png;base64,'+base64.b64encode((root/'docs'/path).read_bytes()).decode()+'"')
-outputs = {f'docs/{name}-wiki.html': fragment, f'docs/{name}.html': document}
+wiki_fragment=fragment
+wiki_images_path=root/f'docs/{name}-wiki-images.json'
+if wiki_images_path.exists():
+    for path,url in json.loads(wiki_images_path.read_text(encoding='utf-8')).items():
+        assert re.fullmatch(r'images/[a-z0-9-]+\.png',path), 'Invalid guide image path'
+        assert url.startswith('https://wiki.vatsim-scandinavia.org/uploads/images/'), 'Expected a wiki image upload URL'
+        wiki_fragment=wiki_fragment.replace('src="'+path+'"','src="'+html.escape(url,quote=True)+'"')
+outputs = {f'docs/{name}-wiki.html': wiki_fragment, f'docs/{name}.html': document}
 for name, content in outputs.items():
     target = root / name
     if '--check' in sys.argv:

@@ -44,11 +44,11 @@ When joining a fresh shared session as sequencer, SAAMAN reads the selected Euro
 
 Other receiving APP positions use Runway and FLOW. Those two views remain unfiltered for everyone.
 
-The red horizontal line marks **NOW**; later times appear above it. Use the left overview to scroll in time and the bottom scrollbar to move between columns. Click a clock beneath a timeline to change the label items.
+The red horizontal line marks **NOW**; later times appear above it. Use the left overview to scroll in time and the bottom scrollbar to move between columns.
 
 ## 4. Read aircraft labels
 
-Labels show the scheduled minute and callsign, with delay information and optional aircraft details. **TTL / L** means time to lose; **TTG / G** means time to gain. The **Information** window shows the detailed times, including seconds, and the remaining route.
+Labels show the scheduled minute and callsign, with delay information. Runway view also shows aircraft type and wake turbulence category; ACC view omits these. **TTL / L** means time to lose; **TTG / G** means time to gain. The **Information** window shows the detailed times, including seconds, and the remaining route.
 
 If an aircraft bypasses its feeder fix, the current feeder ETA is shown as **—**. The assigned feeder time and existing instruction remain until you change the sequence or Recompute.
 

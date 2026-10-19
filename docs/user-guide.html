@@ -20,9 +20,9 @@
 <h2>3. Choose a view</h2>
 <table><thead><tr><th>View</th><th>Use</th></tr></thead><tbody><tr><td>Runway</td><td>Landing sequence, grouped by runway. Use this when managing the overall landing order, closures and gaps.</td></tr><tr><td>ACC</td><td>Aircraft at their feeder fixes, limited to the fixes your current sector covers. Coverage updates when other sectors connect or disconnect.</td></tr><tr><td>ARR-W</td><td>Shown for ESSA_W_APP, including handover callsigns. Displays ELTOK traffic.</td></tr><tr><td>FLOW</td><td>Overview of all inbound feeder flows.</td></tr></tbody></table>
 <p>Other receiving APP positions use Runway and FLOW. Those two views remain unfiltered for everyone.</p>
-<p>The red horizontal line marks <strong>NOW</strong>; later times appear above it. Use the left overview to scroll in time and the bottom scrollbar to move between columns. Click a clock beneath a timeline to change the label items.</p>
+<p>The red horizontal line marks <strong>NOW</strong>; later times appear above it. Use the left overview to scroll in time and the bottom scrollbar to move between columns.</p>
 <h2>4. Read aircraft labels</h2>
-<p>Labels show the scheduled minute and callsign, with delay information and optional aircraft details. <strong>TTL / L</strong> means time to lose; <strong>TTG / G</strong> means time to gain. The <strong>Information</strong> window shows the detailed times, including seconds, and the remaining route.</p>
+<p>Labels show the scheduled minute and callsign, with delay information. Runway view also shows aircraft type and wake turbulence category; ACC view omits these. <strong>TTL / L</strong> means time to lose; <strong>TTG / G</strong> means time to gain. The <strong>Information</strong> window shows the detailed times, including seconds, and the remaining route.</p>
 <p>If an aircraft bypasses its feeder fix, the current feeder ETA is shown as <strong>—</strong>. The assigned feeder time and existing instruction remain until you change the sequence or Recompute.</p>
 <table><thead><tr><th>Callsign colour</th><th>State</th></tr></thead><tbody><tr><td>Blue</td><td>Unstable</td></tr><tr><td>Green</td><td>Stable</td></tr><tr><td>White</td><td>Superstable</td></tr><tr><td>Turquoise</td><td>Frozen</td></tr><tr><td>Pink</td><td>Landed</td></tr></tbody></table>
 <p>Submenus and dialogs can be moved outside AMAN by dragging their title bars.</p>
@@ -48,4 +48,4 @@
 <h2>TMA instructions and version warnings</h2>
 <p>After recorded feeder passage or accepted TMA entry, the timeline and Information show assigned sequence times without ACC gain/lose instructions. TopSky line 0 clears for those aircraft. Internal spacing and landing estimates remain available to the sequencer; Recompute and order changes still respect runway spacing. TopSky HOLD at the feeder keeps it upstream in AMAN and retains its line 0 instruction through holding crossings. The lose time reduces towards the protected feeder slot. Clear HOLD when leaving towards TMA.</p>
 <p>A sequencer-version warning compares the reported sequencer build with the local build and other reported connected builds. An older build is flagged; a DLL that cannot report its build is marked version unknown. It does not query private GitHub releases anonymously.</p>
-</main><footer>Controller guide for SAAMAN 1.3.34. All times UTC.</footer></body></html>
+</main><footer>Controller guide for SAAMAN 1.3.35. All times UTC.</footer></body></html>

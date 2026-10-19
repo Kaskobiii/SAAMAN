@@ -1,9 +1,11 @@
 import {DEFAULT_CONFIG} from './maestro-engine'
 import {mergeSharedSettings} from './maestro-settings'
 import {isTowerCallsign,canSequenceEssa} from './callsign-identity'
+import {APPLICATION_BUILD} from './build'
+import {sequencerVersionWarning} from './sequencer-version'
 type Send=(method:string,path:string,body?:any)=>Promise<any>
 type Receipt={digest:string;ok:boolean;message:string}
-type Envelope={protocol:'saaman-legacy-1';epoch:string;revision:number;owner:string;instanceId:string;lease:string;settingsRevision:number;settings:Record<string,unknown>;checkpoint:any;receipts:Record<string,Receipt>;publication:string;publishedAt:number}
+type Envelope={protocol:'saaman-legacy-1';epoch:string;revision:number;owner:string;instanceId:string;lease:string;settingsRevision:number;settings:Record<string,unknown>;checkpoint:any;receipts:Record<string,Receipt>;publication:string;publishedAt:number;engineVersion?:string}
 const copy=<T>(v:T):T=>JSON.parse(JSON.stringify(v))
 const fail=(message:string,status=409):never=>{throw Object.assign(new Error(message),{status})}
 async function digest(value:any){const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(value)));return [...new Uint8Array(hash)].map(x=>x.toString(16).padStart(2,'0')).join('')}
@@ -22,6 +24,10 @@ export class LegacyRelay {
     private role='disconnected'
     private pending=new Map<number,{from:string;requestId:string;digest:string;primary:number}>()
     private results=new Map<number,any>()
+    private preserveRunwayPlan=false
+    private reportedOwner=''
+    private reportedVersion:unknown
+    private knownVersions:unknown[]=[]
     constructor(private deps:{network:string;instanceId:string;send:Send;callsign:()=>string;cid:()=>number|null;supervisor:(callsign:string,claimedCid?:number)=>Promise<boolean>;now?:()=>number;requestId?:()=>string}){
         this.room=`/aman/${deps.network}/ESSA`;this.state=this.empty()
     }
@@ -48,7 +54,8 @@ export class LegacyRelay {
     private snapshot(role=this.role){
         const s=this.state,checkpoint=s.checkpoint
         return {epoch:s.epoch,revision:s.revision,role,settingsRevision:s.settingsRevision,settings:copy(s.settings),checkpoint:copy(checkpoint),updated:s.publishedAt,
-            stale:!checkpoint||this.now()-s.publishedAt>=30000,...(role==='sequencer'?{lease:s.lease}:{}),results:[...this.results.values()]}
+            sequencerWarning:sequencerVersionWarning(this.reportedOwner||s.owner,this.reportedVersion??s.engineVersion,[APPLICATION_BUILD.replace(/^SAAMAN /,''),...this.knownVersions]),
+            stale:!checkpoint||this.now()-s.publishedAt>=30000,...(role==='sequencer'?{lease:s.lease,preserveRunwayPlan:this.preserveRunwayPlan}:{}),results:[...this.results.values()]}
     }
     private remember(requestId:string,receipt:Receipt){
         this.state.receipts[requestId]=receipt
@@ -94,10 +101,14 @@ export class LegacyRelay {
         this.callsign=body.callsign;this.observer=body.observer===true;this.proxy=body.proxy===true
         if(this.observer||this.proxy||!canSequenceEssa(this.callsign)){await this.read();this.role=this.observer?'observer':'editor';return this.snapshot()}
         // Empty role forces an immediate answer; the API's normal long poll is 20 s.
-        const out=await this.deps.send('POST',this.room+'/poll',{callsign:this.callsign,role:'',version:body.revision||0,cmdAfter:0})
+        const out=await this.deps.send('POST',this.room+'/poll',{callsign:this.callsign,role:'',version:body.revision||0,cmdAfter:0,engineVersion:body.engine?.version})
         if(!['sequencer','editor'].includes(out.role)||!Number.isSafeInteger(out.version))fail('Invalid vatIRIS AMAN response',502)
         if(!out.sequence&&out.version===0&&this.state.revision>0)this.state=this.empty()
         this.adopt(out.sequence,out.version);this.state.revision=out.version;this.role=out.role
+        this.reportedOwner=typeof out.sequencer==='string'?out.sequencer:''
+        this.reportedVersion=out.sequencerVersion
+        this.knownVersions=Array.isArray(out.versions)?out.versions:[]
+        this.preserveRunwayPlan=out.role==='sequencer'&&!!this.state.checkpoint&&typeof out.handover?.callsign==='string'&&out.handover?.version===out.version
         for(const result of out.results||[])this.results.set(result.id,result)
         while(this.results.size>1000)this.results.delete(this.results.keys().next().value!)
         if(this.role==='sequencer'){
@@ -124,14 +135,21 @@ export class LegacyRelay {
             if(!receipt)break
             results.push({id,from:command.from,ok:receipt.ok,message:receipt.message});ack=id
         }
-        const next={...copy(this.state),revision:body.revision+1,checkpoint:copy(body.checkpoint),publication:body.requestId,publishedAt:this.now()}
-        const reply=await this.deps.send('PUT',this.room,{callsign:body.callsign,sequence:{...body.sequence,saamanRelay:next},results,cmdAck:ack})
+        const next={...copy(this.state),revision:body.revision+1,checkpoint:copy(body.checkpoint),publication:body.requestId,publishedAt:this.now(),engineVersion:body.engine?.version}
+        const reply=await this.deps.send('PUT',this.room,{callsign:body.callsign,sequence:{...body.sequence,saamanRelay:next},results,cmdAck:ack,expectedVersion:body.revision})
         if(!Number.isSafeInteger(reply.version))fail('Invalid vatIRIS publication response',502)
         this.state={...next,revision:reply.version};this.pending.clear();return {revision:reply.version}
     }
     private async command(body:any){
         if(body.epoch!==this.state.epoch)fail('Shared sequence changed; reload and retry')
-        const reply=await this.deps.send('POST',this.room+'/command',{callsign:body.callsign,cmd:{op:'saaman-command',requestId:body.requestId,epoch:body.epoch,settingsRevision:this.state.settingsRevision,cid:this.deps.cid(),cmd:body.cmd}})
+        const takeSequencer=body.cmd?.op==='plan'&&body.cmd.takeSequencer===true&&canSequenceEssa(body.callsign)&&this.state.owner!==body.callsign
+        if(takeSequencer){
+            let supported=false
+            try{supported=(await this.deps.send('GET','/aman/capabilities'))?.runwayHandover===1}
+            catch(e:any){if((e.status||e.response?.status)!==404)throw e}
+            if(!supported)fail('The vatIRIS backend needs the runway-handover update before another controller can apply this configuration')
+        }
+        const reply=await this.deps.send('POST',this.room+'/command',{callsign:body.callsign,...(takeSequencer?{takeSequencer:true}:{}),cmd:{op:'saaman-command',requestId:body.requestId,epoch:body.epoch,settingsRevision:this.state.settingsRevision,cid:this.deps.cid(),cmd:body.cmd}})
         if(Number.isSafeInteger(reply.id)){this.commandIds.set(reply.id,body.requestId);while(this.commandIds.size>1000)this.commandIds.delete(this.commandIds.keys().next().value!)}
         return reply
     }

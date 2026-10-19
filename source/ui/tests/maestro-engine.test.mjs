@@ -627,7 +627,7 @@ test('a white reorder recomputes work for the actual new leader and follower',()
         assert.equal(moved.flights.find(f=>f.callsign==='DLH2JT').delay,0)
         assert.equal(moved.flights.find(f=>f.callsign==='FIN6X').delay,235)
     }
-    assert.equal(toJuhaSequence(moved,c,edits).sequence.find(f=>f.callsign==='FIN6X').ttlttg_ff,180)
+    assert.equal(toJuhaSequence(moved,c,edits).sequence.find(f=>f.callsign==='FIN6X').ttlttg_ff,0,'TMA slot difference is not an ACC instruction')
     c.slots=[{id:'close',runway:'ESSA/19R',begin:time+530000,end:time+640000}]
     const closed=runEngine(packet(time+20000,inputs.map(f=>({...f,landingSeconds:f.landingSeconds-20}))),c,edits,moved)
     assert.ok(closed.flights.some(f=>f.delay>0),'closure delays remain visible')
@@ -992,7 +992,7 @@ test('SAS898 moving from minute 24 to 22 satisfies its old two-minute lose instr
   assert.equal(moved.flights.find(f=>f.callsign==='SAS898').delay,0)
  }
 })
-test('EuroScope gain/lose stops 12 NM after the feeder, not 12 NM before it, and stays suppressed after turning back',()=>{
+test('EuroScope gain/lose ends at TMA entry and stays suppressed after turning back',()=>{
  const c=config();c.unstableSeconds=0;c.minimumNewSeconds=0;c.frozenMinutes=0
  const fix={latitude:59.824444,longitude:16.989917}
  const p=plane('TTLTEST',1400,{route:[{name:'ELTOK',seconds:-1}],latitude:fix.latitude-.18,longitude:fix.longitude})
@@ -1000,7 +1000,7 @@ test('EuroScope gain/lose stops 12 NM after the feeder, not 12 NM before it, and
  const seed={...first,flights:first.flights.map(f=>({...f,sta:f.sta+120000,delay:120,tmaTiming:{delay:120,rateSeconds:115,instructionSource:'manual'}}))}
  const edits={TTLTEST:{target:time+1520000,targetKind:'time'}}
  const near=runEngine(packet(time+1000,[{...p,landingSeconds:1399}]),c,edits,seed)
- assert.ok(near.flights[0].feederDistanceNm<12);assert.equal(euroscopeInstruction(near.flights[0]),120)
+ assert.ok(near.flights[0].feederDistanceNm<12);assert.equal(euroscopeInstruction(near.flights[0]),0)
  const far=runEngine(packet(time+2000,[{...p,latitude:fix.latitude-.21,landingSeconds:1398}]),c,edits,near)
  assert.ok(far.flights[0].feederDistanceNm>=12);assert.equal(far.flights[0].delay,120)
  assert.equal(euroscopeInstruction(far.flights[0]),0);assert.equal(toJuhaSequence(far,c,{}).sequence[0].ttlttg_ff,0)

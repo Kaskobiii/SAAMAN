@@ -6,27 +6,38 @@ import sectorGeometry from './fixtures/essa-sector-runway-geometry.json' with {t
 
 // Contract fixture for the existing vatIRIS routes: no scoped rooms, CAS,
 // tokens, retry IDs, checkpoints or supervisor endpoints on the server.
-function setup(){
+function setup(extensions=false){
     let now=Date.now(),serial=0,version=0,sequence=null,owner='',seen=0,commands=[],next=0,failure=''
-    const results=new Map(),requests=[],copy=v=>JSON.parse(JSON.stringify(v))
+    const results=new Map(),requests=[],copy=v=>JSON.parse(JSON.stringify(v)),preferred=new Map()
+    let handover
+    const rank=cs=>cs.replace(/_+/g,'_')==='ESSA_E_APP'?0:cs==='ESSA_FMP'?1:2
+    const best=candidate=>{const active=[...preferred].filter(([,seen])=>now-seen<8000).map(([cs])=>cs);if(candidate&&!active.includes(candidate))active.push(candidate);active.sort((a,b)=>rank(a)-rank(b)||(a===owner?-1:b===owner?1:a.localeCompare(b)));return candidate&&rank(candidate)===rank(active[0]||candidate)?candidate:active[0]}
     const error=(message,status)=>{throw Object.assign(new Error(message),{status})}
     const alive=()=>owner&&now-seen<8000
     const send=async(method,path,body)=>{
         requests.push({method,path,body:body&&copy(body)})
+        if(path==='/aman/capabilities'){if(!extensions)error('Not found',404);return {runwayHandover:1,essaPriority:1}}
         assert.match(path,/^\/aman\/sweatbox1\/ESSA(?:\/(?:poll|command|leave))?$/)
         if(failure==='offline')error('Disconnected',503)
         if(method==='GET'){if(!sequence||now-sequence.saamanRelay.publishedAt>=30000)error('Not found',404);return copy(sequence)}
         const call=body.callsign
-        if(path.endsWith('/leave')){if(owner===call)owner='';return 'ok'}
-        if(path.endsWith('/command')){if(!alive())error('No sequencer',503);const id=++next;commands.push({id,from:call,cmd:copy(body.cmd)});if(failure==='command'){failure='';error('Response lost',503)}return {id}}
+        if(path.endsWith('/leave')){preferred.delete(call);if(owner===call)owner='';return 'ok'}
+        if(path.endsWith('/command')){if(!alive())error('No sequencer',503);const id=++next;commands.push({id,from:call,cmd:copy(body.cmd),...(body.takeSequencer?{takeSequencer:true}:{})});if(failure==='command'){failure='';error('Response lost',503)}return {id}}
+        if(extensions&&path.endsWith('/poll'))preferred.set(call,now)
+        const elected=extensions&&best()
+        if(elected&&elected!==owner){handover={from:owner,callsign:elected,version};owner=elected;seen=now}
         if(!alive())owner=call
         if(path.endsWith('/poll')){
             if(owner===call)seen=now
-            const out={role:owner===call?'sequencer':'editor',sequencer:owner,version,users:[call],sequence:sequence&&copy(sequence),commands:owner===call?copy(commands):[],results:results.get(call)||[]}
+            const out={role:owner===call?'sequencer':'editor',sequencer:owner,version,users:[call],sequence:sequence&&copy(sequence),commands:owner===call?copy(commands):[],results:results.get(call)||[],...(handover?.version===version?{handover}:{})}
             results.delete(call);return out
         }
         if(owner!==call)error('Another sequencer',409)
+        if(extensions&&body.expectedVersion!==undefined&&body.expectedVersion!==version)error('Stale publication',409)
         seen=now;sequence=copy(body.sequence);version++
+        const transfers=(body.results||[]).filter(r=>r.ok&&commands.some(c=>c.id===r.id&&c.from===r.from&&c.takeSequencer&&c.id<=body.cmdAck)).sort((a,b)=>b.id-a.id)
+        const successor=extensions&&transfers.length&&best(transfers[0].from)
+        if(successor&&successor!==owner){handover={from:owner,callsign:successor,version};owner=successor;seen=now}
         commands=commands.filter(c=>c.id>body.cmdAck)
         for(const r of body.results||[])results.set(r.from,[...(results.get(r.from)||[]),r])
         if(failure==='publication'){failure='';error('Response lost',503)}
@@ -41,6 +52,35 @@ function setup(){
     }
     return {client,requests,advance:ms=>now+=ms,failure:value=>failure=value,reset:()=>{sequence=null;owner='';version=0;commands=[];results.clear()},state:()=>copy({sequence,commands,version,owner}),foreign:()=>{sequence={data:{icao:'ESSA'},sequence:[]};version=1}}
 }
+test('priority handover preserves the published runway plan instead of reseeding from the new owner',async()=>{
+ const f=setup(true),north=f.client('north','ESOS_1_CTR',null),fmp=f.client('fmp','ESSA_FMP',null,{arrivals:['ESSA/19L'],departures:['ESSA/19R']}),east=f.client('east','ESSA_E_APP',null,{arrivals:['ESSA/26'],departures:['ESSA/08']})
+ await north.relay.tick()
+ assert.equal((await fmp.relay.tick()).relayRole,'sequencer');assert.deepEqual(fmp.relay.view().config.active,['ESSA/01R'])
+ assert.equal((await east.relay.tick()).relayRole,'sequencer');assert.deepEqual(east.relay.view().config.active,['ESSA/01R'])
+ assert.equal((await fmp.relay.tick()).relayRole,'editor');assert.equal(f.state().owner,'ESSA_E_APP')
+ const base=fmp.relay.view(),drive=setInterval(()=>void east.relay.tick().catch(()=>{}),20)
+ try{await fmp.relay.edit(base.revision,base.edits,{...base.config,active:['ESSA/19L'],departureRunway:'ESSA/19R'},true)}finally{clearInterval(drive)}
+ assert.equal(f.state().owner,'ESSA_E_APP');assert.deepEqual((await east.relay.tick()).config.active,['ESSA/19L'])
+ assert.ok(f.requests.some(r=>r.path.endsWith('/command')&&r.body.takeSequencer===true))
+})
+
+test('explicit runway Apply transfers between peers after acknowledgement; stale local flags cannot undo it',async()=>{
+ const f=setup(true),north=f.client('north','ESOS_1_CTR',null),west=f.client('west','ESSA_W_APP',null)
+ await north.relay.tick();const base=await west.relay.tick()
+ const drive=setInterval(()=>void north.relay.tick().catch(()=>{}),20)
+ try{await west.relay.edit(base.revision,base.edits,{...base.config,active:['ESSA/19L'],departureRunway:'ESSA/19R'},true)}finally{clearInterval(drive)}
+ assert.equal(f.state().owner,'ESSA_W_APP');assert.equal((await west.relay.tick()).relayRole,'sequencer')
+ assert.deepEqual(west.relay.view().config.active,['ESSA/19L']);assert.equal((await north.relay.tick()).relayRole,'editor')
+})
+
+test('runway takeover on an old backend is rejected clearly before changing the plan',async()=>{
+ const f=setup(),north=f.client('north','ESOS_1_CTR',null),west=f.client('west','ESSA_W_APP',null)
+ await north.relay.tick();const base=await west.relay.tick(),count=f.requests.filter(r=>r.path.endsWith('/command')).length
+ await assert.rejects(west.relay.edit(base.revision,base.edits,{...base.config,active:['ESSA/19L']},true),/backend needs the runway-handover update/)
+ assert.equal(f.requests.filter(r=>r.path.endsWith('/command')).length,count)
+ assert.deepEqual(f.state().sequence.saamanRelay.checkpoint.operational.active,['ESSA/01R'])
+})
+
 test('unchanged callsign API shares full engine state and active runways with no login/identity endpoint',async()=>{
     const f=setup(),a=f.client('instance-a','ESSA_APP',1396125),b=f.client('instance-b','ESSA_E_APP',null)
     const first=await a.relay.tick(),second=await b.relay.tick()

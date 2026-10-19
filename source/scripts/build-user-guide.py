@@ -1,13 +1,16 @@
 """Render the small Markdown subset used by the controller guide, without dependencies."""
 from pathlib import Path
-import html, re, sys
+import html, re, sys, base64, json
 
 root = Path(__file__).resolve().parents[2]
-source = (root / 'docs/user-guide.md').read_text(encoding='utf-8')
+name = 'controller-guide' if '--controller' in sys.argv else 'user-guide'
+title = 'SAAMAN controller guide' if name=='controller-guide' else 'SAAMAN user guide'
+source = (root / f'docs/{name}.md').read_text(encoding='utf-8')
 def inline(text):
     text = html.escape(text)
     text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
-    return re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', text)
+    text = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', text)
+    return text
 lines = source.splitlines()
 blocks = []
 i = 0
@@ -22,13 +25,23 @@ while i < len(lines):
     if line.startswith('## '):
         blocks.append('<h2>' + inline(line[3:]) + '</h2>')
         i += 1
+    elif re.fullmatch(r'!\[([^]]*)\]\((images/[a-z0-9-]+\.png)\)',line):
+        alt,path=re.fullmatch(r'!\[([^]]*)\]\((images/[a-z0-9-]+\.png)\)',line).groups()
+        blocks.append('<p><img src="'+path+'" alt="'+html.escape(alt,quote=True)+'" width="1400" style="max-width:100%;height:auto"></p>')
+        i+=1
     elif line.startswith('|'):
         rows = []
         while i < len(lines) and lines[i].startswith('|'):
             rows.append([cell.strip() for cell in lines[i].strip('|').split('|')])
             i += 1
         assert len(rows) > 2 and all(re.fullmatch(r':?-+:?', cell) for cell in rows[1])
-        blocks.append('<table><thead><tr>' + ''.join('<th>' + inline(c) + '</th>' for c in rows[0]) + '</tr></thead><tbody>' + ''.join('<tr>' + ''.join('<td>' + inline(c) + '</td>' for c in row) + '</tr>' for row in rows[2:]) + '</tbody></table>')
+        phase_colours = {'Unstable':'#16417c','Stable':'#96d796','Superstable':'#ffffff','Frozen':'#40e0d0','Landed':'#dc7daf'} if rows[0]==['Phase','Meaning'] else {}
+        def table_cell(c):
+            if c in phase_colours:
+                background='#edf3f7' if c=='Unstable' else '#243845'
+                return '<td><strong style="color:'+phase_colours[c]+';background-color:'+background+';padding:2px 5px">'+inline(c)+'</strong></td>'
+            return '<td>'+inline(c)+'</td>'
+        blocks.append('<table><thead><tr>' + ''.join('<th>' + inline(c) + '</th>' for c in rows[0]) + '</tr></thead><tbody>' + ''.join('<tr>' + ''.join(table_cell(c) for c in row) + '</tr>' for row in rows[2:]) + '</tbody></table>')
     elif line.startswith('- ') or re.match(r'^\d+\. ', line):
         ordered = not line.startswith('- ')
         tag = 'ol' if ordered else 'ul'
@@ -50,7 +63,18 @@ document = '''<!doctype html>
 *{box-sizing:border-box}body{margin:0;background:#f1f5f6;color:#152c38;font:16px/1.6 Arial,Helvetica,sans-serif}header{background:#011328;color:white;border-bottom:5px solid #43c6e7;padding:28px max(24px,calc((100% - 920px)/2))}header p{margin:0;color:#bde5ef;font-size:13px;letter-spacing:1px}h1{margin:6px 0;font-size:34px;line-height:1.2}main{max-width:920px;margin:0 auto;padding:28px 32px 48px;background:white}h2{font-size:23px;margin:32px 0 14px;border-bottom:2px solid #43c6e7;padding-bottom:7px;line-height:1.3}p{margin:12px 0}li{padding:3px 0}table{width:100%;border-collapse:collapse;margin:18px 0;font-size:15px}th{background:#1a475f;color:white;text-align:left}td,th{padding:9px 12px;border:1px solid #ccd9df;vertical-align:top}tbody tr:nth-child(even){background:#f1f6f8}code{font:0.94em Consolas,monospace;background:#eef3f5;padding:2px 4px;overflow-wrap:anywhere}footer{max-width:920px;margin:auto;padding:16px 32px;color:#48606d;font-size:13px}@media(max-width:600px){main{padding:18px}h1{font-size:28px}table{font-size:14px}td,th{padding:8px}}@media print{body{background:white;font-size:11pt}header{background:white;color:#152c38;padding:0 0 12px}header p{color:#48606d}main{padding:0;max-width:none}h2{break-after:avoid;font-size:16pt}tr{break-inside:avoid}footer{padding:12px 0}}
 </style></head><body><header><p>EUROSCOPE · ESSA</p><h1>SAAMAN user guide</h1></header><main>''' + fragment + '''</main><footer>Controller guide for SAAMAN 1.3.33. All times UTC.</footer></body></html>
 '''
-outputs = {'docs/user-guide-wiki.html': fragment, 'docs/user-guide.html': document}
+version=json.loads((root/'source/version.json').read_text(encoding='utf-8'))['version']
+document=document.replace('SAAMAN user guide',title).replace('SAAMAN 1.3.33','SAAMAN '+version)
+for path in re.findall(r'src="(images/[a-z0-9-]+\.png)"',document):
+    document=document.replace('src="'+path+'"','src="data:image/png;base64,'+base64.b64encode((root/'docs'/path).read_bytes()).decode()+'"')
+wiki_fragment=fragment
+wiki_images_path=root/f'docs/{name}-wiki-images.json'
+if wiki_images_path.exists():
+    for path,url in json.loads(wiki_images_path.read_text(encoding='utf-8')).items():
+        assert re.fullmatch(r'images/[a-z0-9-]+\.png',path), 'Invalid guide image path'
+        assert url.startswith('https://wiki.vatsim-scandinavia.org/uploads/images/'), 'Expected a wiki image upload URL'
+        wiki_fragment=wiki_fragment.replace('src="'+path+'"','src="'+html.escape(url,quote=True)+'"')
+outputs = {f'docs/{name}-wiki.html': wiki_fragment, f'docs/{name}.html': document}
 for name, content in outputs.items():
     target = root / name
     if '--check' in sys.argv:

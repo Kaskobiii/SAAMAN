@@ -17,8 +17,11 @@ export function retainedFeederPassages(input:Telemetry,previous?:EngineSnapshot)
 export function observedFeeder(p:TelemetryFlight,old:EngineFlight|undefined,now:number,config:EngineConfig,remembered?:FeederPassage){
  const names:string[]=FEEDERS.filter(f=>f.airport===p.arrival).flatMap(f=>[...f.fixes])
  const star=(p.star??'').toUpperCase().replace(/[^A-Z0-9]/g,'')
- const name=old?.amanRoute?.find(point=>names.includes(point.name))?.name??(old?.ff&&names.includes(old.ff)?old.ff:p.route.find(point=>names.includes(point.name))?.name??names.find(name=>star.startsWith(name))??remembered?.ff)
+ const holding=names.includes(p.topskyHoldingPoint??'')&&(p.positionAgeSeconds??0)<=15?p.topskyHoldingPoint:undefined
+ const name=holding??old?.amanRoute?.find(point=>names.includes(point.name))?.name??(old?.ff&&names.includes(old.ff)?old.ff:p.route.find(point=>names.includes(point.name))?.name??names.find(name=>star.startsWith(name))??remembered?.ff)
  const raw=p.route.find(point=>point.name===name),fix=old?.amanRoute?.find(point=>point.name===name)??raw??STAR_FEEDERS[name??'']
+ if(holding&&positioned(p)&&positioned(fix)&&p.groundspeed>=60&&distanceNm(p as any,fix as any)<=12)
+  return {feeder:name,seconds:distanceNm(p as any,fix as any)/p.groundspeed*3600,passed:false,available:true,source:'holding'}
  let crossed=false
  if(positioned(p)&&positioned(fix)){
   const threshold=p.threshold??STAR_RUNWAYS[p.runway],a=localPosition(p as any,fix as any),b=positioned(threshold)?localPosition(threshold!,fix as any):undefined

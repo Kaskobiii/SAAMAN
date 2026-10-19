@@ -25,7 +25,7 @@ async function relayApi(method:string,path:string,body:any={}){
     if(method==='PUT'&&path==='/maestro/ESSA/settings')return relay.saveSettings(body.revision,body.settings)
     if(method==='POST'&&path==='/maestro/ESSA/master')return relay.setObserver(body.release===true)
     if(method==='POST'&&path==='/maestro/ESSA/coordination')return relay.coordinate(body.message,body.acknowledge)
-    if(method==='PUT'&&path==='/maestro/ESSA')return relay.edit(body.revision,body.edits,body.config)
+    if(method==='PUT'&&path==='/maestro/ESSA')return relay.edit(body.revision,body.edits,body.config,body.takeSequencer===true)
     if(method==='GET'&&path==='/maestro/ESSA')return relay.tick()
     throw new Error('Unsupported shared plugin operation')
 }

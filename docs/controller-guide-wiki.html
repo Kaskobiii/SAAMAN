@@ -1,18 +1,22 @@
 <h2>Start</h2>
 <p>Load the current DLL in every instance, with SAAMAN above TopSky. Select ESSA ARR/DEP, press <strong>Sync EuroScope</strong>, and check <strong>LIVE</strong>.</p>
+<h2>Operating procedures</h2>
+<ul><li><strong>ACC acts on lose instructions.</strong> Use speed control, vectoring or holding to absorb the delay before the feeder.</li><li><strong>Gain is advisory:</strong> a more direct routing may be useful when available.</li><li><strong>Entry speeds:</strong> a yellow delay number in AMAN means <strong>250 kt IAS</strong> at the feeder; red means <strong>230 kt IAS</strong>.</li><li><strong>STA-FF</strong> is the assigned feeder crossing time. Use it as AMAN’s <strong>EAT (Expected Approach Time)</strong> for entry into TMA.</li></ul>
+<p>AMAN accounts for <strong>wind</strong> in its predictions and <strong>wake-turbulence categories</strong> in its sequencing.</p>
+<h2>Phases</h2>
+<p>The callsign colour in AMAN shows the phase.</p>
+<table><thead><tr><th>Phase</th><th>Colour</th><th>Meaning</th></tr></thead><tbody><tr><td>Unstable</td><td><span aria-hidden="true" style="display:inline-block;width:0.85em;height:0.85em;vertical-align:middle;margin-right:0.4em;border:1px solid #77858d;background-color:#16417c"></span>Blue</td><td>Provisional order and times; change as estimates update.</td></tr><tr><td>Stable</td><td><span aria-hidden="true" style="display:inline-block;width:0.85em;height:0.85em;vertical-align:middle;margin-right:0.4em;border:1px solid #77858d;background-color:#96d796"></span>Green</td><td>Accepted sequence; earlier new arrivals or manual edits can change the order.</td></tr><tr><td>Superstable</td><td><span aria-hidden="true" style="display:inline-block;width:0.85em;height:0.85em;vertical-align:middle;margin-right:0.4em;border:1px solid #77858d;background-color:#ffffff"></span>White</td><td>Near the feeder or inside TMA; the accepted sequence is protected from automatic reordering.</td></tr><tr><td>Frozen</td><td><span aria-hidden="true" style="display:inline-block;width:0.85em;height:0.85em;vertical-align:middle;margin-right:0.4em;border:1px solid #77858d;background-color:#40e0d0"></span>Turquoise</td><td>Close to landing; the assigned slot is protected.</td></tr><tr><td>Landed</td><td><span aria-hidden="true" style="display:inline-block;width:0.85em;height:0.85em;vertical-align:middle;margin-right:0.4em;border:1px solid #77858d;background-color:#dc7daf"></span>Pink</td><td>Landing confirmed; retained briefly as history.</td></tr></tbody></table>
 <h2>ACC: gain and lose time</h2>
-<p><img src="images/acc-read-label.png" alt="ELTOK vector with a white boxed TopSky-style label showing L03, on a map with the Stockholm TMA boundary" width="1400" style="max-width:100%;height:auto"></p>
-<p><strong>L03:</strong> lose three minutes before the feeder. <strong>G:</strong> time to gain.</p>
-<p><strong>In AMAN:</strong> yellow number = <strong>250 kt</strong> entry; red = <strong>230 kt</strong> entry. Both are IAS. Radar line 0 stays white.</p>
+<p><img src="images/acc-read-label.png" alt="Radar tag close-ups: SAS123 has L03, three minutes to lose; FIN456 has G02, two minutes to gain" width="1400" style="max-width:100%;height:auto"></p>
 <h2>ACC: vectors</h2>
 <p><img src="images/acc-l03-example.png" alt="A curved vector before ELTOK: SAS123 shows L03 outbound and L00 when turning towards the feeder" width="1400" style="max-width:100%;height:auto"></p>
 <p>At <strong>L00</strong>, turn towards the feeder; the turn absorbs the last seconds.</p>
 <p><strong>The final sequence is your decision.</strong> Click two aircraft on your feeder to swap them; their assigned times and lose/gain instructions update.</p>
 <h2>ACC: holding</h2>
-<p><img src="images/acc-holding-example.png" alt="SAS456 holding at ELTOK with L05 in a white boxed radar label" width="1400" style="max-width:100%;height:auto"></p>
+<p><img src="images/acc-holding-example.png" alt="SAS456 holding at ELTOK with L05" width="1400" style="max-width:100%;height:auto"></p>
 <p>Set <strong>TopSky HOLD</strong> at the feeder. Monitor the instruction, leave towards TMA at <strong>L00</strong>, and clear HOLD. Keep the assigned slot; do not repeatedly Recompute during the hold.</p>
 <h2>APP: landing sequence</h2>
-<p><img src="images/app-sequence-example.png" alt="Runway 19L sequence: SAS123 at 1500 feet followed by RYR782 at 2500 feet, with white boxed radar labels" width="1400" style="max-width:100%;height:auto"></p>
+<p><img src="images/app-sequence-example.png" alt="Runway 19L landing order with SAS123 followed by RYR782" width="1400" style="max-width:100%;height:auto"></p>
 <p>Use <strong>Runway</strong> to build the landing order. <strong>Click two aircraft to swap</strong>, or <strong>drag</strong> one to the insertion arrow. Inside TMA, use sequence times; ACC lose/gain instructions are hidden.</p>
 <h2>Advanced</h2>
 <p><strong>Views</strong></p>

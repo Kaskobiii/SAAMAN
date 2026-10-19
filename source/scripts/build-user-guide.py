@@ -34,7 +34,11 @@ while i < len(lines):
             rows.append([cell.strip() for cell in lines[i].strip('|').split('|')])
             i += 1
         assert len(rows) > 2 and all(re.fullmatch(r':?-+:?', cell) for cell in rows[1])
-        blocks.append('<table><thead><tr>' + ''.join('<th>' + inline(c) + '</th>' for c in rows[0]) + '</tr></thead><tbody>' + ''.join('<tr>' + ''.join('<td>' + inline(c) + '</td>' for c in row) + '</tr>' for row in rows[2:]) + '</tbody></table>')
+        phase_colours = {'Blue':'#16417c','Green':'#96d796','White':'#ffffff','Turquoise':'#40e0d0','Pink':'#dc7daf'} if rows[0]==['Phase','Colour','Meaning'] else {}
+        def table_cell(c):
+            swatch = '<span aria-hidden="true" style="display:inline-block;width:0.85em;height:0.85em;vertical-align:middle;margin-right:0.4em;border:1px solid #77858d;background-color:'+phase_colours[c]+'"></span>' if c in phase_colours else ''
+            return '<td>'+swatch+inline(c)+'</td>'
+        blocks.append('<table><thead><tr>' + ''.join('<th>' + inline(c) + '</th>' for c in rows[0]) + '</tr></thead><tbody>' + ''.join('<tr>' + ''.join(table_cell(c) for c in row) + '</tr>' for row in rows[2:]) + '</tbody></table>')
     elif line.startswith('- ') or re.match(r'^\d+\. ', line):
         ordered = not line.startswith('- ')
         tag = 'ol' if ordered else 'ul'

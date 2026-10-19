@@ -4,13 +4,30 @@
 
 Load the current DLL in every instance, with SAAMAN above TopSky. Select ESSA ARR/DEP, press **Sync EuroScope**, and check **LIVE**.
 
+## Operating procedures
+
+- **ACC acts on lose instructions.** Use speed control, vectoring or holding to absorb the delay before the feeder.
+- **Gain is advisory:** a more direct routing may be useful when available.
+- **Entry speeds:** a yellow delay number in AMAN means **250 kt IAS** at the feeder; red means **230 kt IAS**.
+- **STA-FF** is the assigned feeder crossing time. Use it as AMAN’s **EAT (Expected Approach Time)** for entry into TMA.
+
+AMAN accounts for **wind** in its predictions and **wake-turbulence categories** in its sequencing.
+
+## Phases
+
+The callsign colour in AMAN shows the phase.
+
+| Phase | Colour | Meaning |
+|---|---|---|
+| Unstable | Blue | Provisional order and times; change as estimates update. |
+| Stable | Green | Accepted sequence; earlier new arrivals or manual edits can change the order. |
+| Superstable | White | Near the feeder or inside TMA; the accepted sequence is protected from automatic reordering. |
+| Frozen | Turquoise | Close to landing; the assigned slot is protected. |
+| Landed | Pink | Landing confirmed; retained briefly as history. |
+
 ## ACC: gain and lose time
 
-![ELTOK vector with a white boxed TopSky-style label showing L03, on a map with the Stockholm TMA boundary](images/acc-read-label.png)
-
-**L03:** lose three minutes before the feeder. **G:** time to gain.
-
-**In AMAN:** yellow number = **250 kt** entry; red = **230 kt** entry. Both are IAS. Radar line 0 stays white.
+![Radar tag close-ups: SAS123 has L03, three minutes to lose; FIN456 has G02, two minutes to gain](images/acc-read-label.png)
 
 ## ACC: vectors
 
@@ -22,13 +39,13 @@ At **L00**, turn towards the feeder; the turn absorbs the last seconds.
 
 ## ACC: holding
 
-![SAS456 holding at ELTOK with L05 in a white boxed radar label](images/acc-holding-example.png)
+![SAS456 holding at ELTOK with L05](images/acc-holding-example.png)
 
 Set **TopSky HOLD** at the feeder. Monitor the instruction, leave towards TMA at **L00**, and clear HOLD. Keep the assigned slot; do not repeatedly Recompute during the hold.
 
 ## APP: landing sequence
 
-![Runway 19L sequence: SAS123 at 1500 feet followed by RYR782 at 2500 feet, with white boxed radar labels](images/app-sequence-example.png)
+![Runway 19L landing order with SAS123 followed by RYR782](images/app-sequence-example.png)
 
 Use **Runway** to build the landing order. **Click two aircraft to swap**, or **drag** one to the insertion arrow. Inside TMA, use sequence times; ACC lose/gain instructions are hidden.
 

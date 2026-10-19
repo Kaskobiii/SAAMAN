@@ -9,10 +9,10 @@ BG='#eef3f6';INK='#142e40';RADAR='#424a4e';GREEN='#a6e3a1';RED='#ff737b';YELLOW=
 BOUNDS=(16.2,59.46,18.35,60.15)
 def f(n,bold=False,mono=False):return ImageFont.truetype('C:/Windows/Fonts/'+('consolab.ttf' if mono else 'arialbd.ttf' if bold else 'arial.ttf'),n)
 def txt(d,xy,s,n=30,c=INK,b=False,mono=False):d.text(xy,s,font=f(n,b,mono),fill=c)
-def base(title,sub):
- im=Image.new('RGB',(W,H),BG);d=ImageDraw.Draw(im);d.rectangle((0,0,W,144),fill=INK)
+def base(title,sub,height=H):
+ im=Image.new('RGB',(W,height),BG);d=ImageDraw.Draw(im);d.rectangle((0,0,W,144),fill=INK)
  txt(d,(44,27),title,48,'white',True);txt(d,(46,91),sub,27,'#cae1ef')
- txt(d,(44,1054),'ESSA · ILLUSTRATED TRAFFIC · UTC',21,'#536878')
+ txt(d,(44,height-46),'ESSA · ILLUSTRATED TRAFFIC · UTC',21,'#536878')
  return im,d
 def arrow(d,a,b,c=PATH,width=4):
  d.line((a,b),fill=c,width=width);angle=math.atan2(b[1]-a[1],b[0]-a[0]);p=[(b[0]-15*math.cos(angle+v),b[1]-15*math.sin(angle+v)) for v in [-.5,.5]];d.polygon([b,*p],fill=c)
@@ -50,7 +50,7 @@ def radar(im,box,holding=False):
  txt(d,(x+w-40,y+16),'N',23,WHITE,True);arrow(d,(x+w-31,y+68),(x+w-31,y+44),WHITE,2)
  return xy
 def plane(d,xy,lat,lon,call,instruction='',details='140 ↓ N250',offset=(26,-120)):
- x,y=xy(lat,lon);d.rectangle((x-6,y-6,x+6,y+6),outline=WHITE,width=2)
+ x,y=xy(lat,lon);d.rectangle((x-6,y-6,x+6,y+6),fill=WHITE)
  tx,ty=x+offset[0],y+offset[1]
  lines=([instruction] if instruction else [])+[call+' M',details]
  label_font=f(27,mono=True)
@@ -72,15 +72,12 @@ def example_vector(d,xy):
  # Illustrative upstream vector: turn south, then return towards the real feeder.
  path(d,[xy(59.99,16.40),xy(59.95,16.50),xy(59.82,16.50),xy(59.74,16.54),xy(59.73,16.64),xy(59.78,16.80),feeder(xy)])
 
-im,d=base('ACC · Gain and lose time','L = lose time · G = gain time')
-xy=radar(im,(42,190,1088,680));d=ImageDraw.Draw(im);example_vector(d,xy)
-tx,ty=plane(d,xy,59.92,16.50,'SAS123','L03')
-txt(d,(72,794),'Vector before ELTOK',29,WHITE,True)
-card(d,1170,190,1,'L03',['Lose 3 minutes.'])
-card(d,1170,365,2,'G02',['Gain 2 minutes.'])
-card(d,1170,540,3,'Information · STA-FF',['Assigned feeder time.'])
-d.rounded_rectangle((42,900,1758,1024),radius=12,fill=INK)
-txt(d,(72,918),'IN AMAN',23,WHITE,True);txt(d,(72,956),'Yellow number → 250 kt entry',33,YELLOW,True);txt(d,(928,956),'Red number → 230 kt entry',33,RED,True)
+im,d=base('ACC · Gain and lose time','Time relative to the assigned feeder slot',height=650)
+# Tag close-ups explain L/G; the separate vector figure explains the manoeuvre.
+for x,call,instruction,caption in [(42,'SAS123','L03','3 minutes to lose'),(920,'FIN456','G02','2 minutes to gain')]:
+ d.rectangle((x,190,x+832,510),fill=RADAR)
+ plane(d,lambda a,b:(a,b),x+90,425,call,instruction,offset=(44,-142))
+ txt(d,(x+28,541),caption,34,INK,True)
 im.save(out/'acc-read-label.png')
 
 im,d=base('ACC · L03 → L00','Vector before the feeder. Turn towards it at L00.')
@@ -119,7 +116,6 @@ lat,lon=a['latitude'],a['longitude'];dy=lat-b['latitude'];dx=lon-b['longitude']
 points=[xy(lat+dy*k,lon+dx*k) for k in [11,7,3,0]];path(d,points)
 plane(d,xy,lat+dy*3,lon+dx*3,'SAS123',details='015 ↓ N180',offset=(-265,-10))
 plane(d,xy,lat+dy*6,lon+dx*6,'RYR782',details='025 ↓ N180',offset=(-285,-130))
-txt(d,(731,794),'19L · SAS123 1,500 ft · RYR782 2,500 ft',25,WHITE,True)
 card(d,42,900,1,'Landing times',['SAS123 12:18 → RYR782 12:20.'],w=838)
 card(d,920,900,2,'Swap order',['Click one callsign, then the other.'],w=838)
 im.save(out/'app-sequence-example.png')

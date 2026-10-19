@@ -20,10 +20,11 @@ for line in sector.read_text(encoding='cp1252').splitlines():
  if prefix:group=prefix
  a=[coord(t) for t in (m[1]+' '+m[2]).split()];p,q=xy(*a[:2]),xy(*a[2:])
  if 'COLOR_Coastline' in line and all(-10<x<W+10 and -10<y<H+10 for x,y in (p,q)):d.line((p,q),fill='#586165',width=1)
+ if group=='ESOS TMA' and 'COLOR_TMA' in line:d.line((p,q),fill='#a0aaad',width=2)
  if group.startswith('HOLDING ELTOK'):holds.append((p,q))
 im.save(out/'essa-guide-geography.png')
 h=Image.new('RGBA',(W,H));hd=ImageDraw.Draw(h)
 for p,q in holds:hd.line((p,q),fill='#a6e3a1',width=5)
 h.save(out/'eltok-guide-hold.png')
-print('Rendered local ESAA coastline and ELTOK holding pattern.')
+print('Rendered local ESAA coastline, Stockholm TMA boundary and ELTOK holding pattern.')
 

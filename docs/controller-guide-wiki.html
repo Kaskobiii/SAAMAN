@@ -1,24 +1,29 @@
-<p><strong>ACC delivers the feeder order. APP builds the landing order. All times are UTC.</strong></p>
-<h2>1. Start here</h2>
-<ol><li>Load the current DLL in every EuroScope instance. Put SAAMAN above TopSky in the plugin list.</li><li>Select ESSA <strong>ARR and DEP</strong> in EuroScope. In AMAN, press <strong>Sync EuroScope</strong> and check the header.</li><li>Check <strong>LIVE</strong> above the clock. Shared updates continue with the AMAN window closed.</li></ol>
-<p>ESSA_E_APP is sequencer first, then ESSA_FMP. This priority is enforced by the updated backend for every client. ESOS/ESAA CTR, ESSA APP and ESSA_FMP connect automatically; other positions connect manually. TWR is view-only.</p>
-<h2>2. ACC: read the label</h2>
-<p><img src="images/acc-read-label.png" alt="Real ESSA geography with an illustrative vector before ELTOK: line 0 shows L03; yellow and red entry-speed guidance is shown separately for AMAN" width="1400" style="max-width:100%;height:auto"></p>
-<p><strong>Line 0: L03</strong> means lose three minutes before entry. <strong>G</strong> means time to gain. Find the assigned feeder time in <strong>AMAN → Information → STA-FF</strong>.</p>
-<p><strong>In AMAN: yellow number → 250 kt entry; red number → 230 kt entry.</strong> These are IAS, not groundspeed. Line 0 does not use these colours.</p>
-<h2>3. ACC: L03 → L00 → turn in</h2>
-<p><img src="images/acc-l03-example.png" alt="Two radar examples: vector SAS123 before ELTOK with L03 in line 0, then turn it inbound at L00" width="1400" style="max-width:100%;height:auto"></p>
-<ol><li><strong>L03:</strong> turn the aircraft before the feeder to absorb time.</li><li><strong>L00:</strong> turn towards the feeder. The turn absorbs the remaining seconds. AMAN itself leaves the zero-minute number blank.</li><li>Deliver the aircraft at its assigned feeder time and entry speed.</li></ol>
-<p>Use <strong>ACC</strong> for the feeders you cover. ESSA_W_APP uses <strong>ARR-W</strong> for ELTOK. <strong>AMAN suggests a sequence; the final decision is yours.</strong> To swap your feeder order, <strong>click one aircraft, then the other</strong>. Their assigned times and lose/gain instructions update to match the new order. AMAN gives aircraft separate feeder slots.</p>
-<h2>4. ACC: if you decide to hold</h2>
-<p><img src="images/acc-holding-example.png" alt="Real ELTOK holding geometry with an illustrative aircraft showing L05 in its normal radar text colour" width="1400" style="max-width:100%;height:auto"></p>
-<p><strong>You decide</strong> whether to use speed, vectors or holding. L05 is an example, not a threshold requiring a hold.</p>
-<ol><li><strong>Set HOLD in TopSky</strong> at the feeder and put the aircraft into the hold.</li><li><strong>Watch the lose time reduce.</strong> The holding flag keeps line 0 visible when it crosses the feeder while holding.</li><li><strong>At L00, leave the hold towards TMA.</strong> Clear HOLD in TopSky when leaving and aim for the assigned feeder time.</li></ol>
-<p>Leave the assigned slot alone while flying the hold. Use <strong>STA-FF and NOW</strong> to check when it should cross inbound.</p>
-<h2>5. APP: build the landing sequence</h2>
-<p><img src="images/app-sequence-example.png" alt="AMAN Runway timeline and radar example: SAS123 lands at 12:18, followed by RYR789 at 12:20" width="1400" style="max-width:100%;height:auto"></p>
-<ol><li>Select <strong>Runway</strong>. Read the landing order and assigned times.</li><li>Use your normal speeds and vectors to build that order on final.</li><li><strong>Click two aircraft to swap.</strong> Select and drag an aircraft to insert it elsewhere; follow the insertion arrow.</li></ol>
-<p>Inside TMA, use the assigned times: <strong>there are no ACC-style L/G instructions</strong>. Runway spacing still applies. Runway and FLOW are visible to everyone; ACC/ARR-W filters only the feeders you cover.</p>
-<h2>6. Only the buttons you need</h2>
-<table><thead><tr><th>When…</th><th>Do this</th></tr></thead><tbody><tr><td>You give a meaningful direct or approach change</td><td><strong>Recompute</strong> to accept a new estimate. Do not use repeated Recompute to count down a hold.</td></tr><tr><td>An aircraft goes around</td><td><strong>Missed Approach → aircraft → Reinsert on → TEB, BALVI, ERXEC or OBCIV.</strong></td></tr><tr><td>You need exact times</td><td><strong>Aircraft → Information.</strong></td></tr><tr><td>An aircraft has no flight plan</td><td><strong>MAESTRO → Insert flight.</strong></td></tr><tr><td>Something looks wrong</td><td>Check <strong>Information</strong>, <strong>Errors</strong>, the runway and the sequencer-version warning.</td></tr></tbody></table>
-<p>Pictures use ESSA fix/runway positions and the installed ESAA sector coastline and ELTOK holding geometry. Aircraft, times and vector paths are illustrative.</p>
+<h2>Start</h2>
+<p>Load the current DLL in every instance, with SAAMAN above TopSky. Select ESSA ARR/DEP, press <strong>Sync EuroScope</strong>, and check <strong>LIVE</strong>.</p>
+<h2>ACC: gain and lose time</h2>
+<p><img src="images/acc-read-label.png" alt="ELTOK vector with a white boxed TopSky-style label showing L03, on a map with the Stockholm TMA boundary" width="1400" style="max-width:100%;height:auto"></p>
+<p><strong>L03:</strong> lose three minutes before the feeder. <strong>G:</strong> time to gain.</p>
+<p><strong>In AMAN:</strong> yellow number = <strong>250 kt</strong> entry; red = <strong>230 kt</strong> entry. Both are IAS. Radar line 0 stays white.</p>
+<h2>ACC: vectors</h2>
+<p><img src="images/acc-l03-example.png" alt="A curved vector before ELTOK: SAS123 shows L03 outbound and L00 when turning towards the feeder" width="1400" style="max-width:100%;height:auto"></p>
+<p>At <strong>L00</strong>, turn towards the feeder; the turn absorbs the last seconds.</p>
+<p><strong>The final sequence is your decision.</strong> Click two aircraft on your feeder to swap them; their assigned times and lose/gain instructions update.</p>
+<h2>ACC: holding</h2>
+<p><img src="images/acc-holding-example.png" alt="SAS456 holding at ELTOK with L05 in a white boxed radar label" width="1400" style="max-width:100%;height:auto"></p>
+<p>Set <strong>TopSky HOLD</strong> at the feeder. Monitor the instruction, leave towards TMA at <strong>L00</strong>, and clear HOLD. Keep the assigned slot; do not repeatedly Recompute during the hold.</p>
+<h2>APP: landing sequence</h2>
+<p><img src="images/app-sequence-example.png" alt="Runway 19L sequence: SAS123 at 1500 feet followed by RYR782 at 2500 feet, with white boxed radar labels" width="1400" style="max-width:100%;height:auto"></p>
+<p>Use <strong>Runway</strong> to build the landing order. <strong>Click two aircraft to swap</strong>, or <strong>drag</strong> one to the insertion arrow. Inside TMA, use sequence times; ACC lose/gain instructions are hidden.</p>
+<h2>Advanced</h2>
+<p><strong>Views</strong></p>
+<p><strong>ACC</strong> shows your covered feeders; <strong>ARR-W</strong> shows ELTOK for ESSA_W_APP. <strong>Runway</strong> and <strong>FLOW</strong> show all traffic. The red line is <strong>NOW</strong>; later times are above it.</p>
+<p><strong>Runway configuration</strong></p>
+<p>Click the arrival/departure runway box in the header. <strong>Sync EuroScope</strong> immediately shares your current ESSA ARR/DEP selections. For a manual change, select both runways and press <strong>Apply</strong>. Use the time slider to apply now or up to 60 minutes ahead. <strong>Cancel planned changes</strong> removes a pending change.</p>
+<p><strong>Rate configuration</strong></p>
+<p>Click the rate box in the header. Adjust the arrival-rate slider; the box shows aircraft per hour, seconds and NM. Choose the application time and press <strong>Apply</strong>. This changes the shared plan.</p>
+<p><strong>Aircraft submenu — right-click a callsign</strong></p>
+<table><thead><tr><th>Button</th><th>Use</th></tr></thead><tbody><tr><td>Information</td><td>Current and assigned times; <strong>STA-FF</strong> is the assigned feeder time.</td></tr><tr><td>Recompute</td><td>Accept a fresh estimate after a meaningful direct or approach change.</td></tr><tr><td>Refresh delay</td><td>Update the instruction while retaining the assigned plan.</td></tr><tr><td>Change Runway</td><td>Assign this aircraft another runway, including the departure runway.</td></tr><tr><td>Arrival route</td><td>Select the arrival profile and recompute.</td></tr><tr><td>Insert arrival</td><td>Place an aircraft before or after another.</td></tr><tr><td>Change ETA-FF</td><td>Enter a feeder estimate manually.</td></tr><tr><td>Maximum delay</td><td>Flag an instruction exceeding your selected limit.</td></tr><tr><td>De-sequence</td><td>Remove temporarily; return it through <strong>Desequenced → Resume</strong>.</td></tr><tr><td>Missed approach</td><td>Remove from the landing sequence for a go-around.</td></tr><tr><td>Mark landed / Remove</td><td>Correct landing status or remove the entry.</td></tr></tbody></table>
+<p><strong>Other menus</strong></p>
+<table><thead><tr><th>Menu</th><th>Use</th></tr></thead><tbody><tr><td>Empty timeline → Manually add flight</td><td>Add an aircraft without a flight plan.</td></tr><tr><td>Runway timeline → Insert gap / Insert closure</td><td>Reserve an interval. Drag the block or its edges to adjust it.</td></tr><tr><td>Missed Approach → aircraft → Reinsert on</td><td>Choose <strong>TEB, BALVI, ERXEC or OBCIV</strong> for reinsertion.</td></tr><tr><td>Coordinations</td><td>Send a listed message; <strong>Acknowledge</strong> closes incoming messages.</td></tr><tr><td>Errors</td><td>Read diagnostics and version warnings.</td></tr><tr><td>MAESTRO</td><td>Connection settings and ACC feeder coverage.</td></tr></tbody></table>
+<p>ESSA_E_APP has sequencer priority, followed by ESSA_FMP. Shared updates continue with AMAN closed. Supervision and recording are available to authorised users through <code>.saaman supervisor</code>.</p>
+<p>Illustrations use real ESSA geography and holding geometry, with example traffic and vectors. All times UTC.</p>

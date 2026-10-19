@@ -142,7 +142,7 @@ See [architecture](source/ARCHITECTURE.md),
 
 [operating requirements](source/OPERATING-REQUIREMENTS.md) and
 
-[latest release notes](docs/RELEASE-NOTES-1.3.34.md).
+[latest release notes](docs/RELEASE-NOTES-1.3.35.md).
 
 
 

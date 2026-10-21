@@ -4,6 +4,8 @@ const pending=new Map<number,{resolve:(data:any)=>void;reject:(error:any)=>void;
 const webview=(window as any).chrome?.webview
 webview?.addEventListener('message',(event:{data:Result})=>{
     if((event.data as any).event==='pulse'){window.dispatchEvent(new Event('saaman-pulse'));return}
+    if((event.data as any).event==='aircraft-selection'){window.dispatchEvent(new CustomEvent('saaman-aircraft-selection',{detail:{callsign:(event.data as any).callsign}}));return}
+    if((event.data as any).event==='aircraft-hover-reset'){window.dispatchEvent(new Event('saaman-aircraft-hover-reset'));return}
     if((event.data as any).event==='coordination-ack'){window.dispatchEvent(new CustomEvent('saaman-coordination-ack',{detail:{id:(event.data as any).messageId}}));return}
     if((event.data as any).event==='floating-close'){window.dispatchEvent(new CustomEvent('saaman-floating-close',{detail:{key:(event.data as any).key}}));return}
     const message=event.data,request=pending.get(message.id);if(!request)return

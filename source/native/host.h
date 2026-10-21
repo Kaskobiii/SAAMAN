@@ -28,5 +28,7 @@ public:
     Json TakeEditor();
     void FinishEditor(const Json& editor,const std::string& value);
     HCURSOR InputCursor(unsigned id=0,POINT point={})const;
+    void SetAircraftSelection(const std::string& callsign,bool connected);
+    std::string HoveredAircraft()const;
 };
 }

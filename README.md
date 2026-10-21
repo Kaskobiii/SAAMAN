@@ -6,7 +6,7 @@ An embedded EuroScope arrival manager for Stockholm Arlanda (ESSA), with shared
 
 sequencing and controller coordination through the existing vatIRIS backend.
 
-The current version is **1.3.37**. Arrivals delayed by a runway GAP or closure now receive a coordinated feeder delivery plan, allowing compatible aircraft to follow each other more closely after reopening while retaining feeder, runway rate and wake spacing. See the [release notes](docs/RELEASE-NOTES-1.3.37.md) for examples and update instructions. The matching vatIRIS backend update is deployed.
+The current version is **1.3.38**. This update adds temporary aircraft highlights, corrects unnecessary delay for a lone automatic Stable arrival, and manages TopSky High Speed flags and large route ETA jumps automatically. See the [release notes](docs/RELEASE-NOTES-1.3.38.md) for examples and update instructions. The matching vatIRIS backend update is deployed.
 
 
 

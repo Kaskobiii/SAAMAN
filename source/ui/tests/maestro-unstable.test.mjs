@@ -53,12 +53,12 @@ test('an explicit Unstable target keeps its time and real instruction as the for
  assert.equal(next.staFf,held.flights[0].staFf)
 })
 
-test('Stable begins at the final provisional times and then preserves those assignments',()=>{
- const c=config(),p=flight(),first=runEngine(packet([p]),c,{})
- const stable=runEngine(packet([{...p,landingSeconds:1700,route:[{name:'VACRA',seconds:700}]}],now+2000),c,{},first)
+test('Stable begins at the final provisional times and then preserves a controller-protected sequence slot',()=>{
+ const c=config(),p=flight(),edits={FIRST:{order:0,orderExplicit:true}},first=runEngine(packet([p]),c,edits)
+ const stable=runEngine(packet([{...p,landingSeconds:1700,route:[{name:'VACRA',seconds:700}]}],now+2000),c,edits,first)
  const a=stable.flights[0]
  assert.equal(a.state,1);assert.equal(a.sta,a.eta);assert.equal(a.staFf,a.etaFf);assert.equal(a.delay,0)
- const next=runEngine(packet([{...p,landingSeconds:1600,route:[{name:'VACRA',seconds:600}]}],now+4000),c,{},JSON.parse(JSON.stringify(stable))).flights[0]
+ const next=runEngine(packet([{...p,landingSeconds:1600,route:[{name:'VACRA',seconds:600}]}],now+4000),c,edits,JSON.parse(JSON.stringify(stable))).flights[0]
  assert.equal(next.state,1);assert.equal(next.sta,a.sta);assert.equal(next.staFf,a.staFf)
  assert.deepEqual(next.euroscopeBaseline,first.flights[0].euroscopeBaseline)
 })

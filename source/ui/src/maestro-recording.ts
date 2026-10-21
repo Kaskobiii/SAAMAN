@@ -1,7 +1,7 @@
 import type {EngineSnapshot,EngineConfig,FlightEdit,Telemetry,TelemetryFlight} from './maestro-engine'
 import {APPLICATION_BUILD} from './build'
 import {predictRouteTiming,type RouteTiming} from './maestro-route-timing'
-const fields=['callsign','aircraft','wake','departure','arrival','runway','landingSeconds','distanceNm','groundspeed','altitude','speedDataValid','dataWarnings','star','routeText','verticalSpeed','assignedSpeed','assignedMach','finalAltitude','clearedAltitude','arrivalProfile','heading','assignedHeading','direct','routeProblem','latitude','longitude','threshold','positionAgeSeconds','calculatedRouteIndex','topskyMissedApproach','topskyHoldingPoint'] as const
+const fields=['callsign','aircraft','wake','departure','arrival','runway','landingSeconds','distanceNm','groundspeed','altitude','speedDataValid','dataWarnings','star','routeText','verticalSpeed','assignedSpeed','assignedMach','finalAltitude','clearedAltitude','arrivalProfile','heading','assignedHeading','direct','routeProblem','latitude','longitude','threshold','positionAgeSeconds','calculatedRouteIndex','topskyMissedApproach','topskyHoldingPoint','topskyHighSpeed'] as const
 export function recordedTelemetry(snapshot:EngineSnapshot):Telemetry {
     if(!snapshot.observedCallsigns)throw Error('This snapshot lacks the recording metadata; use SAAMAN 1.0.20 or newer')
     const present=new Set(snapshot.observedCallsigns)

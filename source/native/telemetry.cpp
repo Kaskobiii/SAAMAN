@@ -89,6 +89,7 @@ Json CaptureTelemetry(EuroScopePlugIn::CPlugIn& plugin,const Json& winds,TopSkyH
                     prediction.push_back(std::move(routePoint));
                 }
                 const auto ctr = fp.GetControllerAssignedData();
+                const int assignedSpeed=ctr.GetAssignedSpeed();
                 const int assigned = route.GetPointsAssignedIndex();
                 const int calculated = route.GetPointsCalculatedIndex();
                 const std::string problem = assigned >= 0 && calculated >= 0 && assigned < calculated ?
@@ -100,7 +101,7 @@ Json CaptureTelemetry(EuroScopePlugIn::CPlugIn& plugin,const Json& winds,TopSkyH
                     {"wake", TelemetryWake(fpd.GetAircraftWtc())}, {"departure", TelemetryText(fpd.GetOrigin(),"----")}, {"arrival", arrival},
                     {"runway", TelemetryText(fpd.GetArrivalRwy())}, {"route", prediction},
                     {"star",TelemetryText(fpd.GetStarName(),"",100)}, {"routeText",TelemetryText(fpd.GetRoute(),"",4096)},
-                    {"assignedSpeed",ctr.GetAssignedSpeed()}, {"verticalSpeed",target.GetVerticalSpeed()},
+                    {"assignedSpeed",TelemetryAssignedSpeed(assignedSpeed)}, {"verticalSpeed",target.GetVerticalSpeed()},
                     {"clearedAltitude",ctr.GetClearedAltitude()}, {"finalAltitude",ctr.GetFinalAltitude()>0?ctr.GetFinalAltitude():fpd.GetFinalAltitude()},
                     {"assignedMach",ctr.GetAssignedMach()},
                     {"topskyMissedApproach",TopSkyMissedApproach(ctr.GetScratchPadString())},
@@ -111,6 +112,7 @@ Json CaptureTelemetry(EuroScopePlugIn::CPlugIn& plugin,const Json& winds,TopSkyH
                     {"assignedHeading", ctr.GetAssignedHeading()}, {"direct", TelemetryText(ctr.GetDirectToPointName())}, {"routeProblem", problem},
                     {"latitude",coordinates.m_Latitude}, {"longitude",coordinates.m_Longitude},
                     {"positionAgeSeconds",position.GetReceivedTime()}, {"calculatedRouteIndex",calculated} });
+                if(TelemetryTopSkyHighSpeed(assignedSpeed))data["flights"].back()["topskyHighSpeed"]=true;
                 const std::string runwayKey=arrival+"/"+TelemetryText(fpd.GetArrivalRwy());
                 if (runwayGeometry.contains(runwayKey)) data["flights"].back()["threshold"]=runwayGeometry[runwayKey];
                 const auto& captured=data["flights"].back();

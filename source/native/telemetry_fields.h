@@ -32,6 +32,11 @@ inline std::string TelemetryText(const char* value,const char* fallback="",size_
     text.resize(end);return text;
 }
 inline std::string TelemetryWake(char value){return value=='L'||value=='M'||value=='H'||value=='J'?std::string(1,value):"?";}
+// TopSky General B, section 6.9: HS is exported as IAS 999. It is a
+// high-speed flag, not an exact IAS limit. SDK zero means no assignment.
+// Preserve all other values so normal speed validation still diagnoses them.
+inline bool TelemetryTopSkyHighSpeed(int value){return value==999;}
+inline int TelemetryAssignedSpeed(int value){return TelemetryTopSkyHighSpeed(value)?0:value;}
 inline std::string TelemetryIdentifier(const char* value){
     std::string text=TelemetryText(value);const auto first=text.find_first_not_of(" \t\r\n");if(first==std::string::npos)return {};
     text=text.substr(first,text.find_last_not_of(" \t\r\n")-first+1);

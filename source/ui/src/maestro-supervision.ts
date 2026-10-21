@@ -1,4 +1,5 @@
 import { STATE_NAMES, type EngineSnapshot } from './maestro-engine'
+import {isAutomaticCorrection} from './maestro-automatic-notices'
 
 export interface SupervisionEvent { time:number; callsign:string; kind:string; detail:string }
 export function observeSnapshot(previous:EngineSnapshot|null,next:EngineSnapshot):SupervisionEvent[] {
@@ -22,5 +23,10 @@ export function observeSnapshot(previous:EngineSnapshot|null,next:EngineSnapshot
         if(prior.line0Suppressed!==f.line0Suppressed)add(f.callsign,'EuroScope guidance',f.line0Suppressed?'Hidden':'Visible')
     }
     if(!reset)for(const f of previous?.flights??[])if(!next.flights.some(n=>n.callsign===f.callsign))add(f.callsign,'Removed','No longer in the AMAN snapshot')
+    const previousCorrections=new Set((reset?[]:previous?.automaticCorrections??[]).filter(isAutomaticCorrection).map(e=>e.id))
+    for(const correction of (next.automaticCorrections??[]).filter(isAutomaticCorrection))if(!previousCorrections.has(correction.id)){
+        previousCorrections.add(correction.id)
+        events.push({time:correction.at,callsign:correction.callsign,kind:'Automatic correction',detail:correction.detail})
+    }
     return events
 }

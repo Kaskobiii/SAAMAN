@@ -79,6 +79,10 @@ public:
     }
     void OnTimer(int counter) override {
         try{
+            const bool connected=GetConnectionType()!=EuroScopePlugIn::CONNECTION_TYPE_NO;
+            const auto selected=connected?FlightPlanSelectASEL():EuroScopePlugIn::CFlightPlan();
+            const auto selectedTarget=connected&&!selected.IsValid()?RadarTargetSelectASEL():EuroScopePlugIn::CRadarTarget();
+            host->SetAircraftSelection(selected.IsValid()?selected.GetCallsign():selectedTarget.IsValid()?selectedTarget.GetCallsign():"",connected);
             Json outgoing;
             bool captureDue=false;{std::lock_guard lock(context->mutex);captureDue=Now()-context->captureAttemptAt>=1500;}
             if(captureDue){

@@ -16,6 +16,7 @@ class RadarScreen final:public EuroScopePlugIn::CRadarScreen {
     std::map<unsigned,std::string> surfaceNames;
     void Input(const char* id,POINT point,const char* type,int button=0);
     void Bind(HDC dc);
+    void DrawAircraftHighlight(HDC dc);
 public:
     RadarScreen(Host& windows,std::function<void(RadarScreen*)> onClose):host(&windows),closed(std::move(onClose)){}
     void Deactivate();

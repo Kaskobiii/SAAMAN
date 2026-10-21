@@ -24,3 +24,14 @@ test('landing events distinguish inferred simulator removal from observed surfac
  const evidence=events.find(e=>e.kind==='Landing evidence')
  assert.equal(evidence.detail,'simulator-removal · ESSA/19L')
 })
+
+test('automatic repairs are retained in supervision once with their actual correction time',()=>{
+ const repair={id:'route-1',callsign:'TEST123',at:1500,kind:'route-timing',detail:'Route timing corrected automatically'}
+ const before=packet([flight]),after={...packet([flight],2000),automaticCorrections:[repair]}
+ const events=observeSnapshot(before,after).filter(e=>e.kind==='Automatic correction')
+ assert.deepEqual(events,[{time:1500,callsign:'TEST123',kind:'Automatic correction',detail:repair.detail}])
+ assert.deepEqual(observeSnapshot(after,{...after,timestamp:3000}),[])
+ assert.equal(observeSnapshot(after,{...after,timestamp:4000,automaticCorrections:[repair,{bad:true}]}).length,0)
+ assert.equal(observeSnapshot(null,after).filter(e=>e.kind==='Automatic correction').length,1)
+ assert.equal(observeSnapshot(after,{...after,timestamp:4000,source:'ESSA_FMP'}).filter(e=>e.kind==='Automatic correction').length,1,'source reset rebuilds correction history discarded by supervision')
+})

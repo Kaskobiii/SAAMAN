@@ -20,11 +20,12 @@
 #include <atomic>
 #include <map>
 #include <cmath>
+#include <cstring>
 using Microsoft::WRL::ComPtr;
 using Microsoft::WRL::Callback;
 namespace saaman {
 namespace {
-constexpr UINT ShowMessage=WM_APP+41,StopMessage=WM_APP+42,CloseAuth=WM_APP+43,HideMessage=WM_APP+44,PulseMessage=WM_APP+45,AttachMessage=WM_APP+46,ToggleMessage=WM_APP+47,InputMessage=WM_APP+48,EditMessage=WM_APP+49;
+constexpr UINT ShowMessage=WM_APP+41,StopMessage=WM_APP+42,CloseAuth=WM_APP+43,HideMessage=WM_APP+44,PulseMessage=WM_APP+45,AttachMessage=WM_APP+46,ToggleMessage=WM_APP+47,InputMessage=WM_APP+48,EditMessage=WM_APP+49,AircraftSelectionMessage=WM_APP+50,AircraftHoverResetMessage=WM_APP+51;
 struct Attachment {HWND parent;RECT radar;};
 const wchar_t* WindowClass=L"SAAMANNativeWindow";
 std::wstring Wide(const std::string& text){const int size=MultiByteToWideChar(CP_UTF8,0,text.data(),static_cast<int>(text.size()),nullptr,0);std::wstring result(size,L'\0');MultiByteToWideChar(CP_UTF8,0,text.data(),static_cast<int>(text.size()),result.data(),size);return result;}
@@ -125,6 +126,7 @@ struct Host::Impl {
         void Bounds(){if(controller&&hwnd){RECT rect;GetClientRect(hwnd,&rect);controller->put_Bounds(rect);}}
         void Present(bool show){
             if(!hwnd)return;
+            if(!show&&!auth&&!floating&&!supervisor){host.ClearAircraftHover();if(browser)browser->PostWebMessageAsJson(L"{\"event\":\"aircraft-hover-reset\"}");}
             if(floating)floatingVisible=show;
             if(!show&&!auth&&!floating)for(const auto& child:host.windows)if(child->floating&&child->floatingOwner.lock().get()==this&&!child->destroying){child->Present(false);if(browser){const auto event=Wide(Json({{"event","floating-close"},{"key",child->floatingKey}}).dump());browser->PostWebMessageAsJson(event.c_str());}}
             if(controller){Bounds();controller->put_IsVisible(show&&(host.context->sdkSurfaces||!host.hostUiBusy)?TRUE:FALSE);controller->NotifyParentWindowPositionChanged();}
@@ -280,14 +282,16 @@ struct Host::Impl {
                                 if(FAILED(started))throw RequestError(500,"Could not capture preview");return S_OK;
                             }
                             RECT rectangle{},bounds{};GetWindowRect(self->hwnd,&rectangle);MapWindowPoints(HWND_DESKTOP,GetParent(self->hwnd),reinterpret_cast<POINT*>(&rectangle),2);self->controller->get_Bounds(&bounds);self->Reply(id,{{"x",rectangle.left},{"y",rectangle.top},{"width",rectangle.right-rectangle.left},{"height",rectangle.bottom-rectangle.top},{"browserLeft",bounds.left},{"browserTop",bounds.top},{"dragging",self->dragging},{"resizing",self->resizing},{"visible",self->host.visible[self->supervisor?1:0].load()}});return S_OK;}
+                        if(method=="host:aircraft-hover"&&!self->RequestedVisible()){self->host.ClearAircraftHover();self->Reply(id,!data.value("renew",false));return S_OK;}
                         const auto result=self->host.context->Request(method,data,self->supervisor);self->Reply(id,result);
+                        if(method=="host:aircraft-hover")self->host.MarkRadarDirty();
                         if(method=="mode:set"&&result.value("changed",true)){if(self->host.coordination)self->host.coordination->Hide();for(const auto& other:self->host.windows)if(other.get()!=self.get()&&!other->auth&&other->browser)other->browser->Reload();}
                     }catch(const RequestError& error){self->Reply(id,Json(),false,error.status,error.what());}catch(const std::exception& error){self->Reply(id,Json(),false,400,error.what());}return S_OK;
                 }).Get(),&token);
             }
             browser->add_NavigationStarting(Callback<ICoreWebView2NavigationStartingEventHandler>([weak](ICoreWebView2*,ICoreWebView2NavigationStartingEventArgs* args)->HRESULT{
                 auto self=weak.lock();if(!self)return S_OK;LPWSTR raw=nullptr;args->get_Uri(&raw);const std::wstring uri=raw?raw:L"";CoTaskMemFree(raw);
-                if(!self->auth){self->zoomReady=false;if(!Trusted(uri)&&uri!=L"about:blank")args->put_Cancel(TRUE);else if(!self->floating)for(const auto& child:self->host.windows)if(child->floating&&child->floatingOwner.lock()==self&&child->hwnd)DestroyWindow(child->hwnd);return S_OK;}
+                if(!self->auth){self->zoomReady=false;if(!Trusted(uri)&&uri!=L"about:blank")args->put_Cancel(TRUE);else if(!self->floating){if(!self->supervisor)self->host.ClearAircraftHover();for(const auto& child:self->host.windows)if(child->floating&&child->floatingOwner.lock()==self&&child->hwnd)DestroyWindow(child->hwnd);}return S_OK;}
                 const std::string url=Narrow(uri.c_str());
                 if(url.rfind(self->redirect+"?",0)==0){args->put_Cancel(TRUE);const auto received=Parameter(url,"state"),code=Parameter(url,"code");
                     if(auto owner=self->authOwner.lock()){if(received==self->state&&!code.empty())owner->Reply(self->authRequest,{{"code",code},{"state",received}});else owner->Reply(self->authRequest,Json(),false,401,"VATSIM sign-in failed or state did not match");}
@@ -727,7 +731,13 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
     }
     HWND parent=nullptr,testParent=nullptr,requestedParent=nullptr;RECT radar{},requestedRadar{};std::mutex binding;std::atomic<bool> visible[2]{};std::atomic<HWND> panels[2]{};std::atomic<bool> radarDirty{false};std::atomic<HWND> redrawTarget{nullptr};std::atomic<UINT> redrawMessage{0};
     HWND uiObserver=nullptr;bool hostUiBusy=false;
+    void ClearAircraftHover(){
+        bool changed=false;{std::lock_guard lock(context->mutex);changed=!context->aircraftHover.callsign.empty();context->aircraftHover.Clear();}
+        if(changed)MarkRadarDirty();
+    }
     void RefreshHostUi(){
+        bool expired=false;{std::lock_guard lock(context->mutex);if(!context->aircraftHover.callsign.empty()&&context->aircraftHover.Active(AircraftLinkTick()).empty()){context->aircraftHover.Clear();expired=true;}}
+        if(expired)MarkRadarDirty();
         if(!IsWindow(parent))return;
         if(context->sdkSurfaces){for(const auto& window:windows)if(!window->destroying)window->CaptureSurface();return;}
         const bool busy=HostMenuActive(parent);
@@ -788,8 +798,13 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
             }else if(!msg.hwnd&&msg.message==InputMessage){std::unique_ptr<Json> input(reinterpret_cast<Json*>(msg.lParam));if(input->value("window",0u)==0xFFFFFFFFu&&self.coordination){if(input->value("button",0)==0)self.coordination->Pointer(self.parent,{input->at("x").get<int>(),input->at("y").get<int>()},input->value("type",std::string()));self.SyncCoordination();}else for(const auto& window:self.windows)if(window->surfaceId==input->value("window",0u)){window->DispatchInput(*input);break;}}
             else if(!msg.hwnd&&msg.message==EditMessage){std::unique_ptr<Json> input(reinterpret_cast<Json*>(msg.lParam));for(const auto& window:self.windows)if(window->surfaceId==input->value("window",0u)&&window->browser&&!window->destroying){window->browser->ExecuteScript(Wide("window.__SAAMAN_SDK_EDIT__?.("+input->dump()+")").c_str(),nullptr);window->surfaceDirty=true;break;}}
             else if(!msg.hwnd&&msg.message==PulseMessage){self.EnsureBackground();for(const auto& window:self.windows)if(!window->auth&&window->browser)window->browser->PostWebMessageAsJson(L"{\"event\":\"pulse\"}");}
+            else if(!msg.hwnd&&msg.message==AircraftSelectionMessage){
+                Json selection;{std::lock_guard lock(self.context->mutex);selection={{"event","aircraft-selection"},{"callsign",self.context->aircraftSelection.Active(AircraftLinkTick())}};}
+                const auto event=Wide(selection.dump());for(const auto& window:self.windows)if(!window->auth&&window->browser&&!window->destroying)window->browser->PostWebMessageAsJson(event.c_str());
+            }
+            else if(!msg.hwnd&&msg.message==AircraftHoverResetMessage){for(const auto& window:self.windows)if(!window->auth&&!window->supervisor&&!window->floating&&window->browser&&!window->destroying)window->browser->PostWebMessageAsJson(L"{\"event\":\"aircraft-hover-reset\"}");}
             else if(!msg.hwnd&&msg.message==HideMessage){for(const auto& window:self.windows)if(!window->auth&&window->hwnd){self.visible[window->supervisor?1:0].store(false);window->Present(false);}}
-            else if(!msg.hwnd&&msg.message==StopMessage){self.stopping=true;self.privateEditor.reset();self.coordination.reset();for(const auto& window:self.windows)if(window->hwnd)DestroyWindow(window->hwnd);self.windows.clear();break;}
+            else if(!msg.hwnd&&msg.message==StopMessage){self.stopping=true;self.ClearAircraftHover();self.privateEditor.reset();self.coordination.reset();for(const auto& window:self.windows)if(window->hwnd)DestroyWindow(window->hwnd);self.windows.clear();break;}
             else{if(self.privateEditor&&self.privateEditor->Route(msg))continue;if(self.coordination&&self.coordination->Route(msg))continue;TranslateMessage(&msg);DispatchMessageW(&msg);}
         }
         if(self.uiObserver){KillTimer(self.uiObserver,1);DestroyWindow(self.uiObserver);self.uiObserver=nullptr;}UnregisterClassW(L"SAAMANHostUiObserver",self.module);
@@ -823,8 +838,19 @@ std::vector<Host::Pane> Host::PaintRadar(HDC dc)const{
     for(const auto* surface:ordered){PaintRadarSurface(dc,*surface);result.push_back({surface->id,surface->bounds});}return result;
 }
 void Host::Pointer(unsigned id,POINT point,POINT screen,const char* type,int button,int delta,unsigned modifiers){
+    if(type&&std::strcmp(type,"leave")==0)impl->ClearAircraftHover();
     auto input=std::make_unique<Json>(Json{{"window",id},{"type",type},{"x",point.x},{"y",point.y},{"screenX",screen.x},{"screenY",screen.y},{"button",button},{"delta",delta},{"ctrl",(modifiers&1)!=0},{"shift",(modifiers&2)!=0},{"alt",(modifiers&4)!=0}});
     if(PostThreadMessageW(impl->threadId,InputMessage,0,reinterpret_cast<LPARAM>(input.get())))input.release();
+}
+void Host::SetAircraftSelection(const std::string& callsign,bool connected,bool selectedAgain){
+    const auto call=connected&&AircraftLinkCallsign(callsign)?callsign:std::string();bool changed=false,cleared=false;
+    {std::lock_guard lock(impl->context->mutex);changed=impl->context->aircraftSelection.Observe(call,AircraftLinkTick(),selectedAgain);impl->context->aircraftLinkConnected=connected;if(!connected){cleared=!impl->context->aircraftHover.callsign.empty();impl->context->aircraftHover.Clear();}}
+    if(changed)PostThreadMessageW(impl->threadId,AircraftSelectionMessage,0,0);
+    if(cleared){impl->MarkRadarDirty();PostThreadMessageW(impl->threadId,AircraftHoverResetMessage,0,0);}
+}
+std::string Host::HoveredAircraft()const{
+    if(!impl->visible[0].load())return {};
+    std::lock_guard lock(impl->context->mutex);return impl->context->aircraftLinkConnected?impl->context->aircraftHover.Active(AircraftLinkTick()):std::string();
 }
 Json Host::TakeEditor(){std::lock_guard lock(impl->surfaceMutex);auto result=std::move(impl->editor);impl->editor=nullptr;return result;}
 void Host::FinishEditor(const Json& editor,const std::string& value){auto input=std::make_unique<Json>(editor);(*input)["value"]=value;if(PostThreadMessageW(impl->threadId,EditMessage,0,reinterpret_cast<LPARAM>(input.get())))input.release();}

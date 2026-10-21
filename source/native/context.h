@@ -1,5 +1,6 @@
 #pragma once
 #include "json.hpp"
+#include "aircraft_highlight.h"
 #include <filesystem>
 #include <mutex>
 #include <chrono>
@@ -22,6 +23,9 @@ struct Context {
     long long controllerCid=0;
     Json relay={{"network","live"},{"session","essa-test-01"},{"channel","saaman"}};
     std::string instanceId;
+    AircraftSelection aircraftSelection;
+    AircraftHover aircraftHover;
+    bool aircraftLinkConnected=false;
     explicit Context(std::filesystem::path folder,std::filesystem::path stateFolder={});
     Json Request(const std::string& method,const Json& data,bool supervisor);
     void SavePlan();

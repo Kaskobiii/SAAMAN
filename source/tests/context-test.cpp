@@ -7,8 +7,30 @@
 #include <iostream>
 #define CHECK(expr) do {if(!(expr))throw std::runtime_error(#expr);}while(false)
 int RunTests(int argc,wchar_t** argv){
+    CHECK(saaman::AircraftLinkCallsign(""));CHECK(saaman::AircraftLinkCallsign("SAS123"));CHECK(saaman::AircraftLinkCallsign("N-TEST_1"));
+    for(const auto* invalid:{"A","sas123","SAS 123","<script>","ABCDEFGHIJKLMNOPQ"})CHECK(!saaman::AircraftLinkCallsign(invalid));
+    saaman::AircraftHover hover;CHECK(hover.Active(1000).empty());hover.Set("SAS123",1000);CHECK(hover.Active(1000)=="SAS123");CHECK(hover.Active(3500)=="SAS123");CHECK(hover.Active(3501).empty());CHECK(hover.Active(999).empty());
+    hover.Set("SAS123",3000);CHECK(hover.Active(5000)=="SAS123");hover.Set("RYR456",5000);CHECK(hover.Active(5000)=="RYR456");hover.Clear();CHECK(hover.Active(5001).empty());hover.Set("",6000);CHECK(hover.Active(6000).empty());
+    saaman::AircraftSelection selection;CHECK(selection.Active(1000).empty());
+    CHECK(selection.Observe("SAS123",1000));CHECK(selection.Active(3999)=="SAS123");
+    CHECK(!selection.Observe("SAS123",2000));CHECK(selection.Active(4000).empty());
+    CHECK(selection.Observe("SAS123",4000));CHECK(selection.current.empty());
+    CHECK(!selection.Observe("SAS123",5000));CHECK(selection.Active(5000).empty());
+    CHECK(selection.Observe("SAS123",5001,true));CHECK(selection.Active(5001)=="SAS123");
+    CHECK(!selection.Observe("SAS123",6000));CHECK(selection.Active(8001).empty());
+    CHECK(selection.Observe("RYR456",8002));CHECK(selection.Active(8002)=="RYR456");
+    CHECK(selection.Observe("",8003));CHECK(selection.current.empty());CHECK(selection.observed.empty());
+    CHECK(!selection.Observe("",8004,true));selection.Clear();CHECK(selection.Active(8005).empty());
     const saaman::Json partial={{"aircraft",saaman::TelemetryText(nullptr,"UNKN")},{"departure",saaman::TelemetryText(nullptr,"----")},{"runway",saaman::TelemetryText(nullptr)},{"direct",saaman::TelemetryText(nullptr)},{"wake",saaman::TelemetryWake('\0')}};
     CHECK(partial["aircraft"]=="UNKN");CHECK(partial["departure"]=="----");CHECK(partial["runway"]=="");CHECK(partial["direct"]=="");CHECK(partial["wake"]=="?");
+    CHECK(saaman::TelemetryAssignedSpeed(999)==0);CHECK(saaman::TelemetryTopSkyHighSpeed(999));
+    for(const int speed:{0,100,140,230,250,300,400,600,-1,601,998,1000,(std::numeric_limits<int>::min)(),(std::numeric_limits<int>::max)()}){CHECK(saaman::TelemetryAssignedSpeed(speed)==speed);CHECK(!saaman::TelemetryTopSkyHighSpeed(speed));}
+    saaman::Json highSpeedClearance={{"assignedSpeed",saaman::TelemetryAssignedSpeed(999)},{"assignedMach",780}};
+    if(saaman::TelemetryTopSkyHighSpeed(999))highSpeedClearance["topskyHighSpeed"]=true;
+    CHECK(highSpeedClearance["assignedSpeed"]==0);CHECK(highSpeedClearance["assignedMach"]==780);CHECK(highSpeedClearance["topskyHighSpeed"]==true);
+    saaman::Json exactSpeedClearance={{"assignedSpeed",saaman::TelemetryAssignedSpeed(250)},{"assignedMach",780}};
+    if(saaman::TelemetryTopSkyHighSpeed(250))exactSpeedClearance["topskyHighSpeed"]=true;
+    CHECK(exactSpeedClearance["assignedSpeed"]==250);CHECK(exactSpeedClearance["assignedMach"]==780);CHECK(!exactSpeedClearance.contains("topskyHighSpeed"));
     const auto legacyApproach=std::string(32,'A')+"\xB7 RNP X 19R";
     const saaman::Json approachPacket={{"routeText",saaman::TelemetryText(legacyApproach.c_str())},{"route",saaman::Json::array({{{"name",saaman::TelemetryText("RNP\xB7X")},{"seconds",120}}})}};
     CHECK(saaman::Json::parse(approachPacket.dump())==approachPacket);
@@ -48,6 +70,25 @@ int RunTests(int argc,wchar_t** argv){
     hold.Command("SAS123","/XHOLD/",11000);CHECK(hold.Observe("SAS123","/XHOLD/","h/ELTOK/h",12000).empty());
     hold.Clear();CHECK(hold.Observe("SAS123","","",13000).empty());
     if(argc!=2)return 2;std::filesystem::create_directories(argv[1]);saaman::Context context(argv[1]);context.shared=false;context.plan={{"revision",0},{"config",nullptr},{"edits",saaman::Json::object()},{"snapshot",nullptr},{"masterCid",nullptr}};
+    const auto planBeforeHover=context.plan;const auto telemetryBeforeHover=context.telemetry;
+    CHECK(context.Request("host:aircraft-selection",saaman::Json::object(),false)["callsign"]=="");
+    context.aircraftSelection.Observe("SAS123",saaman::AircraftLinkTick());CHECK(context.Request("host:aircraft-selection",saaman::Json::object(),false)["callsign"]=="SAS123");
+    context.aircraftSelection.at=saaman::AircraftLinkTick()-3000;CHECK(context.Request("host:aircraft-selection",saaman::Json::object(),false)["callsign"]=="");
+    context.aircraftSelection.Observe("SAS123",saaman::AircraftLinkTick(),true);CHECK(context.Request("host:aircraft-selection",saaman::Json::object(),false)["callsign"]=="SAS123");
+    context.Request("host:aircraft-hover",{{"callsign","SAS123"}},false);CHECK(context.aircraftHover.callsign.empty());
+    context.aircraftLinkConnected=true;context.Request("host:aircraft-hover",{{"callsign","SAS123"}},false);CHECK(context.aircraftHover.Active(saaman::AircraftLinkTick())=="SAS123");
+    CHECK(context.Request("host:aircraft-hover",{{"callsign","SAS123"},{"renew",true}},false)==true);
+    CHECK(context.Request("host:aircraft-hover",{{"callsign","RYR456"},{"renew",true}},false)==false);CHECK(context.aircraftHover.callsign=="SAS123");
+    bool invalidHover=false;try{context.Request("host:aircraft-hover",{{"callsign","SAS 123"}},false);}catch(const saaman::RequestError& e){invalidHover=e.status==400;}CHECK(invalidHover);CHECK(context.aircraftHover.callsign=="SAS123");
+    bool supervisorHover=false;try{context.Request("host:aircraft-hover",{{"callsign","RYR456"}},true);}catch(const saaman::RequestError& e){supervisorHover=e.status==403;}CHECK(supervisorHover);CHECK(context.aircraftHover.callsign=="SAS123");
+    context.Request("host:aircraft-hover",{{"callsign",""}},false);CHECK(context.aircraftHover.callsign.empty());
+    CHECK(context.Request("host:aircraft-hover",{{"callsign","SAS123"},{"renew",true}},false)==false);CHECK(context.aircraftHover.callsign.empty());
+    context.aircraftHover.Set("SAS123",saaman::AircraftLinkTick()-3000);const auto expiredHoverAt=context.aircraftHover.at;
+    CHECK(context.Request("host:aircraft-hover",{{"callsign","SAS123"},{"renew",true}},false)==false);CHECK(context.aircraftHover.at==expiredHoverAt);
+    context.Request("host:aircraft-hover",{{"callsign","RYR456"}},false);context.aircraftLinkConnected=false;context.Request("host:aircraft-hover",{{"callsign","RYR456"}},false);CHECK(context.aircraftHover.callsign.empty());
+    CHECK(context.Request("host:aircraft-hover",{{"callsign","RYR456"},{"renew",true}},false)==false);CHECK(context.aircraftHover.callsign.empty());
+    context.aircraftLinkConnected=true;CHECK(context.Request("host:aircraft-hover",{{"callsign","RYR456"},{"renew",true}},false)==false);CHECK(context.aircraftHover.callsign.empty());context.aircraftLinkConnected=false;
+    CHECK(context.plan==planBeforeHover);CHECK(context.telemetry==telemetryBeforeHover);context.aircraftSelection.Clear();
     context.captureError="Test incomplete SDK field";
     bool captureDiagnosed=false;try{context.Request("telemetry:get",saaman::Json::object(),false);}catch(const saaman::RequestError& e){captureDiagnosed=e.status==503&&std::string(e.what()).find("Test incomplete SDK field")!=std::string::npos;}CHECK(captureDiagnosed);
     context.captureError.clear();

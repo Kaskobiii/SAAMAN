@@ -267,9 +267,9 @@ test('initial usable EuroScope arrival plus buffer sets a baseline without any p
  assert.equal(f.eta,now+1620000);assert.equal(f.sta,f.eta);assert.equal(f.euroscopeBaseline.rawEta,now+1500000)
  assert.equal(f.euroscopeBaseline.bufferMinutes,2);assert.equal(f.trajectory,undefined);assert.equal(f.distanceProfile,undefined);assert.equal(f.gainCapacitySeconds,0)
 })
-test('direct, speed and route ETA changes do not recalculate Stable landing or feeder times',()=>{
- const c=config(),first=runEngine(packet([flight({route:[{name:'ELTOK',seconds:700}]})]),c,{})
- const next=runEngine(packet([flight({direct:'OTHER',assignedSpeed:210,assignedHeading:100,groundspeed:220,landingSeconds:600,route:[{name:'ELTOK',seconds:300}]})],now+2000),c,{},first)
+test('controller-ordered Stable slots keep their times when direct, speed and route ETA observations change',()=>{
+ const c=config(),edits={BUFFER:{order:0,orderExplicit:true}},first=runEngine(packet([flight({route:[{name:'ELTOK',seconds:700}]})]),c,edits)
+ const next=runEngine(packet([flight({direct:'OTHER',assignedSpeed:210,assignedHeading:100,groundspeed:220,landingSeconds:600,route:[{name:'ELTOK',seconds:300}]})],now+2000),c,edits,first)
  const a=first.flights[0],b=next.flights[0]
  assert.equal(b.eta,b.liveBufferedEta);assert.notEqual(b.eta,a.eta);assert.equal(b.sta,a.sta);assert.equal(b.staFf,a.staFf)
  assert.equal(b.euroscopeBaseline.at,a.euroscopeBaseline.at);assert.equal(b.liveEuroscopeEta,now+602000);assert.equal(b.liveBufferedEta,now+722000)

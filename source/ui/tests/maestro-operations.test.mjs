@@ -309,6 +309,38 @@ test('Information keeps remaining accepted points when feeder and assigned thres
  assert.deepEqual(informationRoute({...f,ff:'NILUG',route,amanRoute:route,amanRoutePassed:0},now).map(p=>p.name),['SA630','TEB','ESSA'])
 })
 
+test('Information never exposes the full enroute flightplan when no STAR or feeder has been identified',()=>{
+ const route=['EDDF','MARUN','UVANO','NATSU','OTMON','TOLGI','ALASA','TNO','MIKSI','VEDAR','DETSO','PELIT','TORVA','ARS','ESSA'].map((name,i)=>({name,seconds:i*60}))
+ const f=runEngine(packet([p('DLH804',2000,{star:'',route})]),{...config(),timingModel:'euroscope-buffer'},{}).flights[0]
+ const snapshot=JSON.stringify(f)
+ assert.deepEqual(informationRoute(f,now).map(p=>p.name),['ESSA'])
+ assert.equal(JSON.stringify(f),snapshot,'Information filtering cannot modify retained route or engine timing')
+ assert.equal(f.route.length,route.length)
+})
+
+test('Information starts at the feeder even without a STAR and with an older full-route checkpoint',()=>{
+ const route=['EDDF','TORVA','NILUG','SA501','TEB','SA19R'].map((name,i)=>({name,seconds:100+i*120}))
+ const f=runEngine(packet([p('TEST',2000,{star:'',route})]),{...config(),timingModel:'euroscope-buffer'},{}).flights[0]
+ assert.deepEqual(informationRoute({...f,ff:'-',amanRoute:route,amanRoutePassed:0},now).map(p=>p.name),['NILUG','SA501','TEB','SA19R','ESSA'])
+ assert.deepEqual(informationRoute({...f,ff:'NILUG',amanRoute:route,amanRoutePassed:3},now).map(p=>p.name),['SA501','TEB','SA19R','ESSA'])
+})
+
+test('Information retains a direct terminal route while omitting preceding enroute points without a feeder',()=>{
+ const route=['EDDF','TORVA','TEB','FI19R','SA19R'].map((name,i)=>({name,seconds:100+i*120}))
+ const f=runEngine(packet([p('TEST',2000,{star:'',route,direct:'TEB'})]),{...config(),timingModel:'euroscope-buffer'},{}).flights[0]
+ assert.deepEqual(informationRoute({...f,amanRoute:route,amanRoutePassed:0},now).map(p=>p.name),['TEB','FI19R','SA19R','ESSA'])
+})
+
+test('Information picks up a newly assigned STAR after retaining an initial enroute-only flightplan',()=>{
+ const initial=['EDDF','TORVA','ARS','ESSA'].map((name,i)=>({name,seconds:100+i*120}))
+ const f=runEngine(packet([p('TEST',2000,{star:'',route:initial})]),{...config(),timingModel:'euroscope-buffer'},{}).flights[0]
+ const route=['EDDF','TORVA','NILUG','SA501','TEB','SA19R'].map((name,i)=>({name,seconds:100+i*120}))
+ const updated={...f,ff:'NILUG',route,amanRoute:initial,amanRoutePassed:3,star:'NILUG3P'}
+ const saved=JSON.stringify(updated)
+ assert.deepEqual(informationRoute(updated,now).map(p=>p.name),['NILUG','SA501','TEB','SA19R','ESSA'])
+ assert.equal(JSON.stringify(updated),saved)
+})
+
 test('Sync EuroScope uses fresh supported ESSA ARR and DEP selections and rejects missing or stale data',()=>{
  const input=packet([]),activeRunways={arrivals:['ESSA/07','ESSA/01R','ESSA/01R'],departures:['ESSA/25','ESSA/01L']}
  assert.deepEqual(runwaySelections({...input,activeRunways},now),{active:['ESSA/01R'],departureRunway:'ESSA/01L'})

@@ -1,6 +1,7 @@
 #include "radar_screen.h"
 #include <cstdio>
 #include <algorithm>
+#include <cmath>
 namespace saaman {
 namespace {
 constexpr int CotsMove=88001,CotsOpen=88002,SurfaceObject=88003;
@@ -22,6 +23,14 @@ LRESULT CALLBACK WheelHook(int code,WPARAM message,LPARAM data){
 void RadarScreen::Deactivate(){if(wheelScreen==this)wheelScreen=nullptr;if(wheelHook){UnhookWindowsHookEx(wheelHook);wheelHook=nullptr;}if(cursorHook){UnhookWindowsHookEx(cursorHook);cursorHook=nullptr;}host=nullptr;closed={};}
 void RadarScreen::ReleaseInput(){wheelScreen=nullptr;}
 void RadarScreen::Leave(){if(host&&hoverPane){POINT screen{};GetCursorPos(&screen);POINT point=screen;ScreenToClient(parent,&point);host->Pointer(hoverPane,point,screen,"leave");hoverPane=0;}}
+bool RadarScreen::SelectionClick(HWND target,POINT screen){
+    if(!host||!parent||!IsWindow(target)||(target!=parent&&!IsChild(parent,target)))return false;
+    POINT point=screen;if(!ScreenToClient(parent,&point))return false;
+    const auto radar=GetRadarArea();
+    if(!PtInRect(&radar,point)||PtInRect(&launcher,point))return false;
+    for(const auto& pane:paintedPanes)if(PtInRect(&pane.bounds,point))return false;
+    return true;
+}
 void RadarScreen::Input(const char* id,POINT point,const char* type,int button){
     if(!host||!id)return;unsigned pane=0;try{pane=static_cast<unsigned>(std::stoul(id));}catch(...){return;}
     POINT screen=point;if(parent)ClientToScreen(parent,&screen);const unsigned modifiers=(GetKeyState(VK_CONTROL)<0?1:0)|(GetKeyState(VK_SHIFT)<0?2:0)|(GetKeyState(VK_MENU)<0?4:0);
@@ -36,9 +45,28 @@ void RadarScreen::Bind(HDC dc){
     DWORD pid=0;if(candidate)GetWindowThreadProcessId(candidate,&pid);
     if(candidate&&pid==GetCurrentProcessId()&&host){parent=candidate;host->Attach(parent,GetRadarArea());}
 }
+void RadarScreen::DrawAircraftHighlight(HDC dc){
+    if(!host)return;
+    try{
+        const auto call=host->HoveredAircraft();auto* plugin=GetPlugIn();if(call.empty()||!plugin)return;
+        const auto flight=plugin->FlightPlanSelect(call.c_str());
+        const auto target=flight.IsValid()?flight.GetCorrelatedRadarTarget():plugin->RadarTargetSelect(call.c_str());
+        if(!target.IsValid())return;const auto position=target.GetPosition();if(!position.IsValid()||position.GetReceivedTime()>30)return;
+        const auto coordinates=position.GetPosition();if(!std::isfinite(coordinates.m_Latitude)||!std::isfinite(coordinates.m_Longitude)||std::abs(coordinates.m_Latitude)>90||std::abs(coordinates.m_Longitude)>180)return;
+        const auto point=ConvertCoordFromPositionToPixel(coordinates);const auto area=GetRadarArea();if(!PtInRect(&area,point))return;
+        const int saved=SaveDC(dc);IntersectClipRect(dc,area.left,area.top,area.right,area.bottom);
+        const auto cyan=RGB(64,224,255);HPEN pen=CreatePen(PS_SOLID,2,cyan);
+        SelectObject(dc,pen);SelectObject(dc,GetStockObject(NULL_BRUSH));Ellipse(dc,point.x-11,point.y-11,point.x+12,point.y+12);
+        RestoreDC(dc,saved);DeleteObject(pen);
+    }catch(...){/* A local highlight must never interrupt radar drawing. */}
+}
 void RadarScreen::OnRefresh(HDC dc,int phase){
     if(!host||phase!=EuroScopePlugIn::REFRESH_PHASE_AFTER_LISTS)return;
     Bind(dc);const auto radar=GetRadarArea();if(!positioned){launcher={radar.left+16,radar.top+185,radar.left+76,radar.top+255};positioned=true;}
+    // The radar thread owns all SDK access. Reading ASEL does not change the
+    // controller's selected aircraft or interfere with TopSky label functions.
+    try{auto* plugin=GetPlugIn();if(plugin){const bool connected=plugin->GetConnectionType()!=EuroScopePlugIn::CONNECTION_TYPE_NO;const auto flight=connected?plugin->FlightPlanSelectASEL():EuroScopePlugIn::CFlightPlan();const auto target=connected&&!flight.IsValid()?plugin->RadarTargetSelectASEL():EuroScopePlugIn::CRadarTarget();host->SetAircraftSelection(flight.IsValid()?flight.GetCallsign():target.IsValid()?target.GetCallsign():"",connected);}}catch(...){}
+    DrawAircraftHighlight(dc);
     const int saved=SaveDC(dc);
     HBRUSH body=CreateSolidBrush(RGB(91,96,100)),title=CreateSolidBrush(RGB(104,108,112));
     FillRect(dc,&launcher,body);RECT heading{launcher.left,launcher.top,launcher.right,launcher.top+15};FillRect(dc,&heading,title);
@@ -52,7 +80,8 @@ void RadarScreen::OnRefresh(HDC dc,int phase){
     AddScreenObject(CotsOpen,"SAAMAN AMAN",button,false,"Show/hide ESSA AMAN");
     RestoreDC(dc,saved);DeleteObject(font);DeleteObject(body);DeleteObject(title);DeleteObject(checkbox);
     host->DrawChrome(dc);
-    for(const auto& pane:host->PaintRadar(dc)){auto& name=surfaceNames[pane.id];if(name.empty())name=std::to_string(pane.id);AddScreenObject(SurfaceObject,name.c_str(),pane.bounds,true,"");}
+    paintedPanes=host->PaintRadar(dc);
+    for(const auto& pane:paintedPanes){auto& name=surfaceNames[pane.id];if(name.empty())name=std::to_string(pane.id);AddScreenObject(SurfaceObject,name.c_str(),pane.bounds,true,"");}
 }
 void RadarScreen::OnClickScreenObject(int type,const char* id,POINT point,RECT,int button){
     if(host&&type==CotsOpen&&button==EuroScopePlugIn::BUTTON_LEFT){host->Toggle(false);RequestRefresh();}

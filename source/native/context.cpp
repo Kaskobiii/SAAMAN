@@ -95,6 +95,18 @@ void Context::SeedRunwayConfig(){
 Json Context::Request(const std::string& method,const Json& data,bool supervisor){
     std::lock_guard lock(mutex);
     if(method=="host:info")return {{"shared",shared},{"backendBaseUrl",backend},{"authProvider",authProvider},{"controllerCid",controllerCid},{"relay",relay},{"instanceId",instanceId},{"view",supervisor?"supervisor":"aman"},{"test",test},{"sdkSurfaces",sdkSurfaces}};
+    if(method=="host:aircraft-selection")return {{"callsign",aircraftSelection.Active(AircraftLinkTick())}};
+    if(method=="host:aircraft-hover"){
+        const auto call=data.at("callsign").get<std::string>();
+        if(!AircraftLinkCallsign(call))throw RequestError(400,"Invalid aircraft callsign");
+        if(supervisor)throw RequestError(403,"Aircraft hover belongs to the AMAN timeline");
+        const auto tick=AircraftLinkTick();
+        // Heartbeats may extend a live hover, but cannot resurrect one after
+        // hide, disconnect, pointerleave or expiry. Only pointerenter sets it.
+        if(data.value("renew",false)&&(call.empty()||!aircraftLinkConnected||aircraftHover.Active(tick)!=call))return false;
+        if(aircraftLinkConnected)aircraftHover.Set(call,tick);else aircraftHover.Clear();
+        return true;
+    }
     if(method=="key:read")return {{"key",authProvider=="keys"?ReadControllerKey(storage,backend):std::string{}}};
     if(method=="mode:set"){
         if(supervisor)throw RequestError(403,"Change connection mode in the normal AMAN");

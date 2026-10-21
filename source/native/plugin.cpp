@@ -16,6 +16,30 @@ class Plugin final:public EuroScopePlugIn::CPlugIn {
     TopSkyHoldingCache holding;
     HWND redrawWindow=nullptr;
     static constexpr UINT RedrawMessage=WM_APP+77;
+    static constexpr UINT SelectionClickMessage=WM_APP+78;
+    inline static thread_local Plugin* selectionOwner=nullptr;
+    HHOOK selectionHook=nullptr;
+    struct SelectionInput {HWND target=nullptr;POINT point{};} selectionInput;
+    bool selectionPending=false;
+    static LRESULT CALLBACK SelectionMouseHook(int code,WPARAM message,LPARAM data){
+        const auto result=CallNextHookEx(nullptr,code,message,data);
+        if(code==HC_ACTION&&result==0&&message==WM_LBUTTONUP&&selectionOwner&&selectionOwner->redrawWindow){
+            auto* self=selectionOwner;const auto* mouse=reinterpret_cast<MOUSEHOOKSTRUCT*>(data);
+            self->selectionInput={mouse->hwnd,mouse->pt};
+            if(!self->selectionPending)self->selectionPending=PostMessageW(self->redrawWindow,SelectionClickMessage,0,0)!=0;
+        }
+        return result;
+    }
+    void ObserveSelectionClick(){
+        selectionPending=false;
+        for(auto* screen:screens)if(screen->SelectionClick(selectionInput.target,selectionInput.point)){
+            const bool connected=GetConnectionType()!=EuroScopePlugIn::CONNECTION_TYPE_NO;
+            const auto flight=connected?FlightPlanSelectASEL():EuroScopePlugIn::CFlightPlan();
+            const auto target=connected&&!flight.IsValid()?RadarTargetSelectASEL():EuroScopePlugIn::CRadarTarget();
+            host->SetAircraftSelection(flight.IsValid()?flight.GetCallsign():target.IsValid()?target.GetCallsign():"",connected,true);
+            break;
+        }
+    }
     Json activeEditor;
     static constexpr int EditFunction=88300,SelectFunction=88301;
     void DrainEditor(){
@@ -31,6 +55,7 @@ class Plugin final:public EuroScopePlugIn::CPlugIn {
         if(message==WM_NCCREATE)SetWindowLongPtrW(window,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(reinterpret_cast<CREATESTRUCTW*>(l)->lpCreateParams));
         auto* plugin=reinterpret_cast<Plugin*>(GetWindowLongPtrW(window,GWLP_USERDATA));
         if(message==RedrawMessage&&plugin){try{plugin->DrainEditor();plugin->RefreshRadar();}catch(...){/* Never unwind through the Windows message pump. */}return 0;}
+        if(message==SelectionClickMessage&&plugin){try{plugin->ObserveSelectionClick();}catch(...){/* Local visual input must not interrupt EuroScope. */}return 0;}
         return DefWindowProcW(window,message,w,l);
     }
     std::vector<RadarScreen*> screens;
@@ -49,9 +74,14 @@ public:
         host=std::make_unique<Host>(reinterpret_cast<HINSTANCE>(&__ImageBase),context);
         WNDCLASSW relay{};relay.hInstance=reinterpret_cast<HINSTANCE>(&__ImageBase);relay.lpfnWndProc=RedrawProcedure;relay.lpszClassName=L"SAAMANRadarRefreshRelay";RegisterClassW(&relay);
         redrawWindow=CreateWindowExW(0,relay.lpszClassName,L"SAAMAN repaint relay",0,0,0,0,0,HWND_MESSAGE,nullptr,relay.hInstance,this);host->SetRadarRefreshTarget(redrawWindow,RedrawMessage);
+        // Observe clicks on this radar thread without consuming or changing
+        // them. Sample ASEL only after EuroScope has processed the mouse event.
+        selectionOwner=this;selectionHook=SetWindowsHookExW(WH_MOUSE,SelectionMouseHook,nullptr,GetCurrentThreadId());
         Report(std::string("Loaded ")+SAAMAN_VERSION+". .saaman · .saaman supervisor");
     }
     ~Plugin() override {
+        if(selectionOwner==this)selectionOwner=nullptr;
+        if(selectionHook){UnhookWindowsHookEx(selectionHook);selectionHook=nullptr;}
         for(auto* screen:screens)screen->Deactivate();
         host.reset();
         if(redrawWindow)DestroyWindow(redrawWindow);UnregisterClassW(L"SAAMANRadarRefreshRelay",reinterpret_cast<HINSTANCE>(&__ImageBase));
@@ -79,6 +109,10 @@ public:
     }
     void OnTimer(int counter) override {
         try{
+            const bool connected=GetConnectionType()!=EuroScopePlugIn::CONNECTION_TYPE_NO;
+            const auto selected=connected?FlightPlanSelectASEL():EuroScopePlugIn::CFlightPlan();
+            const auto selectedTarget=connected&&!selected.IsValid()?RadarTargetSelectASEL():EuroScopePlugIn::CRadarTarget();
+            host->SetAircraftSelection(selected.IsValid()?selected.GetCallsign():selectedTarget.IsValid()?selectedTarget.GetCallsign():"",connected);
             Json outgoing;
             bool captureDue=false;{std::lock_guard lock(context->mutex);captureDue=Now()-context->captureAttemptAt>=1500;}
             if(captureDue){

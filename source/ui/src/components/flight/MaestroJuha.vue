@@ -5,6 +5,9 @@ import {APPLICATION_BUILD} from '@/build'
 import MaestroInformation from './MaestroInformation.vue'
 import {reinsertRecoveryEdits,gainDragEdits,dragTargetTime,swapFlightEdits,insertRelative,maximumDelayEdits,manualTransferSeconds,instructionColor,zulu,COORDINATION_MESSAGES} from '@/maestro-operations'
 import {nativeRequest} from '@/native-rpc'
+import {useAircraftHighlight} from '@/use-aircraft-highlight'
+import {createAutomaticNoticeFeed} from '@/maestro-automatic-notices'
+import type {AutomaticCorrection} from '@/maestro-engine'
 import {useFloatingSurface} from '@/floating-surface'
 import {runwaySelections} from '@/maestro-runway-sync'
 import {configureRelayAuth,leaveSharedRoom,suspendSharedRoom} from '@/native-transport'
@@ -60,8 +63,27 @@ let relayEpoch=''
 const busy = ref(false)
 const polling = ref(false)
 const error = ref('')
+const automaticNotices=ref<AutomaticCorrection[]>([])
+const automaticNoticeFeed=createAutomaticNoticeFeed({
+    load:()=>JSON.parse(sessionStorage.getItem('saaman-automatic-notices-v1')||'null'),
+    save:state=>sessionStorage.setItem('saaman-automatic-notices-v1',JSON.stringify(state))
+})
+let automaticNoticeTimer:ReturnType<typeof setTimeout>|undefined
+let automaticNoticeScope=''
+function dismissAutomaticNotices(){automaticNotices.value=[];clearTimeout(automaticNoticeTimer)}
+watch(sequence,s=>{
+    if(!s)return
+    const scope=JSON.stringify([localPreview?'local':nativeInfo.backendBaseUrl,nativeInfo.relay?.network,nativeInfo.relay?.session,nativeInfo.relay?.channel,relayEpoch,demo.value])
+    if(scope!==automaticNoticeScope){dismissAutomaticNotices();automaticNoticeScope=scope}
+    const notices=automaticNoticeFeed.ingest(s,scope)
+    if(!notices.length)return
+    automaticNotices.value=notices;clearTimeout(automaticNoticeTimer)
+    automaticNoticeTimer=setTimeout(dismissAutomaticNotices,7000)
+})
+onUnmounted(()=>clearTimeout(automaticNoticeTimer))
 const menu = ref('')
 const selected = ref('')
+const {selectedCallsign:radarSelected,hoveredCallsign:radarHovered,hover:highlightRadar,leave:leaveRadar,clear:clearRadarHover}=useAircraftHighlight()
 const placementSelection=ref('')
 type PlacementPreview={kind:'insert'|'swap';callsign:string;other?:string;time:number;top:number;group:string;right:boolean}
 const placementPreview=ref<PlacementPreview|null>(null)
@@ -260,6 +282,11 @@ function nativeCoordinationAck(event:Event){
 function closeCoordinationPopup(){if(!localPreview)void nativeRequest('host:coordination',{message:null}).catch(()=>{})}
 
 const visibleFlights = computed(() => all.value.filter(f=>(f.landingEtaAvailable!==false||f.recoveryManualSlot)&&!f.issue&&!f.lost&&f.mode==='sequenced'&&(view.value!=='Runway'||displayRunways.value.includes(rwy(f)))&&(view.value!=='ACC'||feederSelection.value.includes(f.ff))))
+watch([view,clockOffset,horizontalPosition],clearRadarHover)
+watch(visibleFlights,()=>{
+    const f=visibleFlights.value.find(f=>f.callsign===radarHovered.value)
+    if(!f||!groups.value.some(g=>g.id===groupOf(f))||y(displayedTime(f))<0||y(displayedTime(f))>plotHeight.value)clearRadarHover()
+})
 function labelY(f:EngineFlight){
     const anchor=y(displayedTime(f));let position=anchor
     if(view.value==='Runway')for(const slot of displayedGaps.value.filter(s=>s.runway===rwy(f))){
@@ -856,6 +883,9 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
         <button data-action="coordinations" @click="positionPopup($event,true);menu=menu==='coordination'?'':'coordination'">Coordinations</button>
     </nav>
     <p v-if="sequencerWarning" class="message" role="status">{{sequencerWarning}}</p>
+    <div v-if="automaticNotices.length" class="automatic-notice" role="status" aria-live="polite" aria-atomic="true" data-automatic-notice>
+        <span><span v-for="notice in automaticNotices" :key="notice.id" class="automatic-notice-line">{{notice.callsign}} — {{notice.detail}}</span></span><button type="button" aria-label="Dismiss automatic correction notice" @click.stop="dismissAutomaticNotices">×</button>
+    </div>
     <Teleport :to="globalTarget||'body'" :disabled="!globalTarget">
     <div v-if="menu==='maestro'" class="popup global-menu" ><div class="menu-title" @pointerdown="globalSurface.startDrag">MAESTRO<button @click="menu=''">×</button></div><button @click="openDialog('setup')">ESSA · Operation mode</button><button @click="openDialog('feeders')">ACC feeders</button><small class="build-version">{{applicationBuild}}</small></div>
     </Teleport>
@@ -883,8 +913,8 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
                             <button class="gap-body" data-gap-handle="move" :aria-label="`Move closure for ${s.runway.split('/')[1]}`" @pointerdown.stop="startGapDrag(s.id,'move',$event)" @click.stop="gapClick(s.id)"><span>{{s.kind==='gap'?'GAP':'CLOSED'}} <small>{{((s.end-s.begin)/60000).toFixed(1)}}m</small></span></button>
                             <button v-if="y(s.begin)<=plotHeight" class="gap-handle begin" data-gap-handle="begin" :disabled="!editable" :aria-label="`Drag closure start for ${s.runway.split('/')[1]}`" @pointerdown.stop="startGapDrag(s.id,'begin',$event)" @click.stop><span>{{utc(s.begin,true)}} START</span></button>
                         </div>
-                        <button v-for="f in visibleFlights.filter(f=>groupOf(f)===g.id&&y(displayedTime(f))>=0&&y(displayedTime(f))<=plotHeight)" :key="f.callsign" class="flight" :class="{right:rightSide(f),boxed:selected===f.callsign||recomputeSelection.includes(f.callsign),selected:selected===f.callsign,'swap-target':placementPreview?.other===f.callsign,movable:movable(f),dragging:drag?.callsign===f.callsign&&drag.moved}" :data-callsign="f.callsign" :aria-pressed="selected===f.callsign" :data-state="STATE_NAMES[f.state]" :style="{top:`${dragPosition(f)}px`,color:stateColor(f)}" :title="flightTooltip(f)" @click.stop="selectFlight(f)" @contextmenu.prevent.stop="flightClick(f,$event)" @pointerdown.stop="startDrag(f,$event)">
-                            <span v-if="labels.totalDelay&&!f.passedFeeder">{{Math.round(f.totalDelay/60)}}</span><span v-if="labels.feeder">{{f.ff}}</span><span v-if="labels.runway">{{rwy(f).split('/')[1]}}</span><template v-if="view!=='ACC'||coverage.view!=='ACC'"><span class="type">{{f.aircraft||'UNKN'}}</span><span class="wake" :title="`Wake turbulence category: ${f.wake||'?'}`">{{f.wake||'?'}}</span></template><span v-if="delayLabel(controllerInstructionSeconds(f))" class="delay" :style="{color:delayColor(controllerInstructionSeconds(f))}">{{delayLabel(controllerInstructionSeconds(f))}}</span><strong>{{f.callsign}}</strong><span class="ff-time" :title="`${view==='Runway'?'Scheduled landing':'Scheduled feeder crossing'} ${utc(view==='Runway'?f.sta:f.staFf,true)} UTC`">{{minutes(f.state===4||view==='Runway'?f.sta:f.staFf)}}</span><span v-if="f.spacingConflict" class="conflict" title="Check spacing after this sequence change">!</span>
+                        <button v-for="f in visibleFlights.filter(f=>groupOf(f)===g.id&&y(displayedTime(f))>=0&&y(displayedTime(f))<=plotHeight)" :key="f.callsign" class="flight" :class="{right:rightSide(f),boxed:selected===f.callsign||recomputeSelection.includes(f.callsign),selected:selected===f.callsign,'swap-target':placementPreview?.other===f.callsign,movable:movable(f),dragging:drag?.callsign===f.callsign&&drag.moved}" :data-callsign="f.callsign" :aria-pressed="selected===f.callsign" :data-state="STATE_NAMES[f.state]" :style="{top:`${dragPosition(f)}px`,color:stateColor(f)}" :title="flightTooltip(f)" @click.stop="selectFlight(f)" @contextmenu.prevent.stop="flightClick(f,$event)" @pointerdown.stop="startDrag(f,$event)" @pointerenter="highlightRadar(f.callsign)" @pointerleave="leaveRadar(f.callsign)">
+                            <span v-if="labels.totalDelay&&!f.passedFeeder">{{Math.round(f.totalDelay/60)}}</span><span v-if="labels.feeder">{{f.ff}}</span><span v-if="labels.runway">{{rwy(f).split('/')[1]}}</span><template v-if="view!=='ACC'||coverage.view!=='ACC'"><span class="type">{{f.aircraft||'UNKN'}}</span><span class="wake" :title="`Wake turbulence category: ${f.wake||'?'}`">{{f.wake||'?'}}</span></template><span v-if="delayLabel(controllerInstructionSeconds(f))" class="delay" :style="{color:delayColor(controllerInstructionSeconds(f))}">{{delayLabel(controllerInstructionSeconds(f))}}</span><strong :class="{'radar-selected':radarSelected===f.callsign}" :data-radar-selected="radarSelected===f.callsign">{{f.callsign}}</strong><span class="ff-time" :title="`${view==='Runway'?'Scheduled landing':'Scheduled feeder crossing'} ${utc(view==='Runway'?f.sta:f.staFf,true)} UTC`">{{minutes(f.state===4||view==='Runway'?f.sta:f.staFf)}}</span><span v-if="f.spacingConflict" class="conflict" title="Check spacing after this sequence change">!</span>
                         </button>
                     </div>
                     <div class="timeline-foot"><span class="foot-left">{{view==='Runway'?displayRunways.includes(g.runways[0])?g.runways[0].split('/')[1]:'':feederSelection.includes(g.fixes[0])||view==='FLOW'?g.fixes[0] || g.name:''}}</span><span class="column-clock">{{utc(now,true)}}</span><span class="foot-right">{{view==='Runway'?displayRunways.includes(g.runways[1])?g.runways[1].split('/')[1]:'':feederSelection.includes(g.fixes[1])||view==='FLOW'?g.fixes[1] || '':''}}</span></div>
@@ -1124,9 +1154,13 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
 .coordination-menu{position:absolute;top:125px;left:25px;max-height:calc(100% - 130px);overflow:auto;z-index:25;width:285px}
 </style>
 
-<style scoped>.closure-gap.hollow .gap-body{background:transparent}.change-time-marker.preview,.change-time-marker.rate.preview{border-top:4px solid #f0e129!important}</style>
+<style scoped>.closure-gap.hollow .gap-body{background:transparent}.change-time-marker.preview,.change-time-marker.rate.preview{border-top:4px solid #f0e129!important}.flight strong.radar-selected{outline:1px solid #40e0e8;outline-offset:2px;background:#40e0e818}</style>
 
 <style scoped>.display{position:relative}</style>
+<style scoped>
+.automatic-notice{position:absolute;left:23px;right:9px;bottom:18px;z-index:22;display:flex;align-items:center;justify-content:space-between;gap:6px;background:#637c89f5;border:1px solid #a7bdc8;border-radius:3px;color:#f1f6f8;padding:4px 6px;font-size:11px;line-height:1.3;pointer-events:none;box-shadow:1px 2px 5px #17202955}
+.automatic-notice-line{display:block}.automatic-notice button{pointer-events:auto;flex-shrink:0;padding:0 3px;margin:0;border:0;background:transparent;color:inherit;line-height:1;font-size:16px}
+</style>
 
 <style scoped>.flight>span{flex-shrink:0}.flight strong{min-width:40px;overflow:hidden;text-overflow:ellipsis;flex-shrink:1}</style>
 

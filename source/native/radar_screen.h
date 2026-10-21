@@ -14,6 +14,7 @@ class RadarScreen final:public EuroScopePlugIn::CRadarScreen {
     HWND parent=nullptr;
     unsigned hoverPane=0,dragPane=0;POINT hoverPoint{};
     std::map<unsigned,std::string> surfaceNames;
+    std::vector<Host::Pane> paintedPanes;
     void Input(const char* id,POINT point,const char* type,int button=0);
     void Bind(HDC dc);
     void DrawAircraftHighlight(HDC dc);
@@ -34,5 +35,6 @@ public:
     HCURSOR Cursor()const{return host?host->InputCursor(hoverPane,hoverPoint):LoadCursorW(nullptr,IDC_ARROW);}
     static void ReleaseInput();
     void Leave();
+    bool SelectionClick(HWND target,POINT screen);
 };
 }

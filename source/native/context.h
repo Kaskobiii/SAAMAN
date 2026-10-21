@@ -23,7 +23,7 @@ struct Context {
     long long controllerCid=0;
     Json relay={{"network","live"},{"session","essa-test-01"},{"channel","saaman"}};
     std::string instanceId;
-    std::string aircraftSelection;
+    AircraftSelection aircraftSelection;
     AircraftHover aircraftHover;
     bool aircraftLinkConnected=false;
     explicit Context(std::filesystem::path folder,std::filesystem::path stateFolder={});

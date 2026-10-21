@@ -10,7 +10,7 @@ export function createAircraftHighlight(request:LocalRequest,selected:(callsign:
   if(next===selectionIdentity)return
   selectionIdentity=next;const lease=++selectionLease
   clearTimeout(selectionTimer);selected(next)
-  if(next)selectionTimer=setTimeout(()=>{if(active&&lease===selectionLease)selected('')},3000)
+  if(next)selectionTimer=setTimeout(()=>{if(active&&lease===selectionLease){selectionIdentity='';selectionRevision++;selected('')}},3000)
  }
  function send(value:string,renew=false){
   const revision=hoverRevision

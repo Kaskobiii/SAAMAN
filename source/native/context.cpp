@@ -95,7 +95,7 @@ void Context::SeedRunwayConfig(){
 Json Context::Request(const std::string& method,const Json& data,bool supervisor){
     std::lock_guard lock(mutex);
     if(method=="host:info")return {{"shared",shared},{"backendBaseUrl",backend},{"authProvider",authProvider},{"controllerCid",controllerCid},{"relay",relay},{"instanceId",instanceId},{"view",supervisor?"supervisor":"aman"},{"test",test},{"sdkSurfaces",sdkSurfaces}};
-    if(method=="host:aircraft-selection")return {{"callsign",aircraftSelection}};
+    if(method=="host:aircraft-selection")return {{"callsign",aircraftSelection.Active(AircraftLinkTick())}};
     if(method=="host:aircraft-hover"){
         const auto call=data.at("callsign").get<std::string>();
         if(!AircraftLinkCallsign(call))throw RequestError(400,"Invalid aircraft callsign");

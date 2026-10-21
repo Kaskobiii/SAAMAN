@@ -799,7 +799,7 @@ const docs=()=>[document,...(window.__SAAMAN_FLOATING_DOCUMENTS__?.values()??[])
             else if(!msg.hwnd&&msg.message==EditMessage){std::unique_ptr<Json> input(reinterpret_cast<Json*>(msg.lParam));for(const auto& window:self.windows)if(window->surfaceId==input->value("window",0u)&&window->browser&&!window->destroying){window->browser->ExecuteScript(Wide("window.__SAAMAN_SDK_EDIT__?.("+input->dump()+")").c_str(),nullptr);window->surfaceDirty=true;break;}}
             else if(!msg.hwnd&&msg.message==PulseMessage){self.EnsureBackground();for(const auto& window:self.windows)if(!window->auth&&window->browser)window->browser->PostWebMessageAsJson(L"{\"event\":\"pulse\"}");}
             else if(!msg.hwnd&&msg.message==AircraftSelectionMessage){
-                Json selection;{std::lock_guard lock(self.context->mutex);selection={{"event","aircraft-selection"},{"callsign",self.context->aircraftSelection}};}
+                Json selection;{std::lock_guard lock(self.context->mutex);selection={{"event","aircraft-selection"},{"callsign",self.context->aircraftSelection.Active(AircraftLinkTick())}};}
                 const auto event=Wide(selection.dump());for(const auto& window:self.windows)if(!window->auth&&window->browser&&!window->destroying)window->browser->PostWebMessageAsJson(event.c_str());
             }
             else if(!msg.hwnd&&msg.message==AircraftHoverResetMessage){for(const auto& window:self.windows)if(!window->auth&&!window->supervisor&&!window->floating&&window->browser&&!window->destroying)window->browser->PostWebMessageAsJson(L"{\"event\":\"aircraft-hover-reset\"}");}
@@ -842,9 +842,9 @@ void Host::Pointer(unsigned id,POINT point,POINT screen,const char* type,int but
     auto input=std::make_unique<Json>(Json{{"window",id},{"type",type},{"x",point.x},{"y",point.y},{"screenX",screen.x},{"screenY",screen.y},{"button",button},{"delta",delta},{"ctrl",(modifiers&1)!=0},{"shift",(modifiers&2)!=0},{"alt",(modifiers&4)!=0}});
     if(PostThreadMessageW(impl->threadId,InputMessage,0,reinterpret_cast<LPARAM>(input.get())))input.release();
 }
-void Host::SetAircraftSelection(const std::string& callsign,bool connected){
+void Host::SetAircraftSelection(const std::string& callsign,bool connected,bool selectedAgain){
     const auto call=connected&&AircraftLinkCallsign(callsign)?callsign:std::string();bool changed=false,cleared=false;
-    {std::lock_guard lock(impl->context->mutex);changed=impl->context->aircraftSelection!=call;impl->context->aircraftSelection=call;impl->context->aircraftLinkConnected=connected;if(!connected){cleared=!impl->context->aircraftHover.callsign.empty();impl->context->aircraftHover.Clear();}}
+    {std::lock_guard lock(impl->context->mutex);changed=impl->context->aircraftSelection.Observe(call,AircraftLinkTick(),selectedAgain);impl->context->aircraftLinkConnected=connected;if(!connected){cleared=!impl->context->aircraftHover.callsign.empty();impl->context->aircraftHover.Clear();}}
     if(changed)PostThreadMessageW(impl->threadId,AircraftSelectionMessage,0,0);
     if(cleared){impl->MarkRadarDirty();PostThreadMessageW(impl->threadId,AircraftHoverResetMessage,0,0);}
 }

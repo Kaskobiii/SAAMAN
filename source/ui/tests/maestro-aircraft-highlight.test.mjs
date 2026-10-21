@@ -83,15 +83,24 @@ test('a rejected old renewal cannot clear a newer hover',async()=>{
  assert.equal(hovers.at(-1),'RYR456');assert.equal(calls.at(-1).data.callsign,'RYR456')
 })
 
-test('the AMAN callsign box expires after three seconds and repeated selection reports do not renew it',t=>{
+test('the AMAN callsign box forgets selection after three seconds so the same aircraft can be selected again',t=>{
  t.mock.timers.enable({apis:['setTimeout']})
  const {state,selections,calls}=setup()
  state.receiveSelection('SAS123');t.mock.timers.tick(2000)
  state.receiveSelection('SAS123');t.mock.timers.tick(999)
  assert.equal(selections.at(-1),'SAS123')
  t.mock.timers.tick(1);assert.equal(selections.at(-1),'')
- state.receiveSelection('SAS123');t.mock.timers.tick(3000)
- assert.deepEqual(selections,['SAS123','']);assert.deepEqual(calls,[])
+ state.receiveSelection('SAS123');assert.equal(selections.at(-1),'SAS123');t.mock.timers.tick(3000)
+ assert.deepEqual(selections,['SAS123','','SAS123','']);assert.deepEqual(calls,[])
+})
+
+test('a selection read started before expiry cannot restore forgotten selection after expiry',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']})
+ let finish
+ const {state,selections}=setup(()=>new Promise(resolve=>finish=resolve))
+ state.receiveSelection('SAS123');const pending=state.loadSelection()
+ t.mock.timers.tick(3000);finish({callsign:'SAS123'});await pending
+ assert.deepEqual(selections,['SAS123',''])
 })
 
 test('changing selection starts a fresh three-second box and clearing/disposal cancel expiry',t=>{

@@ -2,7 +2,7 @@
 
 ## Aircraft highlights
 
-- Select an aircraft in EuroScope to put a cyan box around its callsign in AMAN for **three seconds**.
+- Select an aircraft in EuroScope to put a cyan box around its callsign in AMAN for **three seconds**. After it expires, selecting the same aircraft again shows a fresh box.
 - Hover over an aircraft in AMAN to show a **cyan ring around its radar return**. Leaving the aircraft clears the ring. No extra callsign text is drawn on the radar.
 
 ## Unnecessary delay for lone aircraft
@@ -19,6 +19,10 @@ For example, an arrival that previously accumulated L02 and then L04 without tra
 
 Manual slots, HOLD, pause protection and protected sequence order remain in force. If an older damaged checkpoint has no usable timing history, recovery needs credible position/performance data; missing history cannot be reconstructed.
 
+## Information route
+
+Information shows the route **from the feeder fix onwards**, even when no STAR was assigned when the aircraft first appeared. It no longer displays the whole enroute flightplan. For example, EDDF → TORVA → NILUG → TEB is shown from NILUG onwards. If no arrival entry is known yet, the destination ETA remains visible.
+
 ## Update
 
 Unload the previous plugin and load **SAAMAN.dll in every EuroScope instance, including the sequencer and proxy instances**. Keep SAAMAN above TopSky in EuroScope’s plugin list.
@@ -27,4 +31,4 @@ The DLL is attached directly to the release; no ZIP is needed.
 
 ## Validation
 
-All **570 client/model tests** pass, along with the Windows Release build, UI type checks and native context checks. Mounted interface checks cover the three-second selection box, hover cleanup and the automatic notice lifecycle. The final highlight changes were also tested in EuroScope before publication.
+All **575 client/model tests** pass, along with the Windows Release build, UI type checks and native context checks. Mounted interface checks cover the three-second selection reset, reselecting the same aircraft, feeder-only Information routes, hover cleanup and the automatic notice lifecycle.

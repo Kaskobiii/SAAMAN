@@ -1,4 +1,4 @@
-import {delayLabel,validateEdits,wakeInterval,effectiveConfig,type EngineSnapshot,type EngineFlight,type FlightEdit,type EngineConfig} from './maestro-engine'
+import {FEEDERS,delayLabel,validateEdits,wakeInterval,effectiveConfig,type EngineSnapshot,type EngineFlight,type FlightEdit,type EngineConfig} from './maestro-engine'
 import {distanceNm,STAR_PROFILES,STAR_RUNWAYS,starTravelSeconds} from './maestro-star-prediction'
 import {recoveryIafOptions,type RecoveryEntry} from './maestro-recovery'
 
@@ -110,10 +110,19 @@ export function maximumDelayEdits(snapshot:EngineSnapshot,config:EngineConfig,ed
  return next
 }
 export function informationRoute(f:EngineFlight,now:number){
- const route=f.amanRoute??f.route
- const feeder=route.findIndex(p=>p.name===f.ff),threshold=route.findIndex(p=>p.name===`SA${f.runway}`)
- let points=route.slice(f.amanRoute?f.amanRoutePassed??0:Math.max(0,feeder),threshold>=0?threshold+1:undefined)
- if(!f.amanRoute&&f.passedFeeder&&Number.isInteger(f.calculatedRouteIndex))points=points.filter(p=>f.route.indexOf(p)>(f.calculatedRouteIndex??-1))
+ const feederNames=new Set<string>(FEEDERS.filter(group=>group.airport===f.arrival).flatMap(group=>[...group.fixes]))
+ // A route first seen without a STAR can contain the entire filed flightplan.
+ // Display only the feeder/arrival portion, including after it is retained.
+ // Known terminal fixes still support direct and local-TMA arrivals with no feeder.
+ const arrivalStart=(points:EngineFlight['route'])=>{
+  const feeder=points.findIndex(p=>feederNames.has(p.name))
+  return feeder>=0?feeder:points.findIndex(p=>['TEB','BALVI','ERXEC','OBCIV'].includes(p.name)||/^(?:SA\d{2,3}[A-Z0-9]*|(?:CI|FI)(?:01[LR]|19[LR]|08|26))$/.test(p.name))
+ }
+ const route=f.amanRoute&&arrivalStart(f.amanRoute)>=0?f.amanRoute:f.route,retained=route===f.amanRoute
+ const terminal=arrivalStart(route),threshold=route.findIndex(p=>p.name===`SA${f.runway}`)
+ const begin=Math.max(terminal,retained?f.amanRoutePassed??0:0)
+ let points=terminal<0?[]:route.slice(begin,threshold>=0?threshold+1:undefined)
+ if(!retained&&f.passedFeeder&&Number.isInteger(f.calculatedRouteIndex))points=points.filter(p=>f.route.indexOf(p)>(f.calculatedRouteIndex??-1))
  if(!points.some(p=>p.name===f.arrival))points.push({name:f.arrival,seconds:0})
  if(f.landingEtaAvailable===false)return points.map(p=>({name:p.name,time:NaN}))
  if(f.euroscopeBaseline){

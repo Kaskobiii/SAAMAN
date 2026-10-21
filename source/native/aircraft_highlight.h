@@ -11,6 +11,19 @@ inline bool AircraftLinkCallsign(std::string_view call){
     for(const char c:call)if(!(c>='A'&&c<='Z')&&!(c>='0'&&c<='9')&&c!='_'&&c!='-')return false;
     return true;
 }
+// Keep polling identity separate from the temporary highlight. Repeated SDK
+// reads do not renew it; a fresh selection click can reselect the same aircraft.
+struct AircraftSelection {
+    std::string observed,current;
+    int64_t at=0;
+    void Clear(){observed.clear();current.clear();at=0;}
+    std::string Active(int64_t tick)const{return !current.empty()&&tick>=at&&tick-at<3000?current:std::string();}
+    bool Observe(const std::string& call,int64_t tick,bool selectedAgain=false){
+        if(observed!=call||selectedAgain&&!call.empty()){observed=call;current=call;at=call.empty()?0:tick;return true;}
+        if(!current.empty()&&Active(tick).empty()){current.clear();at=0;return true;}
+        return false;
+    }
+};
 // Local visual state only. A monotonic lease removes a marker even if the
 // renderer misses pointerleave, closes unexpectedly, or the PC clock changes.
 struct AircraftHover {

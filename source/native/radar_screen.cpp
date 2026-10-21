@@ -23,6 +23,14 @@ LRESULT CALLBACK WheelHook(int code,WPARAM message,LPARAM data){
 void RadarScreen::Deactivate(){if(wheelScreen==this)wheelScreen=nullptr;if(wheelHook){UnhookWindowsHookEx(wheelHook);wheelHook=nullptr;}if(cursorHook){UnhookWindowsHookEx(cursorHook);cursorHook=nullptr;}host=nullptr;closed={};}
 void RadarScreen::ReleaseInput(){wheelScreen=nullptr;}
 void RadarScreen::Leave(){if(host&&hoverPane){POINT screen{};GetCursorPos(&screen);POINT point=screen;ScreenToClient(parent,&point);host->Pointer(hoverPane,point,screen,"leave");hoverPane=0;}}
+bool RadarScreen::SelectionClick(HWND target,POINT screen){
+    if(!host||!parent||!IsWindow(target)||(target!=parent&&!IsChild(parent,target)))return false;
+    POINT point=screen;if(!ScreenToClient(parent,&point))return false;
+    const auto radar=GetRadarArea();
+    if(!PtInRect(&radar,point)||PtInRect(&launcher,point))return false;
+    for(const auto& pane:paintedPanes)if(PtInRect(&pane.bounds,point))return false;
+    return true;
+}
 void RadarScreen::Input(const char* id,POINT point,const char* type,int button){
     if(!host||!id)return;unsigned pane=0;try{pane=static_cast<unsigned>(std::stoul(id));}catch(...){return;}
     POINT screen=point;if(parent)ClientToScreen(parent,&screen);const unsigned modifiers=(GetKeyState(VK_CONTROL)<0?1:0)|(GetKeyState(VK_SHIFT)<0?2:0)|(GetKeyState(VK_MENU)<0?4:0);
@@ -72,7 +80,8 @@ void RadarScreen::OnRefresh(HDC dc,int phase){
     AddScreenObject(CotsOpen,"SAAMAN AMAN",button,false,"Show/hide ESSA AMAN");
     RestoreDC(dc,saved);DeleteObject(font);DeleteObject(body);DeleteObject(title);DeleteObject(checkbox);
     host->DrawChrome(dc);
-    for(const auto& pane:host->PaintRadar(dc)){auto& name=surfaceNames[pane.id];if(name.empty())name=std::to_string(pane.id);AddScreenObject(SurfaceObject,name.c_str(),pane.bounds,true,"");}
+    paintedPanes=host->PaintRadar(dc);
+    for(const auto& pane:paintedPanes){auto& name=surfaceNames[pane.id];if(name.empty())name=std::to_string(pane.id);AddScreenObject(SurfaceObject,name.c_str(),pane.bounds,true,"");}
 }
 void RadarScreen::OnClickScreenObject(int type,const char* id,POINT point,RECT,int button){
     if(host&&type==CotsOpen&&button==EuroScopePlugIn::BUTTON_LEFT){host->Toggle(false);RequestRefresh();}

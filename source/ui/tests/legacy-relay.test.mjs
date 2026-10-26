@@ -188,9 +188,9 @@ test('observe only does not acquire the legacy sequencer lease',async()=>{
     await a.relay.tick();await b.relay.setObserver(true);await a.relay.leave();f.advance(9000)
     const observed=await b.relay.tick();assert.equal(observed.relayRole,'observer');assert.equal(f.state().owner,'')
 })
-test('backend reset clears old epochs, and a different AMAN engine is not silently overwritten',async()=>{
+test('expired backend recovery clears old epochs, and a different AMAN engine is not silently overwritten',async()=>{
     const f=setup(),a=f.client('instance-a','ESSA_APP',1396125)
-    const old=await a.relay.tick();f.reset();f.advance(1000)
+    const old=await a.relay.tick();f.reset();f.advance(31000)
     assert.notEqual((await a.relay.tick()).epoch,old.epoch)
     const other=setup(),b=other.client('instance-b','ESSA_E_APP',null);other.foreign()
     await assert.rejects(b.relay.tick(),/another AMAN plugin/)

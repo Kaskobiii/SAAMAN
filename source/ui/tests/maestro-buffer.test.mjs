@@ -80,15 +80,15 @@ test('an older inactive-runway diagnostic repairs itself on fresh SDK data witho
  assert.equal(next.issue,'');assert.equal(next.runway,'19R');assert.equal(next.secondaryRunwayAccepted,true);assert.ok(next.state>=1)
 })
 
-test('Recompute after a post-feeder reconnect resolves the phase immediately instead of waiting for the new-flight timer',()=>{
+test('verified post-feeder traffic retains an immediate accepted phase before and after Recompute or reconnect',()=>{
  const frame=runwayFixture.frames[1],p={...frame.input.flights.find(f=>f.callsign==='LGL5781'),landingSeconds:480}
  const c={...frame.config,unstableSeconds:30},at=frame.input.timestamp
  const initial=runEngine(packet([p],at),c,{})
- assert.equal(initial.flights[0].passedFeeder,true);assert.equal(initial.flights[0].state,0)
+ assert.equal(initial.flights[0].passedFeeder,true);assert.equal(initial.flights[0].state,2)
  const disconnected=runEngine(packet([],at+1000),c,{},initial)
  assert.equal(disconnected.flights.length,0)
  const reconnected=runEngine(packet([p],at+2000),c,{},disconnected)
- assert.equal(reconnected.flights[0].passedFeeder,true);assert.equal(reconnected.flights[0].state,0)
+ assert.equal(reconnected.flights[0].passedFeeder,true);assert.equal(reconnected.flights[0].state,2)
  const edits={[p.callsign]:{recomputeAt:at+3000,changedAt:at+3000}}
  const refreshed=runEngine(packet([p],at+3000),c,edits,reconnected),recomputed=refreshed.flights[0]
  assert.equal(recomputed.issue,'');assert.ok(recomputed.state>=2,'explicit Recompute must bypass the initial settling timer for a usable post-feeder flight')
@@ -581,6 +581,7 @@ test(`live ETA changes over repeated ${phase} updates with phase-appropriate all
   assert.equal(b.eta,t+(landingSeconds+buffer*60)*1000)
   assert.equal(b.runwayDelay,Math.round((b.sta-b.eta)/1000))
   if(phase==='Unstable'){assert.equal(b.sta,b.eta);assert.equal(b.staFf,b.etaFf);assert.equal(b.delay,0)}
+  else if(phase==='Stable'){assert.equal(b.sta,now+1023000);assert.equal(b.staFf,b.etaFf);assert.equal(b.delay,0)}
   else {assert.equal(b.sta,a.sta);assert.equal(b.staFf,a.staFf)}
   assert.equal(b.order,a.order)
   assert.deepEqual(b.euroscopeBaseline,a.euroscopeBaseline);assert.equal(b.initialEta,a.initialEta)
@@ -608,10 +609,13 @@ test('a zero-minute final estimate updates live ETA without capturing another ba
 
 test('shared checkpoint round trip keeps live forecasts separate from accepted scheduling times',()=>{
  const c=config(),p=flight({route:[{name:'ELTOK',seconds:700}]}),first=runEngine(packet([{...p,groundspeed:450},{...p,callsign:'SECOND',landingSeconds:1510,groundspeed:450}]),c,{})
- const next=runEngine(packet([{...p,groundspeed:250,landingSeconds:800},{...p,callsign:'SECOND',landingSeconds:600,groundspeed:300}],now+2000),c,{},first)
+ const next=runEngine(packet([{...p,route:[{name:'ELTOK',seconds:698}],groundspeed:250,landingSeconds:1200},{...p,callsign:'SECOND',route:[{name:'ELTOK',seconds:698}],landingSeconds:1000,groundspeed:300}],now+2000),c,{},first)
  const synced=JSON.parse(JSON.stringify(next))
- const repeated=runEngine(packet([{...p,groundspeed:375,landingSeconds:900},{...p,callsign:'SECOND',landingSeconds:750,groundspeed:250}],now+20000),c,{},synced)
- for(const f of repeated.flights){const a=first.flights.find(p=>p.callsign===f.callsign);assert.equal(f.sta,a.sta);assert.equal(f.staFf,a.staFf);assert.equal(f.order,a.order)}
+ const repeated=runEngine(packet([{...p,route:[{name:'ELTOK',seconds:680}],groundspeed:375,landingSeconds:1100},{...p,callsign:'SECOND',route:[{name:'ELTOK',seconds:680}],landingSeconds:900,groundspeed:250}],now+20000),c,{},synced)
+ for(const f of repeated.flights){const a=first.flights.find(p=>p.callsign===f.callsign);assert.equal(f.issue,'');assert.ok(f.sta<a.sta);assert.equal(f.order,a.order);assert.deepEqual(f.euroscopeBaseline,a.euroscopeBaseline)}
+ const leader=repeated.flights.find(f=>f.callsign==='BUFFER'),follower=repeated.flights.find(f=>f.callsign==='SECOND')
+ assert.ok(follower.sta-leader.sta>=c.rates['ESSA/19R']*1000-1);assert.ok(follower.delay>0)
+ assert.equal(leader.delay,0);assert.equal(leader.staFf,leader.etaFf)
  assert.ok(repeated.flights.find(f=>f.callsign==='SECOND').eta<repeated.flights.find(f=>f.callsign==='BUFFER').eta,'live forecast inversion does not reorder accepted sequence')
 })
 

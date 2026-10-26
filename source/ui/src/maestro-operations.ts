@@ -13,6 +13,15 @@ export function manualTransferSeconds(config:EngineConfig,runway:string,feeder:s
 }
 function copyEdits(edits:Record<string,FlightEdit>):Record<string,FlightEdit>{return Object.fromEntries(Object.entries(edits).map(([key,value])=>[key,{...value}]))}
 function available(f:EngineFlight){return (f.landingEtaAvailable!==false||f.recoveryManualSlot)&&f.mode==='sequenced'&&f.state!==4&&!f.lost&&!f.issue}
+export function recomputeFlightEdits(snapshot:EngineSnapshot|null,edits:Record<string,FlightEdit>,callsigns:string[],now:number){
+ const changes=copyEdits(edits),flights=(snapshot?.flights??[]).filter(f=>f.arrival==='ESSA')
+ for(const callsign of callsigns){
+  const flight=flights.find(f=>f.callsign===callsign&&!f.lost);if(!flight)continue
+  const stamp=Math.max(now,(snapshot?.timestamp??0)+1,(changes[callsign]?.recomputeAt??0)+1)
+  changes[callsign]={...changes[callsign],mode:'sequenced',recomputeAt:stamp,changedAt:stamp,order:flight.state===3?flight.order:undefined,target:undefined,swapAt:undefined,requeueAt:undefined,landedAt:undefined,closurePosition:undefined,etaFfOverride:undefined}
+ }
+ return changes
+}
 export function reinsertRecoveryEdits(snapshot:EngineSnapshot,config:EngineConfig,edits:Record<string,FlightEdit>,callsign:string,fix:RecoveryEntry['fix']){
  const f=snapshot.flights.find(f=>f.callsign===callsign)
  if(!f||f.mode==='removed'||f.state===4||f.lost||(!f.missedRecovery&&f.mode!=='missed'&&f.landingEtaAvailable!==false))throw Error('Select a missed approach')

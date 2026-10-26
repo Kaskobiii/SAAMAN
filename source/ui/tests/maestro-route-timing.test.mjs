@@ -65,10 +65,11 @@ test('recordings index exact initial and recompute capture inputs without duplic
  data.timingCaptures[0].baseline.eta=0
  assert.notEqual(recorder.export().timingCaptures[0].baseline.eta,0)
 })
-test('starting late records missing capture evidence instead of substituting the first available position',()=>{
+test('starting late with legacy history records missing original evidence instead of substituting a later position',()=>{
  const config=c(),input={timestamp:2_000_000,source:'ESSA_FMP',flights:[p()]},first=runEngine(input,config,{})
  const later=runEngine({...input,timestamp:input.timestamp+2000},config,{},first),recorder=new SessionRecording()
- recorder.start(later,config,{})
+ const legacy=JSON.parse(JSON.stringify(later));delete legacy.flights[0].initialTimingEvidence
+ recorder.start(legacy,config,{})
  assert.equal(recorder.export().timingCaptures.length,0)
  assert.deepEqual(recorder.export().unavailableCaptures,[{callsign:'TIMING',at:input.timestamp,reason:'before-recording'}])
  recorder.stop();recorder.start(first,config,{})

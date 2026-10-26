@@ -7,7 +7,7 @@ import {COORDINATION_MESSAGES,validateCoordinations} from './maestro-coordinatio
 import {isTowerCallsign} from './callsign-identity'
 
 export interface RelayOptions { network:'live'|'sweatbox1'|'sweatbox2';session:string;channel:string;instanceId:string }
-type Plan = {epoch:string;revision:number;config:EngineConfig;edits:Record<string,FlightEdit>;snapshot:EngineSnapshot|null;masterCid:number|null;relayRole:string;stale:boolean;sequencerWarning?:string}
+type Plan = {epoch:string;revision:number;revisionGeneration?:string;config:EngineConfig;edits:Record<string,FlightEdit>;snapshot:EngineSnapshot|null;masterCid:number|null;relayRole:string;stale:boolean;sequencerWarning?:string}
 type Send = (method:string,path:string,body?:any)=>Promise<any>
 export interface RelayDependencies {send:Send;telemetry:()=>Promise<any>;cid:()=>number|null;compactPublication?:()=>boolean;now?:()=>number;requestId?:()=>string}
 const copy=<T>(v:T):T=>structuredClone(v)
@@ -59,7 +59,23 @@ export class SharedRelay {
     private accept(data:any){
         if(typeof data.epoch!=='string'||!Number.isSafeInteger(data.revision))fail('Invalid backend room response',502)
         const reset=this.plan.epoch!==data.epoch
-        if(!reset&&data.revision<this.plan.revision)return
+        const saved=this.plan.snapshot,age=saved?this.now()-saved.timestamp:Infinity
+        const recovery=data.checkpointRecovery
+        // The callsign API has no server epoch. Its adapter can recover a
+        // fresh, already accepted checkpoint after the server reports an empty
+        // room, but only for the controller it has elected as sequencer.
+        const confirmed=this.history.get(this.plan.revision)?.snapshot??saved
+        const checkpointAge=data.checkpoint?.snapshot?this.now()-data.checkpoint.snapshot.timestamp:Infinity
+        const restore=!reset&&!!confirmed&&data.checkpoint?.schema==='saaman-1.1.9'&&
+            recovery?.fromRevision===this.plan.revision&&recovery?.epoch===this.plan.epoch&&
+            (data.role==='sequencer'&&data.revision===0&&recovery.kind==='legacy-empty-room'&&age>=0&&age<30000&&
+                canonical(data.checkpoint.snapshot)===canonical(confirmed)||
+             data.revision>0&&data.revision<this.plan.revision&&recovery.kind==='legacy-restored-publication'&&
+                recovery.fromTimestamp===confirmed.timestamp&&checkpointAge>=0&&checkpointAge<30000&&data.checkpoint.snapshot.timestamp>=confirmed.timestamp)
+        if(!reset&&data.revision<this.plan.revision&&!restore)return
+        if(!reset&&saved&&(data.revision>this.plan.revision&&data.checkpoint==null||data.checkpoint===null&&(age<0||age>=30000)))
+            fail('Waiting for the current shared recovery checkpoint',503)
+        if(restore){this.pendingPublish=null;this.pendingCommand=null;this.history.clear()}
         if(reset||data.role==='sequencer'&&(this.plan.relayRole!=='sequencer'||this.lease!==data.lease))this.initializeRunways=true
         if(data.role==='sequencer'&&data.preserveRunwayPlan===true)this.initializeRunways=false
         if(data.role!=='sequencer')this.pendingPublish=null
@@ -73,9 +89,16 @@ export class SharedRelay {
                 this.plan.edits=validateEdits(c.edits||{})
                 this.plan.snapshot=copy(c.snapshot)
                 this.applied=c.appliedCommands&&typeof c.appliedCommands==='object'&&!Array.isArray(c.appliedCommands)?copy(c.appliedCommands):{}
+            }else if(!reset&&saved){
+                // Null at the same accepted revision is an interruption, not
+                // a command to discard aircraft or controller edits.
+                this.plan.config=configuration(ops(this.plan.config),this.settings)
             }else{this.plan.config=configuration({},this.settings);this.plan.edits={};this.plan.snapshot=null;this.applied={}}
         }else this.plan.config=configuration(ops(this.plan.config),this.settings)
         this.plan.epoch=data.epoch;this.plan.revision=data.revision;this.settingsRevision=data.settingsRevision
+        // Expose the validated counter generation to the pane as well. Its
+        // revision guard must accept a recovered counter once, without a new room.
+        this.plan.revisionGeneration=typeof data.revisionGeneration==='string'&&data.revisionGeneration.length<=512?data.revisionGeneration:data.epoch
         this.plan.relayRole=data.role;this.plan.masterCid=data.role==='sequencer'?this.deps.cid():null
         this.plan.sequencerWarning=typeof data.sequencerWarning==='string'?data.sequencerWarning:''
         this.lease=data.lease||'';this.commands=data.commands||[]

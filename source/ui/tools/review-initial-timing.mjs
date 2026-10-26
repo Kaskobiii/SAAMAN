@@ -55,7 +55,17 @@ for(const file of files){
   observations.push({callsign,inputAt:stamp,evidence:capture?'recorded-initial-capture':'first-available-input',rawInputFrame:first.frame,feeder:fix?.name,candidate,
    feederCrossing,thresholdCrossing,feederError,landingError,recordedInterventions:{headingBeforeFeeder,headingSamples:rows.filter(q=>q.p.assignedHeading>0).length,runways:[...new Set(rows.map(q=>q.p.runway))]}})
  }
- reports.push({file,engine:recording.engine,frames:frames.length,unavailableCaptures:recording.unavailableCaptures??[],observations})
+ // Retained summaries identify the actual original capture even when the
+ // recorder started later. Omitted route points are not a replayable frame;
+ // never compare a fresh candidate against that historical position as if it were.
+ const originalCaptureSummaries=(recording.originalTimingCaptures??[]).filter(row=>!ignored.has(row.callsign)&&row.evidence?.schema==='saaman-timing-summary-1'&&row.evidence.provenance==='capture-summary'&&row.at===row.evidence.at).map(row=>{
+  const evidence=row.evidence,observed=observations.find(q=>q.callsign===row.callsign),actual=observed?.thresholdCrossing
+  const modelLanding=evidence.accepted?.eta,rawLanding=evidence.accepted?.rawEta
+  return {callsign:row.callsign,inputAt:row.at,evidence:'retained-capture-summary',engine:evidence.engine,input:evidence.input,model:evidence.model,config:evidence.config,route:evidence.route,
+   modelLanding,rawLanding,thresholdCrossing:actual??null,
+   landingError:actual&&Number.isFinite(modelLanding)?{current:(modelLanding-actual)/1000,raw:Number.isFinite(rawLanding)?(rawLanding-actual)/1000:null}:null}
+ })
+ reports.push({file,engine:recording.engine,frames:frames.length,unavailableCaptures:recording.unavailableCaptures??[],originalCaptureSummaries,observations})
 }
 function score(stage,evidence){
  const rows=reports.flatMap(r=>r.observations).filter(q=>(!evidence||q.evidence===evidence)&&Number.isFinite(q[stage]?.current)&&Number.isFinite(q[stage]?.candidate))

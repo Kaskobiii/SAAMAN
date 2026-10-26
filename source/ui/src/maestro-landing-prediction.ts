@@ -5,7 +5,8 @@ import {predictRouteTiming,type RouteTiming} from './maestro-route-timing'
 
 export interface LandingPrediction {
  seconds:number;rawSeconds:number;correctionSeconds:number
- reference:'threshold'|'airport';method:'aircraft-profile'|'route-slowdown'|'retained-slowdown'|'final-position'|'vector-position'|'fallback'|'recovery-iaf'
+ reference:'threshold'|'airport';method:'aircraft-profile'|'route-slowdown'|'retained-slowdown'|'final-position'|'vector-position'|'fallback'|'recovery-iaf'|'arrival-profile'
+ arrivalProfile?:string
  routeTiming?:RouteTiming
  distanceNm?:number;establishedFinal:boolean
  continuity?:{runway:string;seconds:number;at:number}

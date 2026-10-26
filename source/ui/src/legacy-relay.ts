@@ -5,7 +5,7 @@ import {APPLICATION_BUILD} from './build'
 import {sequencerVersionWarning} from './sequencer-version'
 type Send=(method:string,path:string,body?:any)=>Promise<any>
 type Receipt={digest:string;ok:boolean;message:string}
-type Envelope={protocol:'saaman-legacy-1';epoch:string;revision:number;owner:string;instanceId:string;lease:string;settingsRevision:number;settings:Record<string,unknown>;checkpoint:any;receipts:Record<string,Receipt>;publication:string;publishedAt:number;engineVersion?:string}
+type Envelope={protocol:'saaman-legacy-1';epoch:string;revision:number;owner:string;instanceId:string;lease:string;settingsRevision:number;settings:Record<string,unknown>;checkpoint:any;receipts:Record<string,Receipt>;publication:string;publishedAt:number;engineVersion?:string;counterReset?:{revision:number;publication:string;checkpointAt:number;at:number}}
 const copy=<T>(v:T):T=>JSON.parse(JSON.stringify(v))
 const fail=(message:string,status=409):never=>{throw Object.assign(new Error(message),{status})}
 async function digest(value:any){const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(value)));return [...new Uint8Array(hash)].map(x=>x.toString(16).padStart(2,'0')).join('')}
@@ -25,6 +25,9 @@ export class LegacyRelay {
     private pending=new Map<number,{from:string;requestId:string;digest:string;primary:number}>()
     private results=new Map<number,any>()
     private preserveRunwayPlan=false
+    private remoteAvailable=false
+    private unavailable=false
+    private recovery:{kind:'legacy-empty-room'|'legacy-restored-publication';fromRevision:number;epoch:string;fromTimestamp:number}|undefined
     private reportedOwner=''
     private reportedVersion:unknown
     private knownVersions:unknown[]=[]
@@ -40,10 +43,21 @@ export class LegacyRelay {
         if(!e||e.protocol!=='saaman-legacy-1')fail('This shared sequence belongs to another AMAN plugin. Stop that sequencer before using SAAMAN.')
         if(typeof e.epoch!=='string'||!Number.isSafeInteger(e.revision)||!Number.isSafeInteger(e.settingsRevision)||!Number.isFinite(e.publishedAt)||typeof e.owner!=='string'||typeof e.instanceId!=='string'||typeof e.lease!=='string'||!e.settings||!e.receipts||Object.keys(e.receipts).length>1000)fail('Invalid SAAMAN recovery data',502)
         if(this.state.epoch!==e.epoch){this.results.clear();this.pending.clear();this.commandIds.clear()}
+        const old=this.state,lineage=e.counterReset
+        const samePublication=lineage?.revision===old.revision&&lineage?.publication===old.publication&&lineage?.checkpointAt===old.checkpoint?.snapshot?.timestamp
+        // Followers can miss updates before a restart. Accept the freshly
+        // published recovery when its reset occurred after our saved version;
+        // the same metadata cannot rewind a client already past that reset.
+        const laterReset=Number.isSafeInteger(lineage?.revision)&&lineage.revision>=old.revision&&
+            lineage.at>old.publishedAt&&lineage.checkpointAt>=old.checkpoint?.snapshot?.timestamp
+        const restored=old.epoch===e.epoch&&old.revision>e.revision&&(samePublication||laterReset)&&
+            Number.isFinite(lineage?.at)&&e.publishedAt>=lineage.at&&this.now()-e.publishedAt>=0&&this.now()-e.publishedAt<30000
         this.state=copy(e);if(revision!==undefined)this.state.revision=revision
+        this.unavailable=false;this.recovery=restored?{kind:'legacy-restored-publication',fromRevision:old.revision,epoch:old.epoch,fromTimestamp:old.checkpoint.snapshot.timestamp}:undefined
     }
     private async read(){
-        try{this.adopt(await this.deps.send('GET',this.room))}
+        this.remoteAvailable=false
+        try{const sequence=await this.deps.send('GET',this.room);if(sequence){this.adopt(sequence);this.remoteAvailable=true}}
         catch(e:any){if((e.status||e.response?.status)!==404)throw e}
         // Same-callsign instances share the API's destructive results queue.
         // Recover this instance's receipts from the published checkpoint instead.
@@ -53,9 +67,12 @@ export class LegacyRelay {
     }
     private snapshot(role=this.role){
         const s=this.state,checkpoint=s.checkpoint
-        return {epoch:s.epoch,revision:s.revision,role,settingsRevision:s.settingsRevision,settings:copy(s.settings),checkpoint:copy(checkpoint),updated:s.publishedAt,
+        const reset=s.counterReset
+        const revisionGeneration=JSON.stringify(reset&&Number.isSafeInteger(reset.revision)&&Number.isFinite(reset.at)&&typeof reset.publication==='string'?
+            [s.epoch,reset.at,reset.revision,reset.publication]:[s.epoch])
+        return {epoch:s.epoch,revision:s.revision,revisionGeneration,role,settingsRevision:s.settingsRevision,settings:copy(s.settings),checkpoint:copy(checkpoint),updated:s.publishedAt,
             sequencerWarning:sequencerVersionWarning(this.reportedOwner||s.owner,this.reportedVersion??s.engineVersion,[APPLICATION_BUILD.replace(/^SAAMAN /,''),...this.knownVersions]),
-            stale:!checkpoint||this.now()-s.publishedAt>=30000,...(role==='sequencer'?{lease:s.lease,preserveRunwayPlan:this.preserveRunwayPlan}:{}),results:[...this.results.values()]}
+            checkpointRecovery:this.recovery,stale:this.unavailable||!checkpoint||this.now()-s.publishedAt>=30000,...(role==='sequencer'?{lease:s.lease,preserveRunwayPlan:this.preserveRunwayPlan}:{}),results:[...this.results.values()]}
     }
     private remember(requestId:string,receipt:Receipt){
         this.state.receipts[requestId]=receipt
@@ -103,12 +120,37 @@ export class LegacyRelay {
         // Empty role forces an immediate answer; the API's normal long poll is 20 s.
         const out=await this.deps.send('POST',this.room+'/poll',{callsign:this.callsign,role:'',version:body.revision||0,cmdAfter:0,engineVersion:body.engine?.version})
         if(!['sequencer','editor'].includes(out.role)||!Number.isSafeInteger(out.version))fail('Invalid vatIRIS AMAN response',502)
-        if(!out.sequence&&out.version===0&&this.state.revision>0)this.state=this.empty()
-        this.adopt(out.sequence,out.version);this.state.revision=out.version;this.role=out.role
+        let revision=out.version
+        if(!out.sequence&&out.version>this.state.revision){
+            // Never label our cached edits with an unseen newer version. An
+            // authoritative GET must confirm that version or a newer one
+            // before a calculation can publish against it.
+            await this.read()
+            if(!this.remoteAvailable||this.state.revision<out.version){this.unavailable=true;fail('Waiting for the current shared sequence',503)}
+            revision=this.state.revision
+        }
+        if(!out.sequence&&out.version===0&&this.state.revision>0){
+            // A transient zero response or a restarted backend does not erase
+            // a fresh sequence. First check for a real published successor.
+            await this.read()
+            if(this.remoteAvailable)revision=this.state.revision
+            else if(out.role==='sequencer'&&this.state.checkpoint&&this.now()-this.state.publishedAt>=0&&this.now()-this.state.publishedAt<30000){
+                this.recovery={kind:'legacy-empty-room',fromRevision:this.state.revision,epoch:this.state.epoch,fromTimestamp:this.state.checkpoint.snapshot.timestamp}
+                this.state.counterReset={revision:this.state.revision,publication:this.state.publication,checkpointAt:this.state.checkpoint.snapshot.timestamp,at:this.now()}
+                this.results.clear();this.commandIds.clear();this.pending.clear()
+                this.state.checkpoint={...this.state.checkpoint,appliedCommands:{}}
+                this.unavailable=false
+            }else if(out.role!=='sequencer'){
+                // An editor/proxy must wait for the elected controller's
+                // authoritative publication instead of reviving its own copy.
+                this.unavailable=true;revision=this.state.revision
+            }else{this.state=this.empty();this.recovery=undefined;this.unavailable=false}
+        }
+        this.adopt(out.sequence,revision);this.state.revision=revision;this.role=out.role
         this.reportedOwner=typeof out.sequencer==='string'?out.sequencer:''
         this.reportedVersion=out.sequencerVersion
         this.knownVersions=Array.isArray(out.versions)?out.versions:[]
-        this.preserveRunwayPlan=out.role==='sequencer'&&!!this.state.checkpoint&&typeof out.handover?.callsign==='string'&&out.handover?.version===out.version
+        this.preserveRunwayPlan=out.role==='sequencer'&&!!this.state.checkpoint&&(!!this.recovery||typeof out.handover?.callsign==='string'&&out.handover?.version===revision)
         for(const result of out.results||[])this.results.set(result.id,result)
         while(this.results.size>1000)this.results.delete(this.results.keys().next().value!)
         if(this.role==='sequencer'){
@@ -127,7 +169,7 @@ export class LegacyRelay {
         // Keep locally processed commands/settings while checking the remote
         // publication. A changed remote revision must still invalidate the write.
         if(this.state.epoch===local.epoch&&this.state.revision===local.revision)this.state=local
-        if(body.epoch!==this.state.epoch||body.lease!==this.state.lease||body.callsign!==this.state.owner||body.instanceId!==this.state.instanceId||body.settingsRevision!==this.state.settingsRevision)fail('Shared sequence changed; rejoin before publishing')
+        if(body.revision!==this.state.revision||body.epoch!==this.state.epoch||body.lease!==this.state.lease||body.callsign!==this.state.owner||body.instanceId!==this.state.instanceId||body.settingsRevision!==this.state.settingsRevision)fail('Shared sequence changed; rejoin before publishing')
         for(const result of body.results||[]){const command=this.pending.get(result.id);if(command)this.remember(command.requestId,{digest:command.digest,ok:result.ok===true,message:String(result.message||'')})}
         const results:any[]=[];let ack=0
         for(const [id,command] of [...this.pending].sort(([a],[b])=>a-b)){
@@ -138,7 +180,7 @@ export class LegacyRelay {
         const next={...copy(this.state),revision:body.revision+1,checkpoint:copy(body.checkpoint),publication:body.requestId,publishedAt:this.now(),engineVersion:body.engine?.version}
         const reply=await this.deps.send('PUT',this.room,{callsign:body.callsign,sequence:{...body.sequence,saamanRelay:next},results,cmdAck:ack,expectedVersion:body.revision})
         if(!Number.isSafeInteger(reply.version))fail('Invalid vatIRIS publication response',502)
-        this.state={...next,revision:reply.version};this.pending.clear();return {revision:reply.version}
+        this.state={...next,revision:reply.version};this.pending.clear();this.recovery=undefined;this.unavailable=false;return {revision:reply.version}
     }
     private async command(body:any){
         if(body.epoch!==this.state.epoch)fail('Shared sequence changed; reload and retry')

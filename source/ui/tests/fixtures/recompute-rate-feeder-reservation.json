@@ -1,0 +1,999 @@
+{
+  "input": {
+    "source": "ESSA_FMP",
+    "timestamp": 1792972802000,
+    "flights": [
+      {
+        "callsign": "A",
+        "aircraft": "A320",
+        "wake": "M",
+        "departure": "EFHK",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "groundspeed": 250,
+        "altitude": 10000,
+        "positionAgeSeconds": 0,
+        "distanceNm": 50,
+        "route": [
+          {
+            "name": "NILUG",
+            "seconds": 500
+          }
+        ],
+        "landingSeconds": 1100
+      },
+      {
+        "callsign": "B",
+        "aircraft": "A320",
+        "wake": "M",
+        "departure": "EFHK",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "groundspeed": 250,
+        "altitude": 10000,
+        "positionAgeSeconds": 0,
+        "distanceNm": 50,
+        "route": [
+          {
+            "name": "NILUG",
+            "seconds": 800
+          }
+        ],
+        "landingSeconds": 900
+      },
+      {
+        "callsign": "C",
+        "aircraft": "A320",
+        "wake": "M",
+        "departure": "EFHK",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "groundspeed": 250,
+        "altitude": 10000,
+        "positionAgeSeconds": 0,
+        "distanceNm": 50,
+        "route": [
+          {
+            "name": "NILUG",
+            "seconds": 650
+          }
+        ],
+        "landingSeconds": 1400
+      },
+      {
+        "callsign": "D",
+        "aircraft": "A320",
+        "wake": "M",
+        "departure": "EFHK",
+        "arrival": "ESSA",
+        "runway": "01L",
+        "groundspeed": 250,
+        "altitude": 10000,
+        "positionAgeSeconds": 0,
+        "distanceNm": 50,
+        "route": [
+          {
+            "name": "NILUG",
+            "seconds": 550
+          }
+        ],
+        "landingSeconds": 1200
+      }
+    ]
+  },
+  "config": {
+    "timingModel": "euroscope-buffer",
+    "euroscopeBufferMinutes": 2,
+    "euroscopeSuperstableBufferMinutes": 1,
+    "euroscopeHighSpeedBufferMinutes": 6,
+    "performanceModel": "euroscope",
+    "predictionMode": "star",
+    "starDistanceMethod": "vectors",
+    "starApproachSpeed": 250,
+    "starBaseSpeed": 180,
+    "starFinalNm": 10,
+    "starBaseNm": 20,
+    "starEntryAltitude": 18000,
+    "starDescentRate": 1800,
+    "starCruiseSpeed": 450,
+    "starClimbRate": 1800,
+    "active": [
+      "ESSA/01R",
+      "ESSA/01L"
+    ],
+    "departureRunway": "ESSA/26",
+    "rates": {
+      "ESSA/01L": 100,
+      "ESSA/01R": 90,
+      "ESSA/08": 166,
+      "ESSA/19L": 115,
+      "ESSA/19R": 115,
+      "ESSA/26": 142,
+      "ESSB/12": 142,
+      "ESSB/30": 142
+    },
+    "stableMinutes": 60,
+    "superStableMinutes": 4,
+    "frozenMinutes": 3.5,
+    "unstableSeconds": 0,
+    "minimumNewSeconds": 0,
+    "slots": [],
+    "landingSpeedKnots": 140,
+    "surfaceWindDirection": 0,
+    "surfaceWindSpeed": 0,
+    "surfaceWindAuto": true,
+    "stableBufferMinutes": 5,
+    "superStableBufferMinutes": 5,
+    "defaultFeederMinutes": 15,
+    "maxFinalNm": 15,
+    "vectoringMode": 1,
+    "finalLengths": {
+      "ESSA/01L": 10,
+      "ESSA/01R": 14,
+      "ESSA/08": 10,
+      "ESSA/19L": 10,
+      "ESSA/19R": 10,
+      "ESSA/26": 10,
+      "ESSB/12": 10,
+      "ESSB/30": 10
+    },
+    "delayPaths": [],
+    "manualFlights": [],
+    "pendingRate": {
+      "at": 1792974000000,
+      "seconds": 180
+    }
+  },
+  "edits": {
+    "D": {
+      "target": 1792974120000,
+      "targetKind": "time",
+      "changedAt": 1792972800000
+    }
+  },
+  "previous": {
+    "timestamp": 1792972800000,
+    "source": "ESSA_FMP",
+    "flights": [
+      {
+        "callsign": "A",
+        "aircraft": "A320",
+        "wake": "M",
+        "departure": "EFHK",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "groundspeed": 250,
+        "altitude": 10000,
+        "positionAgeSeconds": 0,
+        "distanceNm": 50,
+        "route": [
+          {
+            "name": "NILUG",
+            "seconds": 500
+          }
+        ],
+        "landingSeconds": 1100,
+        "euroscopeRunway": "01R",
+        "sdkRunwayExplicit": false,
+        "runwaySource": "filed",
+        "firstSeen": 1792972800000,
+        "lastSeen": 1792972800000,
+        "initialEta": 1792974020000,
+        "initialEtaFf": 1792973420000,
+        "eta": 1792974020000,
+        "etaFf": 1792973420000,
+        "routeTimingGuard": {
+          "trusted": {
+            "eta": 1792974020000,
+            "etaFf": 1792973420000,
+            "rawEta": 1792973900000,
+            "rawEtaFf": 1792973300000
+          }
+        },
+        "routeTimingQuarantined": false,
+        "feederEtaAvailable": true,
+        "feederObservationSource": "route",
+        "euroscopeBaseline": {
+          "at": 1792972800000,
+          "runway": "ESSA/01R",
+          "eta": 1792974020000,
+          "rawEta": 1792973900000,
+          "etaFf": 1792973420000,
+          "rawEtaFf": 1792973300000,
+          "feederBuffered": true,
+          "bufferMinutes": 2,
+          "feederBufferMinutes": 2,
+          "groundspeed": 250,
+          "landingReference": "airport",
+          "landingMethod": "fallback"
+        },
+        "liveEuroscopeEta": 1792973900000,
+        "liveBufferedEta": 1792974020000,
+        "liveEuroscopeEtaFf": 1792973300000,
+        "liveBufferedEtaFf": 1792973420000,
+        "landingPrediction": {
+          "seconds": 1220,
+          "rawSeconds": 1100,
+          "correctionSeconds": 120,
+          "reference": "airport",
+          "method": "fallback",
+          "establishedFinal": false
+        },
+        "bufferedFeederVerified": true,
+        "landingEtaAvailable": true,
+        "recoveryManualSlot": false,
+        "secondaryRunwayAccepted": false,
+        "sta": 1792974500000,
+        "staFf": 1792973900000,
+        "feeder": "NILUG",
+        "feederId": "N",
+        "ff": "NILUG",
+        "passedFeeder": false,
+        "missedRecovery": false,
+        "state": 1,
+        "mode": "sequenced",
+        "delay": 480,
+        "totalDelay": 480,
+        "order": 1,
+        "lost": false,
+        "issue": "",
+        "minimumArrival": 1792972800000,
+        "minimumArrivalSource": "new",
+        "slotBefore": 0,
+        "slotAfter": 0,
+        "recomputedAt": 0,
+        "lastTrustedEta": 1792974020000,
+        "predictionSource": "route",
+        "originalLandingSeconds": 1100,
+        "initialTimingEvidence": {
+          "schema": "saaman-timing-summary-1",
+          "provenance": "capture-summary",
+          "at": 1792972800000,
+          "engine": "SAAMAN 1.3.40",
+          "accepted": {
+            "eta": 1792974020000,
+            "etaFf": 1792973420000,
+            "rawEta": 1792973900000,
+            "rawEtaFf": 1792973300000
+          },
+          "input": {
+            "callsign": "A",
+            "aircraft": "A320",
+            "wake": "M",
+            "departure": "EFHK",
+            "arrival": "ESSA",
+            "runway": "01R",
+            "landingSeconds": 1100,
+            "distanceNm": 50,
+            "groundspeed": 250,
+            "altitude": 10000,
+            "positionAgeSeconds": 0
+          },
+          "model": {
+            "method": "fallback",
+            "reference": "airport",
+            "seconds": 1220,
+            "rawSeconds": 1100,
+            "correctionSeconds": 120
+          },
+          "config": {
+            "timingModel": "euroscope-buffer",
+            "performanceModel": "euroscope",
+            "starEntryAltitude": 18000,
+            "starApproachSpeed": 250,
+            "starBaseSpeed": 180,
+            "landingSpeedKnots": 140,
+            "surfaceWindDirection": 0,
+            "surfaceWindSpeed": 0,
+            "euroscopeBufferMinutes": 2,
+            "euroscopeSuperstableBufferMinutes": 1,
+            "euroscopeHighSpeedBufferMinutes": 6,
+            "finalLength": 14
+          },
+          "route": {
+            "points": [
+              [
+                "NILUG",
+                null,
+                null,
+                500
+              ]
+            ],
+            "totalPoints": 1,
+            "remainingPoints": 1,
+            "omittedPoints": 0,
+            "fingerprint": "fnv1a32:8d38b8e9"
+          }
+        },
+        "amanRoute": [
+          {
+            "name": "NILUG",
+            "seconds": 500
+          }
+        ],
+        "amanRoutePassed": 0,
+        "aircraftPerformance": {
+          "type": "A320",
+          "status": "missing",
+          "blobSha": "af94db8b72e961dccfb4d1779c8a5c682be5f126",
+          "provider": "generic",
+          "gainEligible": false
+        },
+        "editTracking": true,
+        "gainCapacitySeconds": 0,
+        "spacingActive": true,
+        "feederGuidanceBypassed": false,
+        "feederGuidanceAvailable": true,
+        "line0Suppressed": false,
+        "planningEta": 1792974020000,
+        "feederDelayMs": 400000,
+        "wakeDelayMs": 0,
+        "rateDelayMs": 0,
+        "closureDelayMs": 0,
+        "spacingConflict": false,
+        "runwayDelay": 480,
+        "refreshedDelayAt": 0,
+        "initialSta": 1792974500000,
+        "initialStaFf": 1792973900000,
+        "originalAssignedSta": 1792974500000,
+        "maximumDelayExceeded": false,
+        "planningDelaySeconds": 480,
+        "separation": {
+          "leader": "B",
+          "wakeNm": 3,
+          "wakeSeconds": 77.14285714285714,
+          "rateSeconds": 180,
+          "scheduledSeconds": 580
+        },
+        "guidance": {
+          "point": "NILUG",
+          "predicted": 1792973420000,
+          "scheduled": 1792973900000,
+          "reference": 1792973420000,
+          "instructionSeconds": 480,
+          "policy": "current trajectory",
+          "constraints": [
+            "entry flow spacing"
+          ],
+          "earliestPlanningTime": 1792974020000,
+          "validUntil": 1792972815000,
+          "absorption": {
+            "mode": "holding",
+            "maxIas": 230
+          }
+        },
+        "planKey": "[\"ESSA/01R\",180,[],0,0]"
+      },
+      {
+        "callsign": "B",
+        "aircraft": "A320",
+        "wake": "M",
+        "departure": "EFHK",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "groundspeed": 250,
+        "altitude": 10000,
+        "positionAgeSeconds": 0,
+        "distanceNm": 50,
+        "route": [
+          {
+            "name": "NILUG",
+            "seconds": 800
+          }
+        ],
+        "landingSeconds": 1000,
+        "euroscopeRunway": "01R",
+        "sdkRunwayExplicit": false,
+        "runwaySource": "filed",
+        "firstSeen": 1792972800000,
+        "lastSeen": 1792972800000,
+        "initialEta": 1792973920000,
+        "initialEtaFf": 1792973720000,
+        "eta": 1792973920000,
+        "etaFf": 1792973720000,
+        "routeTimingGuard": {
+          "trusted": {
+            "eta": 1792973920000,
+            "etaFf": 1792973720000,
+            "rawEta": 1792973800000,
+            "rawEtaFf": 1792973600000
+          }
+        },
+        "routeTimingQuarantined": false,
+        "feederEtaAvailable": true,
+        "feederObservationSource": "route",
+        "euroscopeBaseline": {
+          "at": 1792972800000,
+          "runway": "ESSA/01R",
+          "eta": 1792973920000,
+          "rawEta": 1792973800000,
+          "etaFf": 1792973720000,
+          "rawEtaFf": 1792973600000,
+          "feederBuffered": true,
+          "bufferMinutes": 2,
+          "feederBufferMinutes": 2,
+          "groundspeed": 250,
+          "landingReference": "airport",
+          "landingMethod": "fallback"
+        },
+        "liveEuroscopeEta": 1792973800000,
+        "liveBufferedEta": 1792973920000,
+        "liveEuroscopeEtaFf": 1792973600000,
+        "liveBufferedEtaFf": 1792973720000,
+        "landingPrediction": {
+          "seconds": 1120,
+          "rawSeconds": 1000,
+          "correctionSeconds": 120,
+          "reference": "airport",
+          "method": "fallback",
+          "establishedFinal": false
+        },
+        "bufferedFeederVerified": true,
+        "landingEtaAvailable": true,
+        "recoveryManualSlot": false,
+        "secondaryRunwayAccepted": false,
+        "sta": 1792973920000,
+        "staFf": 1792973720000,
+        "feeder": "NILUG",
+        "feederId": "N",
+        "ff": "NILUG",
+        "passedFeeder": false,
+        "missedRecovery": false,
+        "state": 1,
+        "mode": "sequenced",
+        "delay": 0,
+        "totalDelay": 0,
+        "order": 0,
+        "lost": false,
+        "issue": "",
+        "minimumArrival": 1792972800000,
+        "minimumArrivalSource": "new",
+        "slotBefore": 0,
+        "slotAfter": 0,
+        "recomputedAt": 0,
+        "lastTrustedEta": 1792973920000,
+        "predictionSource": "route",
+        "originalLandingSeconds": 1000,
+        "initialTimingEvidence": {
+          "schema": "saaman-timing-summary-1",
+          "provenance": "capture-summary",
+          "at": 1792972800000,
+          "engine": "SAAMAN 1.3.40",
+          "accepted": {
+            "eta": 1792973920000,
+            "etaFf": 1792973720000,
+            "rawEta": 1792973800000,
+            "rawEtaFf": 1792973600000
+          },
+          "input": {
+            "callsign": "B",
+            "aircraft": "A320",
+            "wake": "M",
+            "departure": "EFHK",
+            "arrival": "ESSA",
+            "runway": "01R",
+            "landingSeconds": 1000,
+            "distanceNm": 50,
+            "groundspeed": 250,
+            "altitude": 10000,
+            "positionAgeSeconds": 0
+          },
+          "model": {
+            "method": "fallback",
+            "reference": "airport",
+            "seconds": 1120,
+            "rawSeconds": 1000,
+            "correctionSeconds": 120
+          },
+          "config": {
+            "timingModel": "euroscope-buffer",
+            "performanceModel": "euroscope",
+            "starEntryAltitude": 18000,
+            "starApproachSpeed": 250,
+            "starBaseSpeed": 180,
+            "landingSpeedKnots": 140,
+            "surfaceWindDirection": 0,
+            "surfaceWindSpeed": 0,
+            "euroscopeBufferMinutes": 2,
+            "euroscopeSuperstableBufferMinutes": 1,
+            "euroscopeHighSpeedBufferMinutes": 6,
+            "finalLength": 14
+          },
+          "route": {
+            "points": [
+              [
+                "NILUG",
+                null,
+                null,
+                800
+              ]
+            ],
+            "totalPoints": 1,
+            "remainingPoints": 1,
+            "omittedPoints": 0,
+            "fingerprint": "fnv1a32:fbbe48d6"
+          }
+        },
+        "amanRoute": [
+          {
+            "name": "NILUG",
+            "seconds": 800
+          }
+        ],
+        "amanRoutePassed": 0,
+        "aircraftPerformance": {
+          "type": "A320",
+          "status": "missing",
+          "blobSha": "af94db8b72e961dccfb4d1779c8a5c682be5f126",
+          "provider": "generic",
+          "gainEligible": false
+        },
+        "editTracking": true,
+        "gainCapacitySeconds": 0,
+        "spacingActive": true,
+        "feederGuidanceBypassed": false,
+        "feederGuidanceAvailable": true,
+        "line0Suppressed": false,
+        "planningEta": 1792973920000,
+        "feederDelayMs": 0,
+        "wakeDelayMs": 0,
+        "rateDelayMs": 0,
+        "closureDelayMs": 0,
+        "spacingConflict": false,
+        "runwayDelay": 0,
+        "refreshedDelayAt": 0,
+        "initialSta": 1792973920000,
+        "initialStaFf": 1792973720000,
+        "originalAssignedSta": 1792973920000,
+        "maximumDelayExceeded": false,
+        "planningDelaySeconds": 0,
+        "guidance": {
+          "point": "NILUG",
+          "predicted": 1792973720000,
+          "scheduled": 1792973720000,
+          "reference": 1792973720000,
+          "instructionSeconds": 0,
+          "policy": "current trajectory",
+          "constraints": [],
+          "earliestPlanningTime": 1792973920000,
+          "validUntil": 1792972815000,
+          "absorption": {
+            "mode": "none"
+          }
+        },
+        "planKey": "[\"ESSA/01R\",90,[],0,0]"
+      },
+      {
+        "callsign": "C",
+        "aircraft": "A320",
+        "wake": "M",
+        "departure": "EFHK",
+        "arrival": "ESSA",
+        "runway": "01R",
+        "groundspeed": 250,
+        "altitude": 10000,
+        "positionAgeSeconds": 0,
+        "distanceNm": 50,
+        "route": [
+          {
+            "name": "NILUG",
+            "seconds": 650
+          }
+        ],
+        "landingSeconds": 1400,
+        "euroscopeRunway": "01R",
+        "sdkRunwayExplicit": false,
+        "runwaySource": "filed",
+        "firstSeen": 1792972800000,
+        "lastSeen": 1792972800000,
+        "initialEta": 1792974320000,
+        "initialEtaFf": 1792973570000,
+        "eta": 1792974320000,
+        "etaFf": 1792973570000,
+        "routeTimingGuard": {
+          "trusted": {
+            "eta": 1792974320000,
+            "etaFf": 1792973570000,
+            "rawEta": 1792974200000,
+            "rawEtaFf": 1792973450000
+          }
+        },
+        "routeTimingQuarantined": false,
+        "feederEtaAvailable": true,
+        "feederObservationSource": "route",
+        "euroscopeBaseline": {
+          "at": 1792972800000,
+          "runway": "ESSA/01R",
+          "eta": 1792974320000,
+          "rawEta": 1792974200000,
+          "etaFf": 1792973570000,
+          "rawEtaFf": 1792973450000,
+          "feederBuffered": true,
+          "bufferMinutes": 2,
+          "feederBufferMinutes": 2,
+          "groundspeed": 250,
+          "landingReference": "airport",
+          "landingMethod": "fallback"
+        },
+        "liveEuroscopeEta": 1792974200000,
+        "liveBufferedEta": 1792974320000,
+        "liveEuroscopeEtaFf": 1792973450000,
+        "liveBufferedEtaFf": 1792973570000,
+        "landingPrediction": {
+          "seconds": 1520,
+          "rawSeconds": 1400,
+          "correctionSeconds": 120,
+          "reference": "airport",
+          "method": "fallback",
+          "establishedFinal": false
+        },
+        "bufferedFeederVerified": true,
+        "landingEtaAvailable": true,
+        "recoveryManualSlot": false,
+        "secondaryRunwayAccepted": false,
+        "sta": 1792974830000,
+        "staFf": 1792974080000,
+        "feeder": "NILUG",
+        "feederId": "N",
+        "ff": "NILUG",
+        "passedFeeder": false,
+        "missedRecovery": false,
+        "state": 1,
+        "mode": "sequenced",
+        "delay": 510,
+        "totalDelay": 510,
+        "order": 2,
+        "lost": false,
+        "issue": "",
+        "minimumArrival": 1792972800000,
+        "minimumArrivalSource": "new",
+        "slotBefore": 0,
+        "slotAfter": 0,
+        "recomputedAt": 0,
+        "lastTrustedEta": 1792974320000,
+        "predictionSource": "route",
+        "originalLandingSeconds": 1400,
+        "initialTimingEvidence": {
+          "schema": "saaman-timing-summary-1",
+          "provenance": "capture-summary",
+          "at": 1792972800000,
+          "engine": "SAAMAN 1.3.40",
+          "accepted": {
+            "eta": 1792974320000,
+            "etaFf": 1792973570000,
+            "rawEta": 1792974200000,
+            "rawEtaFf": 1792973450000
+          },
+          "input": {
+            "callsign": "C",
+            "aircraft": "A320",
+            "wake": "M",
+            "departure": "EFHK",
+            "arrival": "ESSA",
+            "runway": "01R",
+            "landingSeconds": 1400,
+            "distanceNm": 50,
+            "groundspeed": 250,
+            "altitude": 10000,
+            "positionAgeSeconds": 0
+          },
+          "model": {
+            "method": "fallback",
+            "reference": "airport",
+            "seconds": 1520,
+            "rawSeconds": 1400,
+            "correctionSeconds": 120
+          },
+          "config": {
+            "timingModel": "euroscope-buffer",
+            "performanceModel": "euroscope",
+            "starEntryAltitude": 18000,
+            "starApproachSpeed": 250,
+            "starBaseSpeed": 180,
+            "landingSpeedKnots": 140,
+            "surfaceWindDirection": 0,
+            "surfaceWindSpeed": 0,
+            "euroscopeBufferMinutes": 2,
+            "euroscopeSuperstableBufferMinutes": 1,
+            "euroscopeHighSpeedBufferMinutes": 6,
+            "finalLength": 14
+          },
+          "route": {
+            "points": [
+              [
+                "NILUG",
+                null,
+                null,
+                650
+              ]
+            ],
+            "totalPoints": 1,
+            "remainingPoints": 1,
+            "omittedPoints": 0,
+            "fingerprint": "fnv1a32:81e1eba1"
+          }
+        },
+        "amanRoute": [
+          {
+            "name": "NILUG",
+            "seconds": 650
+          }
+        ],
+        "amanRoutePassed": 0,
+        "aircraftPerformance": {
+          "type": "A320",
+          "status": "missing",
+          "blobSha": "af94db8b72e961dccfb4d1779c8a5c682be5f126",
+          "provider": "generic",
+          "gainEligible": false
+        },
+        "editTracking": true,
+        "gainCapacitySeconds": 0,
+        "spacingActive": true,
+        "feederGuidanceBypassed": false,
+        "feederGuidanceAvailable": true,
+        "line0Suppressed": false,
+        "planningEta": 1792974320000,
+        "feederDelayMs": 150000,
+        "wakeDelayMs": 0,
+        "rateDelayMs": 0,
+        "closureDelayMs": 0,
+        "spacingConflict": false,
+        "runwayDelay": 510,
+        "refreshedDelayAt": 0,
+        "initialSta": 1792974830000,
+        "initialStaFf": 1792974080000,
+        "originalAssignedSta": 1792974830000,
+        "maximumDelayExceeded": false,
+        "planningDelaySeconds": 510,
+        "separation": {
+          "leader": "A",
+          "wakeNm": 3,
+          "wakeSeconds": 77.14285714285714,
+          "rateSeconds": 180,
+          "scheduledSeconds": 330
+        },
+        "guidance": {
+          "point": "NILUG",
+          "predicted": 1792973570000,
+          "scheduled": 1792974080000,
+          "reference": 1792973570000,
+          "instructionSeconds": 510,
+          "policy": "current trajectory",
+          "constraints": [
+            "entry flow spacing"
+          ],
+          "earliestPlanningTime": 1792974320000,
+          "validUntil": 1792972815000,
+          "absorption": {
+            "mode": "holding",
+            "maxIas": 230
+          }
+        },
+        "planKey": "[\"ESSA/01R\",180,[],0,0]"
+      },
+      {
+        "callsign": "D",
+        "aircraft": "A320",
+        "wake": "M",
+        "departure": "EFHK",
+        "arrival": "ESSA",
+        "runway": "01L",
+        "groundspeed": 250,
+        "altitude": 10000,
+        "positionAgeSeconds": 0,
+        "distanceNm": 50,
+        "route": [
+          {
+            "name": "NILUG",
+            "seconds": 550
+          }
+        ],
+        "landingSeconds": 1200,
+        "euroscopeRunway": "01L",
+        "sdkRunwayExplicit": false,
+        "runwaySource": "filed",
+        "firstSeen": 1792972800000,
+        "lastSeen": 1792972800000,
+        "initialEta": 1792974120000,
+        "initialEtaFf": 1792973470000,
+        "eta": 1792974120000,
+        "etaFf": 1792973470000,
+        "routeTimingGuard": {
+          "trusted": {
+            "eta": 1792974120000,
+            "etaFf": 1792973470000,
+            "rawEta": 1792974000000,
+            "rawEtaFf": 1792973350000
+          }
+        },
+        "routeTimingQuarantined": false,
+        "feederEtaAvailable": true,
+        "feederObservationSource": "route",
+        "euroscopeBaseline": {
+          "at": 1792972800000,
+          "runway": "ESSA/01L",
+          "eta": 1792974120000,
+          "rawEta": 1792974000000,
+          "etaFf": 1792973470000,
+          "rawEtaFf": 1792973350000,
+          "feederBuffered": true,
+          "bufferMinutes": 2,
+          "feederBufferMinutes": 2,
+          "groundspeed": 250,
+          "landingReference": "airport",
+          "landingMethod": "fallback"
+        },
+        "liveEuroscopeEta": 1792974000000,
+        "liveBufferedEta": 1792974120000,
+        "liveEuroscopeEtaFf": 1792973350000,
+        "liveBufferedEtaFf": 1792973470000,
+        "landingPrediction": {
+          "seconds": 1320,
+          "rawSeconds": 1200,
+          "correctionSeconds": 120,
+          "reference": "airport",
+          "method": "fallback",
+          "establishedFinal": false
+        },
+        "bufferedFeederVerified": true,
+        "landingEtaAvailable": true,
+        "recoveryManualSlot": false,
+        "secondaryRunwayAccepted": true,
+        "sta": 1792974120000,
+        "staFf": 1792973470000,
+        "feeder": "NILUG",
+        "feederId": "N",
+        "ff": "NILUG",
+        "passedFeeder": false,
+        "missedRecovery": false,
+        "state": 1,
+        "mode": "sequenced",
+        "delay": 0,
+        "totalDelay": 0,
+        "order": 0,
+        "lost": false,
+        "issue": "",
+        "minimumArrival": 1792972800000,
+        "minimumArrivalSource": "new",
+        "slotBefore": 0,
+        "slotAfter": 0,
+        "recomputedAt": 0,
+        "lastTrustedEta": 1792974120000,
+        "predictionSource": "route",
+        "originalLandingSeconds": 1200,
+        "initialTimingEvidence": {
+          "schema": "saaman-timing-summary-1",
+          "provenance": "capture-summary",
+          "at": 1792972800000,
+          "engine": "SAAMAN 1.3.40",
+          "accepted": {
+            "eta": 1792974120000,
+            "etaFf": 1792973470000,
+            "rawEta": 1792974000000,
+            "rawEtaFf": 1792973350000
+          },
+          "input": {
+            "callsign": "D",
+            "aircraft": "A320",
+            "wake": "M",
+            "departure": "EFHK",
+            "arrival": "ESSA",
+            "runway": "01L",
+            "landingSeconds": 1200,
+            "distanceNm": 50,
+            "groundspeed": 250,
+            "altitude": 10000,
+            "positionAgeSeconds": 0
+          },
+          "model": {
+            "method": "fallback",
+            "reference": "airport",
+            "seconds": 1320,
+            "rawSeconds": 1200,
+            "correctionSeconds": 120
+          },
+          "config": {
+            "timingModel": "euroscope-buffer",
+            "performanceModel": "euroscope",
+            "starEntryAltitude": 18000,
+            "starApproachSpeed": 250,
+            "starBaseSpeed": 180,
+            "landingSpeedKnots": 140,
+            "surfaceWindDirection": 0,
+            "surfaceWindSpeed": 0,
+            "euroscopeBufferMinutes": 2,
+            "euroscopeSuperstableBufferMinutes": 1,
+            "euroscopeHighSpeedBufferMinutes": 6,
+            "finalLength": 10
+          },
+          "route": {
+            "points": [
+              [
+                "NILUG",
+                null,
+                null,
+                550
+              ]
+            ],
+            "totalPoints": 1,
+            "remainingPoints": 1,
+            "omittedPoints": 0,
+            "fingerprint": "fnv1a32:abb2c488"
+          }
+        },
+        "amanRoute": [
+          {
+            "name": "NILUG",
+            "seconds": 550
+          }
+        ],
+        "amanRoutePassed": 0,
+        "aircraftPerformance": {
+          "type": "A320",
+          "status": "missing",
+          "blobSha": "af94db8b72e961dccfb4d1779c8a5c682be5f126",
+          "provider": "generic",
+          "gainEligible": false
+        },
+        "editTracking": true,
+        "appliedTarget": 1792974120000,
+        "appliedChangedAt": 1792972800000,
+        "gainCapacitySeconds": 0,
+        "spacingActive": true,
+        "feederGuidanceBypassed": false,
+        "feederGuidanceAvailable": true,
+        "line0Suppressed": false,
+        "planningEta": 1792974120000,
+        "feederDelayMs": 0,
+        "wakeDelayMs": 0,
+        "rateDelayMs": 0,
+        "closureDelayMs": 0,
+        "spacingConflict": false,
+        "runwayDelay": 0,
+        "refreshedDelayAt": 0,
+        "initialSta": 1792974120000,
+        "initialStaFf": 1792973470000,
+        "originalAssignedSta": 1792974120000,
+        "maximumDelayExceeded": false,
+        "planningDelaySeconds": 0,
+        "guidance": {
+          "point": "NILUG",
+          "predicted": 1792973470000,
+          "scheduled": 1792973470000,
+          "reference": 1792973470000,
+          "instructionSeconds": 0,
+          "policy": "current trajectory",
+          "constraints": [
+            "manual time / slot"
+          ],
+          "earliestPlanningTime": 1792974120000,
+          "validUntil": 1792972815000,
+          "absorption": {
+            "mode": "none"
+          }
+        },
+        "planKey": "[\"ESSA/01L\",100,[],0,0]"
+      }
+    ],
+    "diagnostics": [],
+    "slotsKey": "[]",
+    "grounded": {},
+    "observedCallsigns": [
+      "A",
+      "B",
+      "C",
+      "D"
+    ],
+    "wind": {
+      "direction": 0,
+      "speed": 0,
+      "auto": true
+    },
+    "landings": []
+  },
+  "names": [
+    "B",
+    "C"
+  ]
+}

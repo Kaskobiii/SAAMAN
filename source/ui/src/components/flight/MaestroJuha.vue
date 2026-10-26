@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import axios from 'axios'
 import {APPLICATION_BUILD} from '@/build'
 import MaestroInformation from './MaestroInformation.vue'
-import {reinsertRecoveryEdits,gainDragEdits,dragTargetTime,swapFlightEdits,insertRelative,maximumDelayEdits,manualTransferSeconds,instructionColor,zulu,COORDINATION_MESSAGES} from '@/maestro-operations'
+import {recomputeFlightEdits,reinsertRecoveryEdits,gainDragEdits,dragTargetTime,swapFlightEdits,insertRelative,maximumDelayEdits,manualTransferSeconds,instructionColor,zulu,COORDINATION_MESSAGES} from '@/maestro-operations'
 import {nativeRequest} from '@/native-rpc'
 import {useAircraftHighlight} from '@/use-aircraft-highlight'
 import {createAutomaticNoticeFeed} from '@/maestro-automatic-notices'
@@ -60,6 +60,7 @@ const sharedRole=ref('disconnected')
 const sequencerWarning=ref('')
 const backendContact=ref(0)
 let relayEpoch=''
+let relayRevisionGeneration=''
 const busy = ref(false)
 const polling = ref(false)
 const error = ref('')
@@ -398,7 +399,12 @@ function refreshDemo(force = false) {
 function headers() { return localPreview ? {} : auth.requestHeaders }
 function receive(data: any) {
     backendContact.value=data.relayRole&&data.relayRole!=='disconnected'?Date.now():0
-    if(data.epoch&&relayEpoch!==data.epoch){relayEpoch=data.epoch;revision.value=-1;coordinationBaseline.value=null}
+    if(data.epoch&&relayEpoch!==data.epoch){relayEpoch=data.epoch;relayRevisionGeneration='';revision.value=-1;coordinationBaseline.value=null}
+    // A validated shared recovery can restart the backend's counter while
+    // retaining the room and aircraft history. Accept its first revision once.
+    if(typeof data.revisionGeneration==='string'&&data.revisionGeneration&&relayRevisionGeneration!==data.revisionGeneration){
+        relayRevisionGeneration=data.revisionGeneration;revision.value=-1
+    }
     if (data.revision < revision.value) return
     revision.value = data.revision; config.value = data.config; edits.value = data.edits
     if(coordinationBaseline.value===null)coordinationBaseline.value=new Set((data.config?.coordinations??[]).map((m:any)=>m.id))
@@ -595,12 +601,7 @@ function finishSelection(event:PointerEvent){
 }
 async function recomputeFlights(callsigns:string[]){
     if(!editable.value)return
-    const changes=clone(edits.value)
-    for(const callsign of callsigns){
-        if(!all.value.some(f=>f.callsign===callsign&&!f.lost))continue
-        const stamp=Math.max(now.value,(sequence.value?.timestamp||0)+1,(changes[callsign]?.recomputeAt||0)+1)
-        changes[callsign]={...changes[callsign],mode:'sequenced',recomputeAt:stamp,changedAt:stamp,order:all.value.find(f=>f.callsign===callsign)?.state===3?all.value.find(f=>f.callsign===callsign)!.order:undefined,target:undefined,swapAt:undefined,requeueAt:undefined,landedAt:undefined,closurePosition:undefined,etaFfOverride:undefined}
-    }
+    const changes=recomputeFlightEdits(sequence.value,edits.value,callsigns,now.value)
     closeFieldMenu();await commit(changes)
 }
 function startDrag(f: EngineFlight,event:PointerEvent) {

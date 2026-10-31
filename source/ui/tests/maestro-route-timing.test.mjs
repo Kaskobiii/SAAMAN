@@ -6,7 +6,8 @@ import {SessionRecording,decodeRecording} from '../src/maestro-recording.ts'
 import {phaseReferenceLookup,bundledPhaseReferences} from '../src/maestro-phase-references.ts'
 import {predictLanding} from '../src/maestro-landing-prediction.ts'
 import {iasToTas} from '../src/maestro-aircraft-performance.ts'
-const c=()=>({...structuredClone(DEFAULT_CONFIG),minimumNewSeconds:0,unstableSeconds:0})
+// Raw route integration is independent of the separately tested adaptive traffic-path policy.
+const c=()=>({...structuredClone(DEFAULT_CONFIG),automaticTrafficModes:false,minimumNewSeconds:0,unstableSeconds:0})
 const p=(extra={})=>({callsign:'TIMING',aircraft:'A20N',wake:'M',departure:'EKCH',arrival:'ESSA',runway:'19R',latitude:61,longitude:18,altitude:30000,groundspeed:440,verticalSpeed:0,positionAgeSeconds:0,
  route:[{name:'ELTOK',seconds:500,latitude:60.4,longitude:18},{name:'FI19R',seconds:900,latitude:59.8,longitude:17.95},{name:'SA19R',seconds:1000,latitude:59.6664,longitude:17.92377}],landingSeconds:1060,distanceNm:80,...extra})
 test('the candidate has consistent feeder and landing times from one route integration',()=>{

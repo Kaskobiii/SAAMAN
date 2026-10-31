@@ -10,7 +10,7 @@ export interface TimingEvidence {
  route:{points:unknown[][];totalPoints:number;remainingPoints:number;omittedPoints:number;fingerprint:string}
 }
 const inputFields=['callsign','aircraft','wake','departure','arrival','runway','landingSeconds','distanceNm','groundspeed','altitude','verticalSpeed','positionAgeSeconds','latitude','longitude','heading','assignedHeading','direct','assignedSpeed','assignedMach','clearedAltitude','finalAltitude','speedDataValid','routeProblem','star','arrivalProfile','calculatedRouteIndex','topskyHoldingPoint','topskyMissedApproach','threshold'] as const
-const configFields=['timingModel','performanceModel','starEntryAltitude','starApproachSpeed','starBaseSpeed','landingSpeedKnots','surfaceWindDirection','surfaceWindSpeed','euroscopeBufferMinutes','euroscopeSuperstableBufferMinutes','euroscopeHighSpeedBufferMinutes'] as const
+const configFields=['automaticTrafficModes','trafficHighDownwindNm','timingModel','performanceModel','starEntryAltitude','starApproachSpeed','starBaseSpeed','landingSpeedKnots','surfaceWindDirection','surfaceWindSpeed','euroscopeBufferMinutes','euroscopeSuperstableBufferMinutes','euroscopeHighSpeedBufferMinutes'] as const
 // A compact non-security fingerprint identifies the full input route without
 // copying an enroute flight plan into every shared publication.
 function fingerprint(value:unknown){let hash=2166136261;for(const c of JSON.stringify(value))hash=Math.imul(hash^c.charCodeAt(0),16777619);return `fnv1a32:${(hash>>>0).toString(16).padStart(8,'0')}`}
@@ -23,7 +23,7 @@ export function timingEvidence(p:TelemetryFlight,config:EngineConfig,prediction:
  const remaining=p.route.filter(point=>Number.isFinite(point.seconds)&&point.seconds>=0)
  const points=remaining.slice(0,6).map(point=>[point.name.slice(0,40),point.latitude??null,point.longitude??null,point.seconds])
  const result:TimingEvidence={schema:'saaman-timing-summary-1',provenance:'capture-summary',at,engine:APPLICATION_BUILD,
-  ...(accepted?{accepted:{eta:accepted.eta,etaFf:accepted.etaFf,rawEta:accepted.rawEta,rawEtaFf:accepted.rawEtaFf}}:{}),input:selected,model:{method:prediction.method,reference:prediction.reference,seconds:prediction.seconds,rawSeconds:prediction.rawSeconds,correctionSeconds:prediction.correctionSeconds,
+  ...(accepted?{accepted:{eta:accepted.eta,etaFf:accepted.etaFf,rawEta:accepted.rawEta,rawEtaFf:accepted.rawEtaFf}}:{}),input:selected,model:{...(prediction.trafficProfile?{trafficProfile:prediction.trafficProfile}:{}),method:prediction.method,reference:prediction.reference,seconds:prediction.seconds,rawSeconds:prediction.rawSeconds,correctionSeconds:prediction.correctionSeconds,
    ...(prediction.routeTiming?{routeTiming:prediction.routeTiming}:{}),...(reference?{phaseReference:reference,phaseReferenceFingerprint:fingerprint(reference)}:{})},
   config:{...Object.fromEntries(relevantConfig.filter(key=>config[key]!==undefined).map(key=>[key,config[key]])),finalLength:config.finalLengths?.[`${p.arrival}/${p.runway}`]},
   route:{points,totalPoints:p.route.length,remainingPoints:remaining.length,omittedPoints:Math.max(0,remaining.length-points.length),fingerprint:fingerprint(p.route)}}

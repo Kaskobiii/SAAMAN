@@ -30,6 +30,7 @@ export class LegacyRelay {
     private recovery:{kind:'legacy-empty-room'|'legacy-restored-publication';fromRevision:number;epoch:string;fromTimestamp:number}|undefined
     private reportedOwner=''
     private reportedVersion:unknown
+    private reportedAt=Number.NEGATIVE_INFINITY
     private knownVersions:unknown[]=[]
     constructor(private deps:{network:string;instanceId:string;send:Send;callsign:()=>string;cid:()=>number|null;supervisor:(callsign:string,claimedCid?:number)=>Promise<boolean>;now?:()=>number;requestId?:()=>string}){
         this.room=`/aman/${deps.network}/ESSA`;this.state=this.empty()
@@ -65,12 +66,17 @@ export class LegacyRelay {
         while(this.results.size>1000)this.results.delete(this.results.keys().next().value!)
         return this.state
     }
+    private authority(){
+        const current=this.now()-this.reportedAt>=0&&this.now()-this.reportedAt<8000
+        return {room:`${this.deps.network}/ESSA`,publisher:this.state.owner,publisherVersion:this.state.engineVersion,
+            ...(current?{sequencer:this.reportedOwner,sequencerVersion:this.reportedVersion}:{}),recovery:this.recovery?.kind}
+    }
     private snapshot(role=this.role){
         const s=this.state,checkpoint=s.checkpoint
         const reset=s.counterReset
         const revisionGeneration=JSON.stringify(reset&&Number.isSafeInteger(reset.revision)&&Number.isFinite(reset.at)&&typeof reset.publication==='string'?
             [s.epoch,reset.at,reset.revision,reset.publication]:[s.epoch])
-        return {epoch:s.epoch,revision:s.revision,revisionGeneration,role,settingsRevision:s.settingsRevision,settings:copy(s.settings),checkpoint:copy(checkpoint),updated:s.publishedAt,
+        return {epoch:s.epoch,revision:s.revision,revisionGeneration,role,authority:this.authority(),settingsRevision:s.settingsRevision,settings:copy(s.settings),checkpoint:copy(checkpoint),updated:s.publishedAt,
             sequencerWarning:sequencerVersionWarning(this.reportedOwner||s.owner,this.reportedVersion??s.engineVersion,[APPLICATION_BUILD.replace(/^SAAMAN /,''),...this.knownVersions]),
             checkpointRecovery:this.recovery,stale:this.unavailable||!checkpoint||this.now()-s.publishedAt>=30000,...(role==='sequencer'?{lease:s.lease,preserveRunwayPlan:this.preserveRunwayPlan}:{}),results:[...this.results.values()]}
     }
@@ -148,6 +154,7 @@ export class LegacyRelay {
         }
         this.adopt(out.sequence,revision);this.state.revision=revision;this.role=out.role
         this.reportedOwner=typeof out.sequencer==='string'?out.sequencer:''
+        this.reportedAt=this.now()
         this.reportedVersion=out.sequencerVersion
         this.knownVersions=Array.isArray(out.versions)?out.versions:[]
         this.preserveRunwayPlan=out.role==='sequencer'&&!!this.state.checkpoint&&(!!this.recovery||typeof out.handover?.callsign==='string'&&out.handover?.version===revision)
@@ -198,7 +205,8 @@ export class LegacyRelay {
     private async supervision(){
         if(!await this.deps.supervisor(this.deps.callsign(),this.deps.cid()??undefined))fail('Supervisor access required',403)
         await this.read();const s=this.state
-        return {epoch:s.epoch,revision:s.revision,settingsRevision:s.settingsRevision,settings:copy(s.settings),stale:!s.checkpoint||this.now()-s.publishedAt>=30000,
+        const view=this.snapshot('supervisor')
+        return {epoch:view.epoch,revision:view.revision,revisionGeneration:view.revisionGeneration,authority:view.authority,settingsRevision:s.settingsRevision,settings:copy(s.settings),stale:!s.checkpoint||this.now()-s.publishedAt>=30000,
             supervision:s.checkpoint?{config:s.checkpoint.operational,edits:s.checkpoint.edits,snapshot:s.checkpoint.snapshot}:null}
     }
     private async settings(body:any){

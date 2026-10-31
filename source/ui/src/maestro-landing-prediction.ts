@@ -1,9 +1,11 @@
 import type {TelemetryFlight,EngineConfig} from './maestro-engine'
+import type {TrafficProfileAssumption} from './maestro-traffic-profile'
 import {distanceNm,STAR_RUNWAYS} from './maestro-star-prediction'
 import {finalPosition,headingDifference,vectoringDistance} from './maestro-geometry'
 import {predictRouteTiming,type RouteTiming} from './maestro-route-timing'
 
 export interface LandingPrediction {
+ trafficProfile?:TrafficProfileAssumption
  seconds:number;rawSeconds:number;correctionSeconds:number
  reference:'threshold'|'airport';method:'aircraft-profile'|'route-slowdown'|'retained-slowdown'|'final-position'|'vector-position'|'fallback'|'recovery-iaf'|'arrival-profile'
  arrivalProfile?:string

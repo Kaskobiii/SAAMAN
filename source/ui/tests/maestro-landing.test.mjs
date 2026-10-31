@@ -143,7 +143,8 @@ test('vectors retain a recent model correction across checkpoints without feedin
 })
 
 test('engine handover preserves vector correction and accepted planning times independently',()=>{
- const timestamp=2_000_000,c=config(),f=p({latitude:61})
+ // Verify retained raw-model continuity separately from automatic Low-mode allocation refresh.
+ const timestamp=2_000_000,c={...config(),automaticTrafficModes:false},f=p({latitude:61})
  f.route.unshift({name:'ELTOK',seconds:300,latitude:60.8,longitude:18})
  const input={timestamp,source:'ESSA_FMP',flights:[f]}
  const initial=runEngine(input,c,{}),accepted=initial.flights[0]

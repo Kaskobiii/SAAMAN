@@ -61,3 +61,17 @@ See [BACKEND-COMPATIBILITY.md](docs/BACKEND-COMPATIBILITY.md).
 
 Run `python source/scripts/build-user-guide.py` from the repository root after
 editing `docs/user-guide.md`. Add `--check` to verify its HTML exports.
+
+## Review live-session timing
+
+Run `npm run review:live -- "C:/path/to/ESSA-AMAN-recording.json"` from
+`source/ui`. The report scores recorded forecasts against gated geometric feeder
+and runway-threshold passages. It separates initial captures, Recomputes and
+recaptures by runway, feeder, method and forecast horizon. Groups use one capture
+per aircraft. SweatBox, mixed simulation and duplicate files are excluded.
+
+Route/runway changes, vectoring, holding, tracking interruptions and unavailable
+original inputs remain flagged in the observed results and excluded from clean
+calibration. Threshold passages are not independently confirmed touchdown times.
+This command does not change model settings or replay a new prediction as an old
+capture.

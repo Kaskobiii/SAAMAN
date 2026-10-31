@@ -178,3 +178,32 @@ test('quarantine does not replace an expired retained slot with invented raw tim
  for(let i=0;i<70;i++)appendAutomaticCorrection(events,{id:String(i),at:now+i,callsign:'JUMP',kind:'route-timing',detail:'Corrected'})
  appendAutomaticCorrection(events,events.at(-1));assert.equal(events.length,50);assert.equal(events[0].id,'20')
 })
+
+test('Low mode protects its neutral route and gives confirmed actual extension priority through checkpoint handover',()=>{
+ const c={...config(),automaticTrafficModes:true};let s=start(c,profile),old=structuredClone(flight(s))
+ assert.equal(old.trafficProfile.mode,'low');assert.ok(old.trafficNeutralGuard.trusted)
+ for(const elapsed of [2,10]){
+  s=runEngine(packet(extended(elapsed),elapsed),c,{},JSON.parse(JSON.stringify(s)))
+  assert.equal(flight(s).routeTimingQuarantined,true);assert.equal(flight(s).sta,old.sta);assert.equal(flight(s).liveBufferedEta,old.liveBufferedEta)
+ }
+ s=runEngine(packet(extended(20),20),c,{},JSON.parse(JSON.stringify(s)))
+ assert.equal(flight(s).routeTimingQuarantined,false);assert.ok(flight(s).trafficRouteOverride);assert.equal(flight(s).trafficProfile,undefined)
+ assert.ok(flight(s).eta>old.eta+600000);assert.equal(flight(s).sta,old.sta)
+ const signature=flight(s).trafficRouteOverride.signature
+ for(const elapsed of [22,30]){
+  s=runEngine(packet(extended(elapsed),elapsed),c,{},JSON.parse(JSON.stringify(s)))
+  assert.equal(flight(s).trafficRouteOverride.signature,signature);assert.equal(flight(s).trafficProfile,undefined);assert.equal(flight(s).sta,old.sta)
+ }
+ s=runEngine(packet({...profile,latitude:61-.032},32),c,{},s)
+ assert.equal(flight(s).trafficRouteOverride,undefined,'a changed route retires the previous actual-geometry override')
+ assert.equal(flight(s).routeTimingQuarantined,false)
+ assert.ok(flight(s).liveBufferedEta<old.eta+600000,'the retired extended route no longer supplies the forecast')
+ if(flight(s).trafficProfile)assert.equal(flight(s).trafficProfile.mode,'low')
+})
+test('Low mode cannot bless a consumed STAR restored by EuroScope after a direct',()=>{
+ const c={...config(),automaticTrafficModes:true};let s=start(c,profile)
+ const old=flight(s),slot=old.sta;old.amanRoutePassed=1
+ old.landingPrediction.directClearance={runway:'ESSA/19R',point:'FI19R',at:now}
+ for(const elapsed of [2,10,20,30])s=runEngine(packet(extended(elapsed),elapsed),c,{},JSON.parse(JSON.stringify(s)))
+ assert.equal(flight(s).routeTimingQuarantined,true);assert.ok(flight(s).trafficNeutralGuard.episode);assert.equal(flight(s).trafficRouteOverride,undefined);assert.equal(flight(s).sta,slot);assert.equal(s.automaticCorrections.length,1)
+})

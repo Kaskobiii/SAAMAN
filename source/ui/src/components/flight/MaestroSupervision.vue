@@ -4,15 +4,16 @@ import {computed,ref,watch} from 'vue'
 
 import {STATE_NAMES,STATE_COLORS,effectiveConfig,euroscopeInstruction,type EngineSnapshot,type EngineConfig,type FlightEdit} from '@/maestro-engine'
 import {observeSnapshot,type SupervisionEvent} from '@/maestro-supervision'
-import {SessionRecording} from '@/maestro-recording'
+import {SessionRecording,sanitizeRecordingContext,type RecordingContext} from '@/maestro-recording'
+import {explainSlot} from '@/maestro-slot-reasons'
 import {predictRouteTiming} from '@/maestro-route-timing'
-const props=defineProps<{snapshot:EngineSnapshot|null;config:EngineConfig;edits:Record<string,FlightEdit>;now:number;revision:number;masterCid:number|null;error:string}>()
+const props=defineProps<{snapshot:EngineSnapshot|null;config:EngineConfig;edits:Record<string,FlightEdit>;now:number;revision:number;masterCid:number|null;error:string;recordingContext?:RecordingContext}>()
 
 const search=ref(''),selected=ref(''),events=ref<SupervisionEvent[]>([])
 const recorder=new SessionRecording(),recording=ref(false),recordCount=ref(0),recordStatus=ref('')
 function toggleRecording(){
     if(recorder.active)recorder.stop()
-    else if(props.snapshot){try{recorder.start(props.snapshot,props.config,props.edits)}catch(e){recordStatus.value=String(e);return}}
+    else if(props.snapshot){try{recorder.start(props.snapshot,props.config,props.edits,props.recordingContext)}catch(e){recordStatus.value=String(e);return}}
     recording.value=recorder.active;recordCount.value=recorder.count;recordStatus.value=recorder.status
 }
 function exportRecording(){
@@ -23,13 +24,20 @@ let previous:EngineSnapshot|null=null
 watch(()=>props.snapshot,next=>{
     if(!next)return
     if(previous&&next.timestamp<previous.timestamp)return
-    events.value=[...observeSnapshot(previous,next),...(previous?.source===next.source?events.value:[])].slice(0,1000)
+    events.value=[...observeSnapshot(previous,next,props.edits),...(previous?.source===next.source?events.value:[])].slice(0,1000)
     previous=next
-    recorder.capture(next,props.config,props.edits);recording.value=recorder.active;recordCount.value=recorder.count;recordStatus.value=recorder.status
+    recorder.capture(next,props.config,props.edits,props.recordingContext);recording.value=recorder.active;recordCount.value=recorder.count;recordStatus.value=recorder.status
 },{immediate:true})
+watch(()=>props.recordingContext,context=>{
+    if(!recorder.active)return
+    recorder.observeContext(context,props.now);recording.value=recorder.active;recordCount.value=recorder.count;recordStatus.value=recorder.status
+},{deep:true})
+const authority=computed(()=>sanitizeRecordingContext(props.recordingContext))
 const snapshot=computed(()=>props.snapshot)
 const flights=computed(()=>[...(snapshot.value?.flights??[])].filter(f=>f.callsign.toLowerCase().includes(search.value.toLowerCase())).sort((a,b)=>a.sta-b.sta))
 const current=computed(()=>snapshot.value?.flights.find(f=>f.callsign===selected.value))
+const currentSlot=computed(()=>current.value&&snapshot.value?explainSlot(current.value,snapshot.value,props.edits):undefined)
+const currentTrafficMode=computed(()=>props.config.automaticTrafficModes!==false&&current.value?props.snapshot?.trafficModes?.[`${current.value.arrival}/${current.value.runway}`]:undefined)
 const candidate=computed(()=>{
  const f=current.value
  return f?predictRouteTiming({...f,runway:f.euroscopeRunway??f.runway},props.config):undefined
@@ -41,16 +49,16 @@ function utc(value?:number){return value===undefined||!Number.isFinite(value)?'�
 function seconds(value?:number){return value===undefined||!Number.isFinite(value)?'—':`${Math.round(value)} s`}
 function remaining(value:number){return seconds((value-(snapshot.value?.timestamp??props.now))/1000)}
 function exportData(){
-    const blob=new Blob([JSON.stringify({snapshot:snapshot.value,config:props.config,edits:props.edits,revision:props.revision,events:events.value},null,2)],{type:'application/json'})
+    const blob=new Blob([JSON.stringify({snapshot:snapshot.value,config:props.config,edits:props.edits,revision:props.revision,recordingContext:authority.value,events:events.value},null,2)],{type:'application/json'})
     const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='ESSA-AMAN-supervision.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
 }
 </script>
 <template>
 
 <section class="supervision">
-    <header><strong>{{stale?'STALE DATA':'LIVE'}} · {{snapshot?.source||'Waiting for data'}}</strong><span>Snapshot {{utc(snapshot?.timestamp)}} UTC · age {{snapshot?seconds((now-snapshot.timestamp)/1000):'—'}} · revision {{revision}} · MASTER {{masterCid??'none'}}</span></header>
+    <header><strong>{{stale?'STALE DATA':'LIVE'}} · {{authority?'Publisher':'Source'}} {{authority?authority.publisher||'unknown':snapshot?.source||'Waiting for data'}}<template v-if="authority?.publisherVersion"> ({{authority.publisherVersion}})</template></strong><span v-if="authority">Elected {{authority.sequencer||'unknown'}}<template v-if="authority.sequencerVersion"> ({{authority.sequencerVersion}})</template></span><span>Snapshot {{utc(snapshot?.timestamp)}} UTC · age {{snapshot?seconds((now-snapshot.timestamp)/1000):'—'}} · revision {{revision}}</span></header>
     <p v-if="error" class="warning">{{error}}</p>
-    <nav><input v-model="search" aria-label="Filter supervision callsigns" placeholder="Search callsign"><button @click="exportData">Export snapshot + history</button><button @click="selected=''">All aircraft history</button><button @click="toggleRecording" :disabled="!snapshot">{{recording?'Stop recording':'Start session recording'}}</button><button @click="exportRecording" :disabled="!recordCount">Export recording</button><span v-if="recordStatus">{{recordStatus}} · {{recordCount}} frames</span></nav>
+    <nav><input v-model="search" aria-label="Filter supervision callsigns" placeholder="Search callsign"><button @click="exportData">Export snapshot + history</button><button @click="selected=''">All aircraft history</button><button @click="toggleRecording" :disabled="!snapshot&&!recording">{{recording?'Stop recording':'Start session recording'}}</button><button @click="exportRecording" :disabled="!recordCount">Export recording</button><span v-if="recordStatus">{{recordStatus}} · {{recordCount}} frames</span></nav>
     <p class="note" v-if="recordCount">Export recording before closing this window.</p>
     <div class="table-scroll"><table><thead><tr><th>Aircraft</th><th>State / mode</th><th>Feeder</th><th>ETA feeder</th><th>STA feeder</th><th>ETA landing</th><th>STA landing</th><th>Instruction</th><th>Prediction</th></tr></thead><tbody>
     <tr v-for="f in flights" :key="f.callsign" :class="{selected:selected===f.callsign}" @click="selected=f.callsign"><td><button @click.stop="selected=f.callsign" :style="{color:STATE_COLORS[f.state]}">{{f.callsign}} {{f.wake}}</button></td><td :style="{color:STATE_COLORS[f.state]}">{{STATE_NAMES[f.state]}}<small>{{f.mode}}{{f.lost?' · stale track':''}}</small></td><td>{{f.ff}}{{f.passedFeeder?' · passed':''}}</td><td>{{utc(f.etaFf)}}</td><td>{{utc(f.staFf)}}</td><td>{{utc(f.eta)}}</td><td>{{utc(f.sta)}}</td><td>{{seconds(f.delay)}}</td><td>{{f.predictionSource}}<small>{{f.issue}}</small></td></tr>
@@ -60,6 +68,7 @@ function exportData(){
         <dt>Position / clearance</dt><dd>{{current.latitude??'—'}}, {{current.longitude??'—'}} · assigned heading {{current.assignedHeading??'—'}}° · assigned speed {{current.assignedSpeed??'—'}} kt · direct {{current.direct||'—'}}</dd>
         <dt>Level / Mach inputs</dt><dd>Cleared {{current.clearedAltitude===1?'ILS':current.clearedAltitude===2?'visual':current.clearedAltitude?current.clearedAltitude+' ft':'unknown'}} · final {{current.finalAltitude||'unknown'}} ft · Mach {{current.assignedMach?current.assignedMach/100:'unassigned'}}. Future descent clearance remains a planning assumption.</dd>
         <dt>Runway / feeder</dt><dd>{{current.arrival}}/{{current.runway}} ({{current.runwaySource||'unknown'}}) · {{current.ff}} · {{current.passedFeeder?'passed':'before fix'}} · distance {{current.feederDistanceNm?.toFixed(1)??'—'}} NM</dd>
+        <template v-if="currentTrafficMode"><dt>Traffic mode</dt><dd data-detail="traffic-mode">{{currentTrafficMode.mode.toUpperCase()}} · {{currentTrafficMode.count15}} arrivals in busiest 15 min (next 30 min) · {{Math.round(currentTrafficMode.utilization15*100)}}% capacity<template v-if="currentTrafficMode.pendingMode"> · {{currentTrafficMode.pendingMode.toUpperCase()}} pending</template><template v-if="current.trafficProfile"><br>{{current.trafficProfile.profile}} · model path {{current.trafficProfile.plannedDistanceNm.toFixed(1)}} NM</template></dd></template>
         <dt>Prediction / vector detection</dt><dd>{{current.predictionSource}} · {{current.vectorDetection||'none'}} · vector candidate {{utc(current.vectorCandidateSince)}}</dd>
         <template v-if="current.trajectory"><dt>Trajectory calculation</dt><dd>{{current.trajectory.model}} · {{seconds(current.trajectory.seconds)}} after feeder / current vector path<br>{{current.trajectory.pathNm.toFixed(1)}} NM modelled · {{current.trajectory.requiredExtensionNm.toFixed(1)}} NM extra track required<br>{{current.trajectory.feasible?'Model reaches threshold conditions':'Threshold conditions not met on this path'}} · end {{current.trajectory.endAltitudeFeet.toFixed(0)}} ft / {{current.trajectory.endCasKnots.toFixed(0)}} kt CAS<br>{{current.trajectory.assumptions.join('; ')}}</dd></template>
         <template v-if="current.distanceProfile"><dt>Workbook path</dt><dd>{{current.distanceProfile.procedure}} · {{current.distanceProfile.method}} · {{current.distanceProfile.fullNm}} NM · {{current.distanceProfile.sourceRange}}</dd><dt>Distance remaining</dt><dd>{{current.distanceProfile.beforeFeederNm.toFixed(1)}} NM before feeder + {{current.distanceProfile.remainingNm.toFixed(1)}} NM after feeder{{current.distanceProfile.shortcut?' · shortcut':''}}</dd></template>
@@ -70,6 +79,7 @@ function exportData(){
         <template v-if="current.euroscopeBaseline"><dt>EuroScope baseline</dt><dd>Captured {{utc(current.euroscopeBaseline.at)}}<template v-if="current.euroscopeBaseline.groundspeed!==undefined"> · {{current.euroscopeBaseline.groundspeed}} kt GS</template><br>Raw ETA {{utc(current.euroscopeBaseline.rawEta)}} + {{seconds(current.euroscopeBaseline.bufferMinutes*60)}} = {{utc(current.euroscopeBaseline.eta)}}<br>Feeder buffer {{seconds((current.euroscopeBaseline.feederBufferMinutes??current.euroscopeBaseline.bufferMinutes)*60)}}<br>Raw feeder ETA {{utc(current.liveEuroscopeEtaFf)}} · buffered feeder ETA {{utc(current.liveBufferedEtaFf)}}<br>Live reference ETA {{utc(current.liveEuroscopeEta)}} · live landing ETA {{utc(current.liveBufferedEta)}}</dd></template><template v-if="current.landingPrediction"><dt>Landing forecast</dt><dd>{{current.landingPrediction.method}} · {{current.landingPrediction.reference}} reference · {{current.landingPrediction.distanceNm?.toFixed(1)??'—'}} NM · correction {{seconds(current.landingPrediction.correctionSeconds)}}</dd></template><template v-if="candidate"><dt>Aircraft performance profile</dt><dd>{{candidate.profile.type}} · GS factor {{candidate.profile.observedSpeedRatio.toFixed(2)}}<br>Feeder {{candidate.feeder?.name??'—'}} {{candidate.feeder?utc(snapshot!.timestamp+candidate.feeder.seconds*1000):'—'}} · landing {{utc(snapshot!.timestamp+candidate.seconds*1000)}}<br>Before feeder {{candidate.beforeFeederNm.toFixed(1)}} NM · after feeder {{seconds(candidate.afterFeederSeconds)}}</dd></template><dt>Timing comparison</dt><dd>Initial ETA {{utc(current.initialEta)}} · current ETA {{utc(current.eta)}} · assigned landing {{utc(current.sta)}} · STA − ETA {{seconds(current.runwayDelay)}} · published instruction {{seconds(current.delay)}}</dd>
         <template v-if="current.tmaAssignment"><dt>TMA handover assignment</dt><dd>Accepted {{utc(current.tmaAssignment.at)}} · landing {{utc(current.tmaAssignment.sta)}} · instruction {{seconds(current.tmaAssignment.instruction)}}. Live ETA continues to update; Recompute refreshes the assigned time while keeping the entered sequence.</dd></template>
         <template v-if="current.guidance"><dt>Instruction decision</dt><dd>{{current.guidance.point}} · {{current.guidance.policy}}<br>Prediction {{utc(current.guidance.predicted)}} · scheduling reference {{utc(current.guidance.reference)}} · target {{utc(current.guidance.scheduled)}}<br>{{current.guidance.constraints.join('; ')||'No active spacing constraint'}}<br>Earliest planning estimate {{utc(current.guidance.earliestPlanningTime)}} · capability refresh due {{utc(current.guidance.validUntil)}}. This is a model estimate, not a guaranteed aircraft capability.</dd></template>
+        <template v-if="currentSlot"><dt>Current slot</dt><dd class="slot-reasons"><span v-for="(reason,i) in currentSlot.reasons" :key="i" :class="{binding:reason.binding}">{{reason.detail}}</span></dd></template>
         <dt>Spacing leader</dt><dd>{{current.separation?.leader||'None'}}<template v-if="current.separation"> · {{seconds(current.separation.scheduledSeconds)}} scheduled · {{seconds(current.separation.rateSeconds)}} rate · {{seconds(current.separation.wakeSeconds)}} wake ({{current.separation.wakeNm}} NM)</template></dd>
         <dt>Engine constraint fields</dt><dd>Feeder {{seconds((current.feederDelayMs??0)/1000)}} · closure {{seconds((current.closureDelayMs??0)/1000)}} · protected wake {{seconds((current.wakeDelayMs??0)/1000)}} · protected rate {{seconds((current.rateDelayMs??0)/1000)}}. These fields can overlap; they are not an additive delay breakdown.</dd>
         <dt>Protected TMA instruction</dt><dd>{{current.tmaTiming?seconds(current.tmaTiming.delay)+' · '+(current.tmaTiming.instructionSource||'unknown source'):'Not active'}}</dd>
@@ -81,5 +91,5 @@ function exportData(){
 </section>
 </template>
 <style scoped>
-.supervision{height:100%;overflow:auto;background:#495055;color:#edf2f5;font:14px Arial,sans-serif;padding:12px;box-sizing:border-box}.supervision header{display:flex;gap:12px;flex-wrap:wrap;border-bottom:1px solid #96a5af;padding-bottom:10px}.supervision nav{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.supervision button,.supervision input{font:inherit;border:1px solid #9daeb9;border-radius:7px;padding:6px 9px;background:#687e8b;color:#fff}.supervision button{cursor:pointer}.supervision .note{color:#c8d3da;font-size:13px}.warning{color:#ffd569}.table-scroll{max-height:260px;overflow:auto}table{border-collapse:collapse;width:100%;white-space:nowrap}th{position:sticky;top:0;background:#5b707c;text-align:left}td,th{padding:8px;border-bottom:1px solid #6c7a83}td small{display:block;color:#d2dbe0}tr.selected{background:#354957}td button{background:transparent;border:0;font-weight:bold;padding:0}.details{display:grid;grid-template-columns:minmax(300px,2fr) minmax(240px,1fr);gap:20px}h3{font-size:16px}dl{display:grid;grid-template-columns:170px 1fr;gap:10px}dt{color:#c4d2db}dd{margin:0;overflow-wrap:anywhere}pre{white-space:pre-wrap;font:inherit;margin:0}ol{list-style:none;padding:0;max-height:500px;overflow:auto}li{border-bottom:1px solid #71818b;padding:8px 0}time{color:#b6c9d5}@media(max-width:750px){.details{grid-template-columns:1fr}}
+.supervision{height:100%;overflow:auto;background:#495055;color:#edf2f5;font:14px Arial,sans-serif;padding:12px;box-sizing:border-box}.supervision header{display:flex;gap:12px;flex-wrap:wrap;border-bottom:1px solid #96a5af;padding-bottom:10px}.supervision nav{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.supervision button,.supervision input{font:inherit;border:1px solid #9daeb9;border-radius:7px;padding:6px 9px;background:#687e8b;color:#fff}.supervision button{cursor:pointer}.supervision .note{color:#c8d3da;font-size:13px}.warning{color:#ffd569}.table-scroll{max-height:260px;overflow:auto}table{border-collapse:collapse;width:100%;white-space:nowrap}th{position:sticky;top:0;background:#5b707c;text-align:left}td,th{padding:8px;border-bottom:1px solid #6c7a83}td small{display:block;color:#d2dbe0}tr.selected{background:#354957}td button{background:transparent;border:0;font-weight:bold;padding:0}.details{display:grid;grid-template-columns:minmax(300px,2fr) minmax(240px,1fr);gap:20px}h3{font-size:16px}dl{display:grid;grid-template-columns:170px 1fr;gap:10px}dt{color:#c4d2db}dd{margin:0;overflow-wrap:anywhere}.slot-reasons{display:flex;flex-direction:column;gap:3px}.slot-reasons span{color:#c4d2db}.slot-reasons .binding{color:#fff}pre{white-space:pre-wrap;font:inherit;margin:0}ol{list-style:none;padding:0;max-height:500px;overflow:auto}li{border-bottom:1px solid #71818b;padding:8px 0}time{color:#b6c9d5}@media(max-width:750px){.details{grid-template-columns:1fr}}
 </style>

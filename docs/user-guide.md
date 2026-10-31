@@ -89,6 +89,20 @@ Click the runway configuration box to change arrival/departure configuration. **
 
 In Runway view, right-click an empty timeline area and select **Insert closure** or **Insert gap**. You can also insert either before or after an aircraft from its callsign menu. Click the block to edit its start and duration or remove it; drag the body to move it, or an edge to adjust its length.
 
+### Automatic traffic modes
+
+Each runway selects **LOW**, **MED** or **HIGH** from the expected arrival demand and its configured capacity. The mode appears beside the runway rate; a quiet secondary runway can stay LOW while the main runway is HIGH.
+
+| Mode | Landing estimate |
+| --- | --- |
+| LOW | Shortest feasible approach path. Automatic Stable times follow the live forecast until Superstable, while retaining sequence order and required spacing. |
+| MED | Standard vectoring pattern. |
+| HIGH | Extended downwind: initially 4 NM longer, adding about 8 NM of total track. |
+
+Explicit directs, RNP approaches, headings and established final approach take priority over these assumptions. Manual targets, holding slots and Superstable/Frozen assignments keep their protection. Traffic-mode changes require sustained demand; they do not change the selected arrival rate.
+
+Authorised users can enable or disable **Automatic traffic modes** and adjust **High mode: extra downwind** in supervision’s shared settings.
+
 ## 7. Send and acknowledge coordination
 
 Click **Coordinations** and choose one of the listed messages. Incoming messages appear in a separate window centered over EuroScope, showing the sender's login callsign and UTC send time. With a direct and proxy connection, the popup appears only in the direct instance. Click **Acknowledge** to close it immediately. If several messages are waiting, acknowledge them in turn. These messages also appear while the AMAN pane is hidden.
@@ -100,7 +114,7 @@ Click **Coordinations** and choose one of the listed messages. Incoming messages
 - If shared data is stale or edits are unavailable, check your EuroScope connection, callsign, selected network and backend address. Avoid making repeated edits while an earlier change is awaiting confirmation.
 - `.saaman status` shows connection information. When reporting a problem, include the plugin version, callsign, network, action taken and diagnostic text.
 
-The supervisory pane is available with `.saaman supervisor` for authorised users. Its shared settings include feeder/fallback allowances and a landing correction limit. Landing ETA updates live; changing these settings leaves existing assigned slots in place until Recompute. Information shows the current ETA alongside the assigned STA. The aircraft performance profile used for the current forecast is shown in supervision. Blue Unstable aircraft have provisional scheduled times that update with the forecast and required spacing. Manual time targets remain fixed. Stable and later assignments retain their existing protection; use Recompute to accept a fresh estimate when needed. For an initial-timing test, start recording before the aircraft first appears in AMAN and continue through the feeder and landing. Captures made before recording started are marked as unavailable in the export. A confirmed runway change updates the approach and planning times while retaining sequence order. A dash at a route point means its crossing time is unavailable, for example during vectoring.
+The supervisory pane is available with `.saaman supervisor` for authorised users. Its shared settings include feeder/fallback allowances and a landing correction limit. Landing ETA updates live. Buffer-setting changes leave accepted slots in place until Recompute; automatic traffic modes can refresh eligible Stable times as described above. Information shows the current ETA alongside the assigned STA. The aircraft performance profile used for the current forecast is shown in supervision. Blue Unstable aircraft have provisional scheduled times that update with the forecast and required spacing. Manual time targets remain fixed. Stable sequence order remains protected. In LOW mode its automatic times can follow the forecast; Superstable and Frozen assignments remain protected until a manual change or Recompute. For an initial-timing test, start recording before the aircraft first appears in AMAN and continue through the feeder and landing. Captures made before recording started are marked as unavailable in the export. A confirmed runway change updates the approach and planning times while retaining sequence order. A dash at a route point means its crossing time is unavailable, for example during vectoring.
 
 ## Shared connection and sequencer
 

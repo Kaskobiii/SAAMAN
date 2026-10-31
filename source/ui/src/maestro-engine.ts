@@ -2,6 +2,8 @@
 // All absolute times are Unix milliseconds internally; route EET inputs are seconds.
 import {initialProfileHandover,type InitialProfile} from './maestro-initial-profile'
 import {motionTiming,type MotionTiming} from './maestro-motion-timing'
+import {updateTrafficModes,type RunwayTrafficMode,type TrafficDemandFlight} from './maestro-traffic-modes'
+import {trafficProfilePrediction,type TrafficProfileAssumption} from './maestro-traffic-profile'
 import {feederDelivery,type FeederDelivery} from './maestro-feeder-delivery'
 import {manualReservationLifecycle,pruneExpiredManualEdits,type ManualRetirement} from './maestro-manual-reservations'
 import {aircraftType,performanceAt,PERFORMANCE_SOURCE} from './maestro-aircraft-performance'
@@ -30,6 +32,8 @@ export const STATE_COLORS = ['#16417c', '#96d796', '#ffffff', '#40e0d0', '#dc7da
 export const STABLE_MINUTES=15
 export const SUPERSTABLE_MINUTES=4
 export interface EngineConfig {
+    automaticTrafficModes?:boolean
+    trafficHighDownwindNm?:number
     timingModel?:'euroscope-buffer'|'performance'
     euroscopeSuperstableBufferMinutes?:number
     euroscopeBufferMinutes?:number
@@ -67,6 +71,7 @@ export interface EngineConfig {
 export const DEFAULT_CONFIG: EngineConfig = {
     timingModel:'euroscope-buffer',euroscopeBufferMinutes:2,euroscopeSuperstableBufferMinutes:1,euroscopeHighSpeedBufferMinutes:6,
     performanceModel:'euroscope',
+    automaticTrafficModes:true,trafficHighDownwindNm:4,
     predictionMode:'star',starDistanceMethod:'vectors',starApproachSpeed:250,starBaseSpeed:180,starFinalNm:10,starBaseNm:20,starEntryAltitude:18000,starDescentRate:1800,starCruiseSpeed:450,starClimbRate:1800,
     active: ['ESSA/19R'], departureRunway:'ESSA/26',
     rates: Object.fromEntries(RUNWAYS.map(r => [r, r.endsWith('/08') ? 166 : r.endsWith('/26') || r.startsWith('ESSB/') ? 142 : 115])),
@@ -123,6 +128,12 @@ interface RouteTimingPair {eta:number;etaFf:number;rawEta?:number;rawEtaFf?:numb
 interface RouteTimingGuard {
     trusted?:RouteTimingPair
     episode?:{id:string;signature:string;since:number;candidateSince?:number;candidateEta?:number;lastSample?:string;samples:number;retainedNotified?:boolean}
+}
+function trafficRouteSignature(p:TelemetryFlight){
+    let hash=2166136261
+    const route=JSON.stringify([p.arrival,p.runway,p.direct??'',p.assignedHeading??0,p.route.map(q=>[q.name,q.latitude??null,q.longitude??null])])
+    for(let i=0;i<route.length;i++)hash=Math.imul(hash^route.charCodeAt(i),16777619)
+    return 'fnv1a32:'+(hash>>>0).toString(16).padStart(8,'0')
 }
 const ROUTE_JUMP_ISSUE='Route ETA jumped by more than 10 minutes; review route and Recompute'
 function guardRouteTiming(p:TelemetryFlight,old:EngineFlight|undefined,pair:RouteTimingPair,method:LandingPrediction['method']|undefined,now:number,
@@ -187,6 +198,11 @@ function guardRouteTiming(p:TelemetryFlight,old:EngineFlight|undefined,pair:Rout
         event:(quarantined||legacyCleared)&&usableRetained&&fresh&&!episode.retainedNotified?{id:episode.id+':retained',callsign:p.callsign,at:now,kind:'route-timing' as const,detail:'Unexpected route ETA jump ignored; previous timing retained automatically'}:undefined}
 }
 export interface EngineFlight extends TelemetryFlight {
+    trafficNeutralEta?:number
+    trafficNeutralPrediction?:LandingPrediction
+    trafficNeutralGuard?:RouteTimingGuard
+    trafficRouteOverride?:{signature:string;at:number}
+    trafficProfile?:TrafficProfileAssumption
     routeTimingGuard?:RouteTimingGuard
     routeTimingQuarantined?:boolean
     retiredSwapAt?:number
@@ -264,7 +280,7 @@ export interface EngineFlight extends TelemetryFlight {
     finalAlongNm?:number
     planKey?:string
 }
-export interface EngineSnapshot { automaticCorrections?:AutomaticCorrection[];transientFlights?:Record<string,EngineFlight>; feederPassages?:Record<string,FeederPassage>; retiredManualFlights?:Record<string,ManualRetirement>; timestamp: number; source: string; simulation?:boolean; flights: EngineFlight[];terminatedCallsigns?:string[];knownFlights?:Pick<TelemetryFlight,'callsign'|'aircraft'|'wake'|'departure'|'arrival'|'runway'>[]; diagnostics: string[]; slotsKey?: string; wind?:{direction:number;speed:number;auto:boolean}; winds?:Telemetry['winds']; landings?:{callsign:string;runway:string;time:number}[];grounded?:Record<string,number>;observedCallsigns?:string[];runways?:Telemetry['runways'];activeRunways?:Telemetry['activeRunways'];unlistedTelemetry?:TelemetryFlight[] }
+export interface EngineSnapshot { trafficModes?:Record<string,RunwayTrafficMode>; automaticCorrections?:AutomaticCorrection[];transientFlights?:Record<string,EngineFlight>; feederPassages?:Record<string,FeederPassage>; retiredManualFlights?:Record<string,ManualRetirement>; timestamp: number; source: string; simulation?:boolean; flights: EngineFlight[];terminatedCallsigns?:string[];knownFlights?:Pick<TelemetryFlight,'callsign'|'aircraft'|'wake'|'departure'|'arrival'|'runway'>[]; diagnostics: string[]; slotsKey?: string; wind?:{direction:number;speed:number;auto:boolean}; winds?:Telemetry['winds']; landings?:{callsign:string;runway:string;time:number}[];grounded?:Record<string,number>;observedCallsigns?:string[];runways?:Telemetry['runways'];activeRunways?:Telemetry['activeRunways'];unlistedTelemetry?:TelemetryFlight[] }
 const ms = (seconds: number) => seconds * 1000
 
 export function validateConfig(value: any): EngineConfig {
@@ -278,7 +294,7 @@ export function validateConfig(value: any): EngineConfig {
     const rates: Record<string, number> = {}
     for (const r of RUNWAYS) {
         const rate = value.rates?.[r]
-        if (!Number.isFinite(rate) || rate < 60 || rate > 600) throw new Error('Arrival rates must be 6–60 aircraft per hour (60–600 seconds)')
+        if (!Number.isFinite(rate) || rate < 60 || rate > 600) throw new Error('Arrival rates must be 6-60 aircraft per hour (60-600 seconds)')
         rates[r] = rate
     }
     for (const key of ['stableMinutes', 'superStableMinutes', 'frozenMinutes', 'unstableSeconds', 'minimumNewSeconds'])
@@ -320,8 +336,9 @@ export function validateConfig(value: any): EngineConfig {
     if(!Array.isArray(manualFlights)||manualFlights.length>500||manualFlights.some((f:any)=>
         !f || !/^[A-Z0-9_-]{2,16}$/.test(f.callsign)||!RUNWAYS.includes(f.runway)||typeof f.aircraft!=='string'||f.aircraft.length>12||
         !['L','M','H','J','?'].includes(f.wake)||typeof f.feeder!=='string'||f.feeder.length>40||!Number.isFinite(f.eta)||f.eta<0||(f.feederEta!==undefined&&(!Number.isFinite(f.feederEta)||f.feederEta<0||f.feederEta>f.eta))||(f.departure!==undefined&&(typeof f.departure!=='string'||!/^[A-Z0-9-]{4}$/.test(f.departure)))))throw new Error('Invalid manual flight')
-    const extras={timingModel:value.timingModel??'euroscope-buffer',euroscopeBufferMinutes:value.euroscopeBufferMinutes??2,euroscopeSuperstableBufferMinutes:value.euroscopeSuperstableBufferMinutes??1,euroscopeHighSpeedBufferMinutes:value.euroscopeHighSpeedBufferMinutes??6,performanceModel:value.performanceModel??'euroscope',predictionMode:value.predictionMode??'star',starDistanceMethod:value.starDistanceMethod??'vectors',starApproachSpeed:value.starApproachSpeed??250,starBaseSpeed:value.starBaseSpeed??180,starFinalNm:value.starFinalNm??10,starBaseNm:value.starBaseNm??20,starEntryAltitude:value.starEntryAltitude??18000,starDescentRate:value.starDescentRate??1800,starCruiseSpeed:value.starCruiseSpeed??450,starClimbRate:value.starClimbRate??1800,surfaceWindAuto:value.surfaceWindAuto!==false,stableBufferMinutes:value.stableBufferMinutes??5,superStableBufferMinutes:value.superStableBufferMinutes??5,
+    const extras={automaticTrafficModes:value.automaticTrafficModes??false,trafficHighDownwindNm:value.trafficHighDownwindNm??4,timingModel:value.timingModel??'euroscope-buffer',euroscopeBufferMinutes:value.euroscopeBufferMinutes??2,euroscopeSuperstableBufferMinutes:value.euroscopeSuperstableBufferMinutes??1,euroscopeHighSpeedBufferMinutes:value.euroscopeHighSpeedBufferMinutes??6,performanceModel:value.performanceModel??'euroscope',predictionMode:value.predictionMode??'star',starDistanceMethod:value.starDistanceMethod??'vectors',starApproachSpeed:value.starApproachSpeed??250,starBaseSpeed:value.starBaseSpeed??180,starFinalNm:value.starFinalNm??10,starBaseNm:value.starBaseNm??20,starEntryAltitude:value.starEntryAltitude??18000,starDescentRate:value.starDescentRate??1800,starCruiseSpeed:value.starCruiseSpeed??450,starClimbRate:value.starClimbRate??1800,surfaceWindAuto:value.surfaceWindAuto!==false,stableBufferMinutes:value.stableBufferMinutes??5,superStableBufferMinutes:value.superStableBufferMinutes??5,
         defaultFeederMinutes:value.defaultFeederMinutes??15,maxFinalNm:value.maxFinalNm??15,vectoringMode:value.vectoringMode??1,finalLengths:value.finalLengths??DEFAULT_CONFIG.finalLengths!,delayPaths:value.delayPaths??[]}
+    if(typeof extras.automaticTrafficModes!=='boolean'||!Number.isFinite(extras.trafficHighDownwindNm)||extras.trafficHighDownwindNm<0||extras.trafficHighDownwindNm>20)throw new Error('Invalid automatic traffic mode setting')
     if(!['euroscope','openap'].includes(extras.performanceModel))throw new Error('Invalid performance model')
     if(!['euroscope-buffer','performance'].includes(extras.timingModel)||!Number.isFinite(extras.euroscopeBufferMinutes)||extras.euroscopeBufferMinutes<0||extras.euroscopeBufferMinutes>15)throw new Error('EuroScope ETA buffer must be between 0 and 15 minutes')
     if(!Number.isFinite(extras.euroscopeHighSpeedBufferMinutes)||extras.euroscopeHighSpeedBufferMinutes<0||extras.euroscopeHighSpeedBufferMinutes>15)throw new Error('High-speed ETA buffer must be between 0 and 15 minutes')
@@ -818,6 +835,36 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
     const predictions:TelemetryFlight[]=[...traffic,...manual.map(f=>({callsign:f.callsign,aircraft:f.aircraft,wake:f.wake,departure:f.departure??'----',arrival:f.runway.split('/')[0],runway:f.runway.split('/')[1],
         route:f.feeder==='OTHER'?[]:[{name:f.feeder,seconds:f.feederEta!==undefined?(f.feederEta-now)/1000:(f.eta-now)/1000-(config.defaultFeederMinutes??15)*60}],landingSeconds:(f.eta-now)/1000,distanceNm:100,groundspeed:140,altitude:10000}))]
     manual.forEach(f=>present.add(f.callsign))
+    // Demand uses an unmodified forecast, not the mode's expected path or STA.
+    // Reuse the preceding trusted neutral observation; bootstrap new tracks once.
+    const automaticTraffic=config.automaticTrafficModes===true&&config.timingModel==='euroscope-buffer'&&input.source!=='DEMO'
+    const neutralCache=new Map<string,{runway:string;prediction:LandingPrediction}>()
+    const demand:TrafficDemandFlight[]=automaticTraffic?traffic.map(p=>{
+        const old=oldByCallsign.get(p.callsign),e=edits[p.callsign]??{}
+        const runway=e.runway??(p.runway?`${p.arrival}/${p.runway}`:currentConfig.active[0])
+        const sameIdentity=old?.runway===runway.split('/')[1]&&old.arrival===p.arrival&&old.departure===p.departure
+        const currentDestination=Number.isFinite(p.landingSeconds)&&p.landingSeconds>=0&&p.landingSeconds<=14400&&p.route.length>0
+        const trusted=sameIdentity?old.trafficNeutralGuard?.trusted:undefined
+        const neutralProfile=sameIdentity?old.trafficNeutralPrediction:undefined
+        const retainedEta=trusted?.eta??(neutralProfile&&['aircraft-profile','vector-position','final-position','arrival-profile','recovery-iaf'].includes(neutralProfile.method)?old?.trafficNeutralEta:undefined)
+        const retainedTiming=sameIdentity&&now-old.lastSeen>=0&&now-old.lastSeen<=15000&&!old.issue&&old.landingEtaAvailable!==false&&Number.isFinite(retainedEta)
+        let eta=sameIdentity&&!old.issue?old.trafficNeutralEta:undefined,independentDestination=false
+        if(!currentDestination&&retainedTiming)eta=retainedEta
+        if(eta===undefined||!currentDestination&&!retainedTiming){
+            const cfg=windConfig(currentConfig,p.arrival,winds,now),threshold=input.runways?.[runway]??p.threshold??STAR_RUNWAYS[runway.split('/')[1]]
+            let prediction=predictLanding({...p,runway:runway.split('/')[1],threshold},cfg,euroscopeFeederBufferMinutes(p,config,old),old?.trafficNeutralPrediction??old?.landingPrediction,now)
+            // A selected arrival profile is independently usable without an SDK
+            // destination estimate. A generic zero-time fallback is not demand.
+            const selected=!currentDestination&&e.arrivalProfile?manualArrivalProfile({...p,runway:runway.split('/')[1],threshold},cfg,e.arrivalProfile,old,now,!!old?.missedRecovery||p.topskyMissedApproach===true):undefined
+            if(selected?.landing){prediction=selected.landing;independentDestination=true}
+            neutralCache.set(p.callsign,{runway,prediction});eta=now+prediction.seconds*1000
+        }
+        return {callsign:p.callsign,runway,eta,wake:p.wake,valid:(currentDestination||retainedTiming||independentDestination)&&(e.mode??old?.mode??'sequenced')==='sequenced'&&old?.state!==4&&!old?.lost&&!old?.motionTiming?.held&&!old?.routeTimingQuarantined&&!old?.missedRecovery&&old?.landingEtaAvailable!==false&&!p.topskyMissedApproach&&p.groundspeed>=60&&p.altitude>=350&&(p.positionAgeSeconds??0)<=15&&p.speedDataValid!==false&&(!p.routeProblem||independentDestination)}
+    }):[]
+    const trafficModes=automaticTraffic?updateTrafficModes(demand,RUNWAYS.filter(r=>r.startsWith('ESSA/')),now,previous?.trafficModes??{},{intervalSeconds:(leader,follower,at)=>{
+        const cfg=effectiveConfig(config,at)
+        return Math.max(cfg.rates[follower.runway],leader?wakeInterval(leader.wake??'?',follower.wake??'?',follower.runway,cfg):0)
+    }}):undefined
     const flights: EngineFlight[] = []
     const provisionalTimings=new Set<string>()
     const diagnostics: string[] = []
@@ -902,8 +949,21 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         const resumedMissed=resumed&&old?.mode==='missed'
         const airborneAgain=previous?.grounded?.[p.callsign]!==undefined&&!old?.landingStopped&&e.landedAt===undefined&&p.altitude>=500&&p.groundspeed>=60&&(p.verticalSpeed??0)>300&&(p.positionAgeSeconds??0)<=15
         const recoveryContext=!!resumedMissed||airborneAgain||!!old?.missedRecovery||old?.landingEtaAvailable===false||!!e.recoveryEntry&&!old?.recoveryRoute?.completed||bufferMode&&observedGoAround(p,old)
-        let landingPrediction=bufferMode?predictLanding({...p,runway:runway.split('/')[1],threshold},predictionConfig,feederBufferMinutes,resumed||requeued||recoveryContext||old?.state===4?undefined:old?.landingPrediction,now):undefined
+        const cachedNeutral=neutralCache.get(p.callsign)
+        let landingPrediction=bufferMode?(cachedNeutral?.runway===runway&&!recoveryContext&&!resumed&&!requeued?cachedNeutral.prediction:predictLanding({...p,runway:runway.split('/')[1],threshold},predictionConfig,feederBufferMinutes,resumed||requeued||recoveryContext||old?.state===4?undefined:old?.trafficNeutralPrediction??old?.landingPrediction,now)):undefined
         if(manualPlan?.landing)landingPrediction=manualPlan.landing
+        const trafficNeutralPrediction=landingPrediction
+        const trafficSignature=automaticTraffic?trafficRouteSignature({...p,runway:runway.split('/')[1]}):undefined
+        let trafficRouteOverride=automaticTraffic&&old?.trafficRouteOverride?.signature===trafficSignature&&
+            !profileSelectionChanged&&!confirmedRunwayChange&&!resumed&&!requeued&&!recoveryContext?old?.trafficRouteOverride:undefined
+        let trafficProfile:TrafficProfileAssumption|undefined
+        if(automaticTraffic&&landingPrediction&&!trafficRouteOverride&&!profileBlocked&&!recoveryContext&&!motion?.held&&!waitingRunwayChange){
+            // Later phases keep their accepted assumption until Recompute;
+            // observed directs/final geometry still override that assumption.
+            const mode=old&&old.state>=2&&!recompute&&old.trafficProfile?old.trafficProfile.mode:trafficModes?.[runway]?.mode??'medium'
+            const adjusted=trafficProfilePrediction({...p,arrivalProfile:manualProfile??p.arrivalProfile,runway:runway.split('/')[1],threshold},predictionConfig,landingPrediction,mode,{passedFeeder:feederObservation?.passed??old?.passedFeeder,feeder:feederObservation?.feeder??old?.ff,highDownwindNm:config.trafficHighDownwindNm??4})
+            landingPrediction={...adjusted.prediction,trafficProfile:adjusted.assumption};trafficProfile=adjusted.assumption
+        }
         const usableArrival=usableEuroScope||!!manualPlan?.landing
         let recoveryRoute=old?.recoveryRoute
         const observedApproach=bufferMode&&usableRecoveryApproach({...p,runway:runway.split('/')[1],threshold},landingPrediction!)
@@ -921,7 +981,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         }
         const recoveryManualSlot=waitingRecovery&&requeued&&e.target!==undefined&&(e.requeueAt??0)>(recoveryStartedAt??0)
         if(recoveredApproach){resumed=true;recompute=true}
-        const selectedBufferMinutes=(landingPrediction?.correctionSeconds??0)/60
+        let selectedBufferMinutes=(landingPrediction?.correctionSeconds??0)/60
         let liveEuroscopeEta=bufferMode&&usableEuroScope?now+ms(landingPrediction!.rawSeconds):undefined
         const profileHandover=bufferMode&&!waitingRecovery?initialProfileHandover(p,old,e,landingPrediction!,now,recompute||resumed||confirmedRunwayChange,!motion?.held,motion?.reliable):undefined
         const rawProfileFeeder=manualPlan?.landing?p.route.find(point=>point.name===manualPlan.observation?.feeder&&Number.isFinite(point.seconds)&&point.seconds>=0):undefined
@@ -933,12 +993,33 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         const useProfileFeeder=profileFeeder&&!feederObservation?.passed&&profileFeeder.name===feederObservation?.feeder&&e.etaFfOverride===undefined
         let liveBufferedEtaFf=manualPlan?.landing?e.etaFfOverride??now+ms(modelFeederSeconds):liveEuroscopeEtaFf===undefined?undefined:feederObservation?.source==='holding'&&e.etaFfOverride===undefined?now+ms(feederObservation.seconds):feederObservation?.available===false&&e.etaFfOverride===undefined?old?.etaFf??old?.euroscopeBaseline?.etaFf??liveEuroscopeEtaFf:feederObservation?.source==='track'&&e.etaFfOverride===undefined?now+ms(feederObservation.seconds):useProfileFeeder?now+ms(profileFeeder.seconds):liveEuroscopeEtaFf+ms(feederBufferMinutes*60)
         let liveBufferedEta=!bufferMode||waitingRecovery||!usableArrival?undefined:now+ms(landingPrediction!.seconds)
-        const routeGuard=guardRouteTiming({...p,runway:runway.split('/')[1]},old,
+        // A workbook path assumption must not conceal a discontinuity in the
+        // actual retained route. Keep its independent trusted neutral reference.
+        const neutralOld=automaticTraffic&&old&&(old.trafficNeutralEta!==undefined||!old.trafficProfile)?{
+            ...old,routeTimingGuard:old.trafficNeutralGuard??(!old.trafficProfile?old.routeTimingGuard:undefined),
+            landingPrediction:old.trafficNeutralPrediction??old.landingPrediction,
+            liveBufferedEta:old.trafficNeutralEta??old.liveBufferedEta,lastTrustedEta:old.trafficNeutralEta??old.lastTrustedEta,
+            eta:old.trafficNeutralEta??old.eta}:undefined
+        const neutralGuard=automaticTraffic&&trafficNeutralPrediction?guardRouteTiming({...p,runway:runway.split('/')[1]},neutralOld,
+            {eta:now+ms(trafficNeutralPrediction.seconds),etaFf:liveBufferedEtaFf??e.etaFfOverride??now+ms(modelFeederSeconds),rawEta:liveEuroscopeEta,rawEtaFf:liveEuroscopeEtaFf},trafficNeutralPrediction.method,now,
+            {enabled:!manualCalls.has(p.callsign)&&bufferMode&&!manualPlan?.landing&&!profileBlocked&&!recoveryContext,
+                reset:recompute||!old?.euroscopeBaseline||resumed||requeued||old?.state===4||e.mode!==undefined&&e.mode!=='sequenced',
+                transition:!!confirmedRunwayChange||!!profileHandover?.ready,held:!!motion?.held,holding:!!p.topskyHoldingPoint,available:usableArrival}):undefined
+        if(neutralGuard?.accepted&&neutralGuard.event?.id.endsWith(':confirmed')&&trafficNeutralPrediction){
+            trafficRouteOverride={signature:trafficSignature!,at:now}
+            trafficProfile=undefined;landingPrediction=trafficNeutralPrediction
+            liveBufferedEta=now+ms(landingPrediction.seconds);selectedBufferMinutes=landingPrediction.correctionSeconds/60
+        }
+        let routeGuard=guardRouteTiming({...p,runway:runway.split('/')[1]},old,
             {eta:liveBufferedEta??now+ms(prediction.seconds)+manualFeederShift,etaFf:liveBufferedEtaFf??e.etaFfOverride??now+ms(modelFeederSeconds),rawEta:liveEuroscopeEta,rawEtaFf:liveEuroscopeEtaFf},landingPrediction?.method,now,
             {enabled:!manualCalls.has(p.callsign)&&(bufferMode||prediction.source==='route'||old?.issue===ROUTE_JUMP_ISSUE),
-                reset:recompute||bufferMode&&!old?.euroscopeBaseline||resumed||requeued||recoveryContext||old?.state===4||e.mode!==undefined&&e.mode!=='sequenced',
-                transition:!!confirmedRunwayChange||!!profileHandover?.ready,held:!!motion?.held,holding:!!p.topskyHoldingPoint,
+                reset:!!trafficProfile&&!!old?.trafficProfile&&trafficProfile.mode!==old.trafficProfile.mode||recompute||bufferMode&&!old?.euroscopeBaseline||resumed||requeued||recoveryContext||old?.state===4||e.mode!==undefined&&e.mode!=='sequenced',
+                transition:!!confirmedRunwayChange||!!profileHandover?.ready||!!neutralGuard?.accepted&&!!trafficRouteOverride,held:!!motion?.held,holding:!!p.topskyHoldingPoint,
                 available:bufferMode?usableArrival:(p.positionAgeSeconds??0)<=15})
+        if(neutralGuard?.quarantined&&old){
+            const adapted=old.routeTimingGuard?.trusted??{eta:old.liveBufferedEta??old.lastTrustedEta??old.eta,etaFf:old.liveBufferedEtaFf??old.etaFf,rawEta:old.liveEuroscopeEta,rawEtaFf:old.liveEuroscopeEtaFf}
+            routeGuard={...routeGuard,state:routeGuard.quarantined?routeGuard.state:old.routeTimingGuard??routeGuard.state,quarantined:true,pair:adapted,event:neutralGuard.event}
+        }else if(neutralGuard?.event&&neutralGuard.accepted&&trafficRouteOverride)routeGuard={...routeGuard,event:neutralGuard.event}
         if(routeGuard.quarantined){
             if(bufferMode&&usableArrival){
                 liveBufferedEta=routeGuard.pair.eta;liveBufferedEtaFf=e.etaFfOverride??routeGuard.pair.etaFf
@@ -1043,6 +1124,8 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         const retainEntryOrder=passed&&old?.passedFeeder&&old?.mode==='sequenced'&&!resumed&&!requeued&&old.runway===runway.split('/')[1]
         if(landed)grounded[p.callsign]=landingStamp
         flights.push({ ...p, arrivalProfile:e.arrivalProfile??p.arrivalProfile,runway:runway.split('/')[1],euroscopeRunway:p.runway,sdkRunwayExplicit,runwaySource:e.runway?'manual':runway!==`${p.arrival}/${p.runway}`?'active':p.runway?'filed':'active',firstSeen, lastSeen: now, initialEta: captureBaseline&&!old?.euroscopeBaseline||old?.issue==='Awaiting usable airborne groundspeed'?eta:old?.initialEta ?? eta, initialEtaFf:captureBaseline&&!old?.euroscopeBaseline?euroscopeBaseline!.etaFf:old?.initialEtaFf??etaFf, eta, etaFf,
+            trafficNeutralGuard:neutralGuard?.state,trafficRouteOverride,
+            trafficNeutralEta:automaticTraffic?(motion?.held||routeGuard.quarantined?old?.trafficNeutralEta:trafficNeutralPrediction?now+ms(trafficNeutralPrediction.seconds):undefined):undefined,trafficNeutralPrediction:automaticTraffic?(motion?.held||routeGuard.quarantined?old?.trafficNeutralPrediction:trafficNeutralPrediction):undefined,trafficProfile,
             initialProfile:profileHandover?.state,motionTiming:motion?.state,routeTimingGuard:routeGuard.state,routeTimingQuarantined:routeGuard.quarantined,feederEtaAvailable,feederObservationSource:e.etaFfOverride!==undefined?'manual':feederObservation?.source,
             euroscopeBaseline,liveEuroscopeEta:waitingRecovery?undefined:liveEuroscopeEta,liveBufferedEta,liveEuroscopeEtaFf,liveBufferedEtaFf,landingPrediction,bufferedFeederVerified:bufferMode,landingEtaAvailable:landed||!waitingRecovery,recoveryStartedAt,recoveryManualSlot:!landed&&recoveryManualSlot,recoveryRoute,
             secondaryRunwayAccepted,runwayTransition,
@@ -1065,6 +1148,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         if(routeGuard.event&&!issue){
             appendAutomaticCorrection(automaticCorrections,routeGuard.event)
             if(routeGuard.event.id.endsWith(':retained')&&routeGuard.state?.episode)routeGuard.state.episode.retainedNotified=true
+            if(routeGuard.event.id.endsWith(':retained')&&neutralGuard?.state?.episode)neutralGuard.state.episode.retainedNotified=true
         }
         if(p.topskyHighSpeed===true&&p.assignedSpeed===0&&old?.topskyHighSpeed!==true)
             appendAutomaticCorrection(automaticCorrections,{id:`speed:${p.callsign}:${firstSeen}:${now}`,callsign:p.callsign,at:now,kind:'speed-flag',detail:'TopSky High Speed flag ignored as a numeric speed restriction'})
@@ -1072,14 +1156,15 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         // Keep controller edits and normal spacing active, but do not let an
         // airborne pause replace the last credible timing or prove passage.
         if(motion?.held&&old?.euroscopeBaseline&&!landed&&!resumed&&!requeued&&!waitingRecovery&&old.runway===emitted.runway){
-            emitted.eta=recompute?old.liveBufferedEta??old.eta:old.euroscopeBaseline.eta;emitted.etaFf=e.etaFfOverride??old.etaFf
-            emitted.liveBufferedEta=old.liveBufferedEta??old.eta;emitted.liveBufferedEtaFf=e.etaFfOverride??old.liveBufferedEtaFf??old.etaFf
+            emitted.eta=motion.state?.recovery?old.liveBufferedEta??previousEtas.get(p.callsign)??old.eta:recompute?old.liveBufferedEta??old.eta:old.euroscopeBaseline.eta;emitted.etaFf=e.etaFfOverride??old.etaFf
+            emitted.liveBufferedEta=old.liveBufferedEta??(motion.state?.recovery?previousEtas.get(p.callsign):undefined)??old.eta;emitted.liveBufferedEtaFf=e.etaFfOverride??old.liveBufferedEtaFf??old.etaFf
             emitted.liveEuroscopeEta=old.liveEuroscopeEta;emitted.liveEuroscopeEtaFf=old.liveEuroscopeEtaFf
             emitted.landingPrediction=old.landingPrediction;emitted.passedFeeder=old.passedFeeder
             emitted.ff=old.ff;emitted.feeder=old.feeder;emitted.feederId=old.feederId
             emitted.distanceProfile=old.distanceProfile;emitted.trajectory=old.trajectory;emitted.predictionSource=old.predictionSource
             emitted.feederEtaAvailable=old.feederEtaAvailable;emitted.feederObservationSource=old.feederObservationSource
             emitted.state=old.state;emitted.landingEtaAvailable=old.landingEtaAvailable
+            if(motion.state?.recovery&&old.state===0)provisionalTimings.add(p.callsign)
         }
         if(landed)delete feederPassages[p.callsign]
         // Unstable forecasts are provisional, including their last update on
@@ -1097,7 +1182,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             }
         }
         if(bufferMode){const route=arrivalRoute(p,resetProfileFeeder?undefined:old,passed,confirmedRunwayChange||!!obsoleteApproach);emitted.amanRoute=route.points;emitted.amanRoutePassed=route.index}
-        if(runwayTransition?.pending)diagnostics.push(`${p.callsign}: Waiting for EuroScope assignment and active runway plan to agree (${runwayTransition.from} → ${runwayTransition.to})`)
+        if(runwayTransition?.pending)diagnostics.push(`${p.callsign}: Waiting for EuroScope assignment and active runway plan to agree (${runwayTransition.from} -> ${runwayTransition.to})`)
         const perf=bufferMode?undefined:performanceAt(p.aircraft,p.altitude,'descent',config.performanceModel)
         emitted.aircraftPerformance={type:perf?.type??(aircraftType(p.aircraft)||p.aircraft),status:perf?'matched':PERFORMANCE_SOURCE.ambiguousTypes.includes(aircraftType(p.aircraft))?'ambiguous':'missing',nominalIas:perf?.nominalIas,descentFpm:perf?.descentFpm,blobSha:perf?.blobSha??PERFORMANCE_SOURCE.blobSha,provider:perf?.provider??'generic',profileType:perf?.profileType,match:perf?.match,gainEligible:perf?.gainEligible??false,vmo:perf?.vmo,mmo:perf?.mmo}
         emitted.retiredSwapAt=originalEdits[p.callsign]?.swapAt&&originalEdits[p.callsign]?.target!==undefined&&originalEdits[p.callsign]?.sequenceEditVersion!==2?originalEdits[p.callsign].swapAt:old?.retiredSwapAt
@@ -1455,16 +1540,18 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             const liveTransfer=f.liveBufferedEta===undefined?undefined:f.liveBufferedEta-f.etaFf
             const fallbackBufferChanged=f.landingPrediction?.method==='fallback'&&old?.euroscopeBaseline?.landingMethod==='fallback'&&
                 Math.abs(f.landingPrediction.correctionSeconds-old.euroscopeBaseline.bufferMinutes*60)>1
+            const lowTrafficRefresh=automaticTraffic&&(trafficModes?.[runway]?.mode==='low'||!!old?.trafficProfile&&!!f.trafficProfile&&old.trafficProfile.mode!==f.trafficProfile.mode)&&!!f.trafficProfile&&old?.state===1&&f.state===1&&(old.delay??0)<=0&&!old.feederDelayMs&&!old.closureDelayMs&&!old.wakeDelayMs&&!old.rateDelayMs
             const stableForecastCandidate=config.timingModel==='euroscope-buffer'&&input.source!=='DEMO'&&!f.routeTimingQuarantined&&f.state===1&&old?.state===1&&old.mode==='sequenced'&&old.runway===f.runway&&old.ff===f.ff&&
                 !f.passedFeeder&&!old.passedFeeder&&!f.lost&&!f.issue&&f.landingEtaAvailable!==false&&f.feederEtaAvailable!==false&&f.speedDataValid!==false&&
                 !f.motionTiming?.held&&f.feederObservationSource!=='holding'&&!f.topskyHoldingPoint&&!f.missedRecovery&&!old.missedRecovery&&!f.runwayTransition?.pending&&!f.feederDelivery&&
                 !((f.assignedHeading??0)>0&&f.feederObservationSource!=='track')&&(!f.direct||f.direct===f.ff||f.route.findIndex(p=>p.name===f.direct)>=0&&f.route.findIndex(p=>p.name===f.direct)<=f.route.findIndex(p=>p.name===f.ff))&&
                 !f.initialProfile?.pending&&f.initialProfile?.appliedAt!==now&&!fallbackBufferChanged&&!manualCalls.has(f.callsign)&&!recomputing.size&&!freshOrderEdit&&!recomputed&&!explicitlyReordered&&
                 edits[f.callsign]?.target===undefined&&edits[f.callsign]?.etaFfOverride===undefined&&!explicitOrder(edits[f.callsign])&&!selectedClosure&&!closurePosition&&!f.slotBefore&&!f.slotAfter&&
-                f.liveBufferedEta!==undefined&&Number.isFinite(liveTransfer)&&liveTransfer!>=0&&f.liveBufferedEta<=old.sta+1&&(f.liveBufferedEta<old.sta-1000||f.etaFf<old.staFf-1000)
+                f.liveBufferedEta!==undefined&&Number.isFinite(liveTransfer)&&liveTransfer!>=0&&(lowTrafficRefresh||f.liveBufferedEta<=old.sta+1)&&(lowTrafficRefresh||f.liveBufferedEta<old.sta-1000||f.etaFf<old.staFf-1000)
             const stableSlot=stableForecastCandidate?currentStableSlot(f,last,config,winds,now,entryReservations.get(f.ff)??[]):undefined
-            const releaseStableForecast=!!stableSlot&&stableSlot.time<=old!.sta+1
+            const releaseStableForecast=!!stableSlot&&(lowTrafficRefresh||stableSlot.time<=old!.sta+1)
             if(releaseStableForecast){
+                if(lowTrafficRefresh)f.eta=f.liveBufferedEta!
                 f.stableTiming={at:now,baselineAt:f.euroscopeBaseline!.at,runway,ff:f.ff,eta:f.liveBufferedEta!,etaFf:f.etaFf}
                 f.planningEta=f.liveBufferedEta!;f.planningEtaCandidate=undefined
                 arrivalConfig=stableSlot!.plan;acceptedRate=stableSlot!.rate;gap=stableSlot!.gap
@@ -1706,7 +1793,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             if(f.state!==4&&f.landingEtaAvailable!==false)f.runwayDelay=Math.round((f.sta-f.eta)/1000)
         }
     const unlisted=input.flights.filter(f=>!visibleCalls.has(f.callsign))
-    return { automaticCorrections:automaticCorrections.length?automaticCorrections:undefined,transientFlights:Object.keys(transientFlights).length?transientFlights:undefined,feederPassages:Object.keys(feederPassages).length?feederPassages:undefined,retiredManualFlights:Object.keys(reservations.retired).length?reservations.retired:undefined, timestamp: now, source: input.source,simulation:input.simulation, flights:visibleFlights,terminatedCallsigns:input.terminatedCallsigns,knownFlights:input.knownFlights, diagnostics, slotsKey, winds,grounded,observedCallsigns:input.flights.map(f=>f.callsign),runways:input.runways,activeRunways:input.activeRunways,unlistedTelemetry:unlisted.length?unlisted:undefined,
+    return { trafficModes,automaticCorrections:automaticCorrections.length?automaticCorrections:undefined,transientFlights:Object.keys(transientFlights).length?transientFlights:undefined,feederPassages:Object.keys(feederPassages).length?feederPassages:undefined,retiredManualFlights:Object.keys(reservations.retired).length?reservations.retired:undefined, timestamp: now, source: input.source,simulation:input.simulation, flights:visibleFlights,terminatedCallsigns:input.terminatedCallsigns,knownFlights:input.knownFlights, diagnostics, slotsKey, winds,grounded,observedCallsigns:input.flights.map(f=>f.callsign),runways:input.runways,activeRunways:input.activeRunways,unlistedTelemetry:unlisted.length?unlisted:undefined,
         wind:{direction:wind.surfaceWindDirection,speed:wind.surfaceWindSpeed,auto:config.surfaceWindAuto!==false},landings }
 }
 

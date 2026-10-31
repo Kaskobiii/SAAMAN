@@ -5,9 +5,11 @@ import {APPLICATION_BUILD} from './build'
 import {mergeCoordinationChanges} from './maestro-coordination'
 import {COORDINATION_MESSAGES,validateCoordinations} from './maestro-coordination'
 import {isTowerCallsign} from './callsign-identity'
+import {sharedRecordingContext} from './shared-recording-context'
+import type {RecordingContext} from './maestro-recording'
 
 export interface RelayOptions { network:'live'|'sweatbox1'|'sweatbox2';session:string;channel:string;instanceId:string }
-type Plan = {epoch:string;revision:number;revisionGeneration?:string;config:EngineConfig;edits:Record<string,FlightEdit>;snapshot:EngineSnapshot|null;masterCid:number|null;relayRole:string;stale:boolean;sequencerWarning?:string}
+type Plan = {epoch:string;revision:number;revisionGeneration?:string;config:EngineConfig;edits:Record<string,FlightEdit>;snapshot:EngineSnapshot|null;masterCid:number|null;relayRole:string;stale:boolean;sequencerWarning?:string;recordingContext?:RecordingContext}
 type Send = (method:string,path:string,body?:any)=>Promise<any>
 export interface RelayDependencies {send:Send;telemetry:()=>Promise<any>;cid:()=>number|null;compactPublication?:()=>boolean;now?:()=>number;requestId?:()=>string}
 const copy=<T>(v:T):T=>structuredClone(v)
@@ -48,7 +50,7 @@ export class SharedRelay {
     }
     private identity(){return {instanceId:this.options.instanceId,callsign:this.callsign,engine:{name:'saaman',version:APPLICATION_BUILD.replace(/^SAAMAN /,''),schema:'saaman-1.1.9'},observer:this.observer||isTowerCallsign(this.callsign),...(this.proxy?{proxy:true}:{})}}
     private remember(){this.history.set(this.plan.revision,copy(this.plan));while(this.history.size>24)this.history.delete(this.history.keys().next().value!)}
-    view(){return {...copy(this.plan),snapshot:this.plan.stale||this.now()-this.lastUpdated>=30000?null:copy(this.plan.snapshot)}}
+    view(){const stale=this.plan.stale||this.now()-this.lastUpdated>=30000;return {...copy(this.plan),recordingContext:this.plan.recordingContext?{...copy(this.plan.recordingContext),stale}:undefined,snapshot:stale?null:copy(this.plan.snapshot)}}
     private serial<T>(action:()=>Promise<T>):Promise<T>{
         const prior=this.busy||Promise.resolve()
         const job=prior.catch(()=>{}).then(action)
@@ -101,6 +103,7 @@ export class SharedRelay {
         this.plan.revisionGeneration=typeof data.revisionGeneration==='string'&&data.revisionGeneration.length<=512?data.revisionGeneration:data.epoch
         this.plan.relayRole=data.role;this.plan.masterCid=data.role==='sequencer'?this.deps.cid():null
         this.plan.sequencerWarning=typeof data.sequencerWarning==='string'?data.sequencerWarning:''
+        this.plan.recordingContext=sharedRecordingContext(this.room.replace('/aman/rooms/',''),data)
         this.lease=data.lease||'';this.commands=data.commands||[]
         this.lastUpdated=data.updated||0;this.plan.stale=data.stale===true
         this.remember()
@@ -189,7 +192,9 @@ export class SharedRelay {
         this.pendingPublish={...this.identity(),epoch:this.plan.epoch,revision:this.plan.revision,lease:this.lease,settingsRevision:this.settingsRevision,requestId:this.id(),sequence:toJuhaSequence(this.plan.snapshot,this.plan.config,this.plan.edits),checkpoint,results,
             supervision:this.deps.compactPublication?.()===true?{sameAsCheckpoint:true}:{config:ops(this.plan.config),edits:this.plan.edits,snapshot:this.plan.snapshot}}
         const result=await this.deps.send('PUT',this.room,this.pendingPublish)
-        this.plan.revision=result.revision;this.lastUpdated=this.now();this.plan.stale=false;this.pendingPublish=null;this.commands=[];this.remember()
+        this.plan.revision=result.revision;this.lastUpdated=this.now();this.plan.stale=false
+        this.plan.recordingContext={...this.plan.recordingContext!,room:this.plan.recordingContext?.room??this.room.replace('/aman/rooms/',''),epoch:this.plan.epoch,revisionGeneration:this.plan.revisionGeneration,revision:this.plan.revision,role:this.plan.relayRole,stale:false,recovery:'none',publisher:this.callsign,publisherVersion:APPLICATION_BUILD.replace(/^SAAMAN /,'')}
+        this.pendingPublish=null;this.commands=[];this.remember()
     }
     private async cycle(){
         if(this.stopped)return this.view()
@@ -260,7 +265,7 @@ export class SharedRelay {
         const data=await this.deps.send('GET',this.room+'/supervision')
         const detail=data.supervision
         this.settings=data.settings||{};this.settingsRevision=data.settingsRevision
-        this.plan={...this.plan,epoch:data.epoch,revision:data.revision,config:configuration(detail?.config,this.settings),edits:validateEdits(detail?.edits||{}),snapshot:detail?.snapshot||null,stale:data.stale,relayRole:'supervisor'}
+        this.plan={...this.plan,epoch:data.epoch,revision:data.revision,revisionGeneration:typeof data.revisionGeneration==='string'?data.revisionGeneration:data.epoch,config:configuration(detail?.config,this.settings),edits:validateEdits(detail?.edits||{}),snapshot:detail?.snapshot||null,stale:data.stale,relayRole:'supervisor',recordingContext:sharedRecordingContext(this.room.replace('/aman/rooms/',''),{...data,role:'supervisor'})}
         this.lastUpdated=detail?.snapshot?.timestamp||0
         return this.view()
     }

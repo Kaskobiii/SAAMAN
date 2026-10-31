@@ -62,6 +62,12 @@ Click the arrival/departure runway box in the header. **Sync EuroScope** immedia
 
 Click the rate box in the header. Adjust the arrival-rate slider; the box shows aircraft per hour, seconds and NM. Choose the application time and press **Apply**. This changes the shared plan.
 
+**Traffic modes**
+
+The rate box shows **LOW**, **MED** or **HIGH** for each runway. LOW assumes the shortest feasible approach and refreshes eligible Stable times up to Superstable. MED assumes standard vectors; HIGH adds a longer downwind. A quiet secondary runway can use LOW independently. Directs and approach clearances take priority. Manual targets and holding slots remain protected.
+
+Authorised users can change the automatic-mode setting and High downwind extension in supervision. The default extension is 4 NM of downwind, about 8 NM extra track.
+
 **Aircraft submenu — right-click a callsign**
 
 | Button | Use |

@@ -1,8 +1,9 @@
-import { STATE_NAMES, type EngineSnapshot } from './maestro-engine'
+import { STATE_NAMES, type EngineSnapshot, type FlightEdit } from './maestro-engine'
+import {explainSlot} from './maestro-slot-reasons'
 import {isAutomaticCorrection} from './maestro-automatic-notices'
 
 export interface SupervisionEvent { time:number; callsign:string; kind:string; detail:string }
-export function observeSnapshot(previous:EngineSnapshot|null,next:EngineSnapshot):SupervisionEvent[] {
+export function observeSnapshot(previous:EngineSnapshot|null,next:EngineSnapshot,edits:Record<string,FlightEdit>={}):SupervisionEvent[] {
     if(previous && next.timestamp<previous.timestamp)return []
     const reset=previous?.source!==next.source
     const old=new Map((reset?[]:previous?.flights??[]).map(f=>[f.callsign,f]))
@@ -15,7 +16,7 @@ export function observeSnapshot(previous:EngineSnapshot|null,next:EngineSnapshot
         if(f.state===4&&prior.state!==4)add(f.callsign,'Landing evidence',`${f.landingDetection??'manual'} · ${f.landingRunway??`${f.arrival}/${f.runway}`}`)
         if(prior.mode!==f.mode)add(f.callsign,'Mode',`${prior.mode} → ${f.mode}`)
         if(prior.delay!==f.delay)add(f.callsign,'Instruction',`${prior.delay}s → ${f.delay}s (positive = lose)`)
-        if(Math.abs(prior.sta-f.sta)>=1000)add(f.callsign,'Landing slot',`${new Date(prior.sta).toISOString().slice(11,19)} → ${new Date(f.sta).toISOString().slice(11,19)} UTC`)
+        if(Math.abs(prior.sta-f.sta)>=1000)add(f.callsign,'Landing slot',`${new Date(prior.sta).toISOString().slice(11,19)} → ${new Date(f.sta).toISOString().slice(11,19)} UTC · ${explainSlot(f,next,edits).summary}`)
         if(prior.order!==f.order)add(f.callsign,'Sequence',`${prior.order+1} → ${f.order+1}`)
         if(prior.predictionSource!==f.predictionSource||prior.vectorDetection!==f.vectorDetection)add(f.callsign,'Prediction',`${prior.predictionSource??'unknown'} → ${f.predictionSource??'unknown'}${f.vectorDetection?' · '+f.vectorDetection:''}`)
         if(prior.passedFeeder!==f.passedFeeder)add(f.callsign,'Feeder',f.passedFeeder?'Passed '+f.ff:'Before '+f.ff)

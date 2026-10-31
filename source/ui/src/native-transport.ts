@@ -29,7 +29,7 @@ async function relayApi(method:string,path:string,body:any={}){
     if(method==='GET'&&path==='/maestro/ESSA')return relay.tick()
     throw new Error('Unsupported shared plugin operation')
 }
-async function state(){const plan=await nativeRequest('plan:get');return {...plan,config:validateConfig(plan.config||DEFAULT_CONFIG),edits:migrateSequenceEdits(plan.edits||{},plan.snapshot),stale:!plan.snapshot||Date.now()-plan.snapshot.timestamp>30000}}
+async function state(){const plan=await nativeRequest('plan:get');return {...plan,config:validateConfig({...DEFAULT_CONFIG,...plan.config??{}}),edits:migrateSequenceEdits(plan.edits||{},plan.snapshot),stale:!plan.snapshot||Date.now()-plan.snapshot.timestamp>30000}}
 async function localApi(method:string,path:string,body:any={}){
     if(path==='/aman-preview-health')return {applicationBuild:BUILD}
     if(method==='GET'&&['/maestro/ESSA','/maestro/ESSA/supervision'].includes(path))return state()

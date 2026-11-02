@@ -24,7 +24,7 @@ export function timingEvidence(p:TelemetryFlight,config:EngineConfig,prediction:
  const points=remaining.slice(0,6).map(point=>[point.name.slice(0,40),point.latitude??null,point.longitude??null,point.seconds])
  const result:TimingEvidence={schema:'saaman-timing-summary-1',provenance:'capture-summary',at,engine:APPLICATION_BUILD,
   ...(accepted?{accepted:{eta:accepted.eta,etaFf:accepted.etaFf,rawEta:accepted.rawEta,rawEtaFf:accepted.rawEtaFf}}:{}),input:selected,model:{...(prediction.trafficProfile?{trafficProfile:prediction.trafficProfile}:{}),method:prediction.method,reference:prediction.reference,seconds:prediction.seconds,rawSeconds:prediction.rawSeconds,correctionSeconds:prediction.correctionSeconds,
-   ...(prediction.routeTiming?{routeTiming:prediction.routeTiming}:{}),...(reference?{phaseReference:reference,phaseReferenceFingerprint:fingerprint(reference)}:{})},
+   ...(prediction.routeTiming?{routeTiming:prediction.routeTiming}:{}),...(prediction.assumedApproach?{assumedApproach:prediction.assumedApproach}:{}),...(reference?{phaseReference:reference,phaseReferenceFingerprint:fingerprint(reference)}:{})},
   config:{...Object.fromEntries(relevantConfig.filter(key=>config[key]!==undefined).map(key=>[key,config[key]])),finalLength:config.finalLengths?.[`${p.arrival}/${p.runway}`]},
   route:{points,totalPoints:p.route.length,remainingPoints:remaining.length,omittedPoints:Math.max(0,remaining.length-points.length),fingerprint:fingerprint(p.route)}}
  // The summary is diagnostic evidence, not a claimed replay of an omitted

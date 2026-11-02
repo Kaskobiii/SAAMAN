@@ -38,7 +38,7 @@ test('controller times and HOLD instructions remain protected during quiet autom
  const manual={QUIET:{target,targetKind:'time',changedAt:at}},held=runEngine(input(4,[plane({groundspeed:350})]),c,manual,second)
  assert.equal(held.flights[0].sta,target)
  const hold=runEngine(input(6,[plane({topskyHoldingPoint:'NILUG',groundspeed:350})]),c,manual,held)
- assert.equal(hold.flights[0].sta,target);assert.equal(hold.flights[0].trafficProfile,undefined)
+ assert.equal(hold.flights[0].sta,target);assert.equal(hold.flights[0].trafficProfile?.mode,'low')
 })
 test('Superstable accepts observations without automatically changing its accepted mode allocation',()=>{
  const c=config(),first=runEngine(input(0),c,{}),second=runEngine(input(2),c,{},first),protectedSnapshot=clone(second),f=protectedSnapshot.flights[0]
@@ -56,7 +56,7 @@ test('mode state and original prediction assumptions survive serialized handover
 test('a moving HOLD stack remains runway demand without changing its protected assignments',()=>{
  const c=config(),bank=Array.from({length:8},(_,i)=>bankPlane({callsign:'HOLD'+i,topskyHoldingPoint:'NILUG'}))
  const snapshot=runEngine(input(0,bank),c,{})
- assert.equal(snapshot.trafficModes['ESSA/19L'].mode,'high');assert.ok(snapshot.flights.every(f=>f.trafficProfile===undefined));spaced(snapshot,c)
+ assert.equal(snapshot.trafficModes['ESSA/19L'].mode,'high');assert.ok(snapshot.flights.every(f=>f.trafficProfile?.mode==='high'));spaced(snapshot,c)
 })
 
 test('a known Low to High planning transition cannot be mistaken for a corrupt route jump',()=>{

@@ -2,7 +2,7 @@ import type {TelemetryFlight,EngineConfig} from './maestro-engine'
 import type {TrafficProfileAssumption} from './maestro-traffic-profile'
 import {distanceNm,STAR_RUNWAYS} from './maestro-star-prediction'
 import {finalPosition,headingDifference,vectoringDistance} from './maestro-geometry'
-import {predictRouteTiming,type RouteTiming} from './maestro-route-timing'
+import {predictRouteTiming,predictAssumedApproachTiming,type RouteTiming,type AssumedApproach} from './maestro-route-timing'
 
 export interface LandingPrediction {
  trafficProfile?:TrafficProfileAssumption
@@ -10,6 +10,7 @@ export interface LandingPrediction {
  reference:'threshold'|'airport';method:'aircraft-profile'|'route-slowdown'|'retained-slowdown'|'final-position'|'vector-position'|'fallback'|'recovery-iaf'|'arrival-profile'
  arrivalProfile?:string
  routeTiming?:RouteTiming
+ assumedApproach?:AssumedApproach
  distanceNm?:number;establishedFinal:boolean
  continuity?:{runway:string;seconds:number;at:number}
  directClearance?:{runway:string;point:string;at:number}
@@ -76,10 +77,12 @@ export function predictLanding(p:TelemetryFlight,config:EngineConfig,baseMinutes
   const timing=predictRouteTiming(p,config,undefined,{distanceNm:distance}),seconds=timing?.seconds??routeSlowdownSeconds(distance,p.groundspeed)
   if(seconds!==undefined&&distance<100)return result({seconds,rawSeconds,correctionSeconds:seconds-rawSeconds,reference:'threshold',method:'vector-position',distanceNm:distance,routeTiming:timing,establishedFinal:false})
  }
- const routeTiming=predictRouteTiming(p,config)
+ const observedRouteTiming=predictRouteTiming(p,config)
+ const assumedApproach=observedRouteTiming?undefined:predictAssumedApproachTiming(p,config)
+ const routeTiming=observedRouteTiming??assumedApproach?.timing
  if(routeTiming){
   const correctionSeconds=routeTiming.seconds-rawSeconds
-  return result({seconds:routeTiming.seconds,rawSeconds,correctionSeconds,reference:'threshold',method:'aircraft-profile',routeTiming,
+  return result({seconds:routeTiming.seconds,rawSeconds,correctionSeconds,reference:'threshold',method:'aircraft-profile',routeTiming,assumedApproach:assumedApproach?.assumption,
    distanceNm:routeTiming.distanceNm,establishedFinal:false,
    continuity:{runway:`${p.arrival}/${p.runway}`,seconds:Math.max(0,correctionSeconds),at:timestamp}})
  }

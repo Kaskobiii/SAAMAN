@@ -31,10 +31,29 @@ export function recoveryEntryPrediction(p:TelemetryFlight,config:EngineConfig,en
 }
 
 const positioned=(p:any)=>Number.isFinite(p?.latitude)&&Number.isFinite(p?.longitude)
-export function observedGoAround(p:TelemetryFlight,old?:EngineFlight){
- return !!old&&old.mode==='sequenced'&&old.state>=2&&old.altitude<2500&&p.altitude>old.altitude+10&&
-  (p.verticalSpeed??0)>500&&(p.positionAgeSeconds??0)<=15&&p.groundspeed>=60&&
-  (old.landingPrediction?.establishedFinal===true||old.finalAlongNm!==undefined&&old.finalAlongNm>=-2&&old.finalAlongNm<=4)
+export interface GoAroundCandidate {runway:string;since:number;lastAt:number;initialAltitude:number;samples:number}
+export function goAroundObservation(p:TelemetryFlight,old:EngineFlight|undefined,now:number):{confirmed:boolean;candidate?:GoAroundCandidate}{
+ const none={confirmed:false}
+ if(!old||old.mode!=='sequenced'||old.state<2||old.state===4||old.missedRecovery||
+  !Number.isFinite(p.altitude)||!Number.isFinite(p.verticalSpeed)||(p.verticalSpeed??0)<=500||
+  (p.positionAgeSeconds??0)>15||p.groundspeed<60||!positioned(p)||!Number.isFinite(now))return none
+ const runway=`${p.arrival}/${p.runway}`,prior=old.goAroundCandidate
+ const retained=prior&&prior.runway===runway&&now>=prior.lastAt&&now-prior.lastAt<=15000?prior:undefined
+ const lowFinal=old.altitude<2500&&(old.landingPrediction?.establishedFinal===true||
+  old.finalAlongNm!==undefined&&old.finalAlongNm>=-2&&old.finalAlongNm<=4)
+ if(!retained&&(!lowFinal||p.altitude<=old.altitude+10)||retained&&p.altitude<old.altitude-20)return none
+ const distinct=p.altitude>old.altitude+10
+ const candidate:GoAroundCandidate=retained?{...retained,lastAt:now,samples:retained.samples+(distinct?1:0)}:
+  {runway,since:old.lastSeen,lastAt:now,initialAltitude:old.altitude,samples:1}
+ const rise=p.altitude-candidate.initialAltitude
+ const threshold=p.threshold??STAR_RUNWAYS[p.runway],relative=positioned(threshold)?finalPosition(p as any,threshold!):undefined
+ // A climb beyond the threshold or a clear turn away corroborates the
+ // vertical observation immediately. On an otherwise unchanged inbound
+ // final, one noisy vertical-speed report must not discard the landing slot.
+ const outbound=!!relative&&relative.along>=-3&&relative.along<=4&&Math.abs(relative.cross)<=3&&
+  (relative.along<=0||Number.isFinite(p.heading)&&headingDifference(p.heading!,threshold!.heading)>=45)
+ const sustained=candidate.samples>=2&&now-candidate.since>=6000&&rise>=250
+ return {confirmed:rise>=200&&outbound||sustained,candidate}
 }
 export function usableRecoveryApproach(p:TelemetryFlight,prediction:LandingPrediction){
  if(prediction.method==='final-position'&&prediction.establishedFinal&&positioned(p)&&(p.positionAgeSeconds??0)<=15&&p.altitude>=-100&&(p.verticalSpeed??0)<=300&&p.groundspeed>=40)return true

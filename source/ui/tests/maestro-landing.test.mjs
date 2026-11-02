@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {DEFAULT_CONFIG,runEngine,euroscopeInstruction} from '../src/maestro-engine.ts'
 import {predictLanding,routeSlowdownSeconds} from '../src/maestro-landing-prediction.ts'
 import fixture from './fixtures/recording-9-landing.json' with {type:'json'}
+import partial from './fixtures/live-partial-approach-1343.json' with {type:'json'}
 const config=()=>({...structuredClone(DEFAULT_CONFIG),unstableSeconds:0,minimumNewSeconds:0})
 const p=(extra={})=>({callsign:'APPROACH',aircraft:'A320',wake:'M',departure:'EKCH',arrival:'ESSA',runway:'19R',latitude:60,longitude:18,altitude:18000,groundspeed:400,heading:190,positionAgeSeconds:0,
  route:[{name:'SA19R',seconds:600,latitude:59.6664,longitude:17.92377},{name:'ESSA',seconds:660,latitude:59.65194,longitude:17.91861}],landingSeconds:660,distanceNm:21,...extra})
@@ -157,4 +158,35 @@ test('engine handover preserves vector correction and accepted planning times in
  assert.deepEqual(next.euroscopeBaseline,accepted.euroscopeBaseline)
  assert.equal(next.eta,nextInput.timestamp+next.landingPrediction.seconds*1000)
  assert.deepEqual(checkpoint,JSON.parse(JSON.stringify(initial)),'handover checkpoint remains immutable')
+})
+
+test('new partial-source arrival uses a performance-based standard approach before its STAR arrives',()=>{
+ const first=partial.frames[0],c={...first.config,automaticTrafficModes:false},original=structuredClone(first.input)
+ let snapshot
+ const predictions=[]
+ for(const fr of partial.frames){
+  snapshot=runEngine(fr.input,c,{},snapshot)
+  const f=snapshot.flights.find(f=>f.callsign==='DLH1MF')
+  assert.equal(f.issue,'');assert.equal(f.landingEtaAvailable,true);assert.equal(f.landingPrediction.method,'aircraft-profile')
+  predictions.push({at:fr.at,eta:f.liveBufferedEta,ff:f.etaFf,assumed:!!f.landingPrediction.assumedApproach})
+  if(!fr.input.flights[0].star){
+   assert.equal(f.landingPrediction.assumedApproach?.profileId,'19L:NILUG:NILUG3P')
+   assert.equal(f.landingPrediction.assumedApproach?.terminalDistanceNm,88)
+   assert.ok(f.landingPrediction.routeTiming.afterFeederSeconds>1200,'missing approach cannot collapse to the short airport FLEG')
+   assert.equal(f.initialTimingEvidence.model.assumedApproach?.basis,'published-star-distance')
+  }
+ }
+ const complete=predictions.findIndex(p=>!p.assumed),before=predictions[complete-1],after=predictions[complete]
+ assert.ok(complete>0);assert.ok(Math.abs(after.eta-before.eta)<15000,'receiving the full STAR changes ETA by seconds rather than ten minutes')
+ assert.ok(Math.abs(after.ff-before.ff)<10000,'the same physical route to the feeder keeps a coherent feeder forecast')
+ assert.deepEqual(first.input,original,'planning assumption does not invent a filed STAR or change raw runway/route')
+})
+
+test('missing-approach completion does not override current direct, heading, RNP or post-feeder evidence',()=>{
+ const fr=partial.frames[0],raw=fr.input.flights[0],threshold=fr.input.runways['ESSA/19L'],p={...raw,runway:'19L',threshold}
+ for(const change of [{direct:'ERXEC'},{assignedHeading:210},{star:'NILUG RNP X 19L'},{positionAgeSeconds:16},{topskyMissedApproach:true},{speedDataValid:false},{groundspeed:39},{verticalSpeed:1500},
+  {route:[...p.route.slice(0,-1),{name:'ERXEC',seconds:2300,latitude:59.85,longitude:18.02},p.route.at(-1)]},
+  {latitude:threshold.latitude,longitude:threshold.longitude,altitude:600,groundspeed:160,verticalSpeed:-500,heading:threshold.heading}]){
+  assert.equal(predictLanding({...p,...change},fr.config,2).assumedApproach,undefined)
+ }
 })

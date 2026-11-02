@@ -64,7 +64,7 @@ Click the rate box in the header. Adjust the arrival-rate slider; the box shows 
 
 **Traffic modes**
 
-The rate box shows **LOW**, **MED** or **HIGH** for each runway. LOW assumes the shortest feasible approach and refreshes eligible Stable times up to Superstable. MED assumes standard vectors; HIGH adds a longer downwind. A quiet secondary runway can use LOW independently. Directs and approach clearances take priority. Manual targets and holding slots remain protected.
+The rate box shows **LOW**, **MED** or **HIGH** for each runway. LOW assumes the shortest feasible approach and refreshes eligible Stable times up to Superstable. MED uses the current arrival route; HIGH adds the configured downwind extension before TMA entry. Inside TMA, the current approach route takes priority. A quiet secondary runway can use LOW independently. Directs and approach clearances take priority. Manual targets and holding slots remain protected.
 
 Authorised users can change the automatic-mode setting and High downwind extension in supervision. The default extension is 4 NM of downwind, about 8 NM extra track.
 

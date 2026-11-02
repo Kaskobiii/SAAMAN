@@ -96,8 +96,8 @@ Each runway selects **LOW**, **MED** or **HIGH** from the expected arrival deman
 | Mode | Landing estimate |
 | --- | --- |
 | LOW | Shortest feasible approach path. Automatic Stable times follow the live forecast until Superstable, while retaining sequence order and required spacing. |
-| MED | Standard vectoring pattern. |
-| HIGH | Extended downwind: initially 4 NM longer, adding about 8 NM of total track. |
+| MED | The current arrival route, without an extra downwind allowance. |
+| HIGH | The current arrival route plus the configured downwind extension: initially 4 NM longer, about 8 NM extra track. |
 
 Explicit directs, RNP approaches, headings and established final approach take priority over these assumptions. Manual targets, holding slots and Superstable/Frozen assignments keep their protection. Traffic-mode changes require sustained demand; they do not change the selected arrival rate.
 

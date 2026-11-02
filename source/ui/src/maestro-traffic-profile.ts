@@ -16,16 +16,6 @@ export interface TrafficProfileOptions {passedFeeder?:boolean;feeder?:string;hig
 export interface TrafficProfileResult {prediction:LandingPrediction;neutralSeconds:number;assumption?:TrafficProfileAssumption}
 const finite=(v:unknown):v is number=>typeof v==='number'&&Number.isFinite(v)
 const positioned=(p:any)=>finite(p?.latitude)&&Math.abs(p.latitude)<=90&&finite(p?.longitude)&&Math.abs(p.longitude)<=180
-const clamp=(v:number,a:number,b:number)=>Math.max(a,Math.min(b,v))
-function fullRouteDistance(p:TelemetryFlight,feeder:string){
- const begin=p.route.findIndex(q=>q.name===feeder),end=p.route.findIndex(q=>q.name===`SA${p.runway}`)
- if(begin<0||end<=begin)return undefined
- const points=p.route.slice(begin,end+1)
- if(!points.every(positioned))return undefined
- let total=0
- for(let i=1;i<points.length;i++)total+=distanceNm(points[i-1] as any,points[i] as any)
- return finite(total)&&total>.1&&total<=300?total:undefined
-}
 function minimumDescentSeconds(p:TelemetryFlight,config:EngineConfig,toAltitude=150){
  const type=aircraftType(p.aircraft),reference=PHASE_REFERENCES[type]
  const highTo=reference?.initialDescentToFeet??24000,descentTo=reference?.descentToFeet??10000
@@ -53,7 +43,7 @@ export function trafficProfilePrediction(p:TelemetryFlight,config:EngineConfig,b
  const unchanged:TrafficProfileResult={prediction:base,neutralSeconds:base.seconds}
  if(!['low','medium','high'].includes(mode)||p.arrival!=='ESSA'||!positioned(p)||(p.positionAgeSeconds??0)>15||
   base.establishedFinal||base.method!=='aircraft-profile'||!base.routeTiming||p.routeProblem||p.speedDataValid===false||
-  p.topskyMissedApproach||p.topskyHoldingPoint||(p.assignedHeading??0)>0)return unchanged
+  p.topskyMissedApproach||(p.assignedHeading??0)>0)return unchanged
  const current=base.routeTiming,profile=matchStarProfile(p,options.feeder?{passedFeeder:options.passedFeeder,ff:options.feeder} as any:undefined)
  if(!profile||profile.kind!=='star'||(p.star??'').toUpperCase().includes('RNP')||!finite(profile.shortest)||!finite(profile.vectors)||profile.shortest<=0||profile.vectors<=0)return unchanged
  const threshold=p.threshold??STAR_RUNWAYS[p.runway]
@@ -65,35 +55,39 @@ export function trafficProfilePrediction(p:TelemetryFlight,config:EngineConfig,b
  // available. A direct beyond it supplies the controller's actual shorter path.
  if(p.direct&&p.direct!==profile.feeder&&(feederIndex<0||directIndex<0||directIndex>feederIndex))return unchanged
  const passed=options.passedFeeder===true||!current.feeder
- if(!passed&&current.feeder?.name!==profile.feeder)return unchanged
- const before=passed?0:current.beforeFeederNm,originalTerminal=current.distanceNm-before
+ // The mode describes the terminal path expected before entry. Once an
+ // aircraft enters TMA, its retained approach is stronger evidence than a
+ // scaled copy of the complete workbook vector pattern. Scaling that full
+ // pattern by route progress can restore miles which ATC has already cut.
+ if(passed)return unchanged
+ if(current.feeder?.name!==profile.feeder)return unchanged
+ const before=current.beforeFeederNm,originalTerminal=current.distanceNm-before
  if(!finite(before)||before<0||!finite(originalTerminal)||originalTerminal<=0)return unchanged
- let progress=1
- if(passed){
-  const full=fullRouteDistance(p,profile.feeder)??profile.ese??profile.vectors
-  if(!finite(full)||full<=0)return unchanged
-  progress=clamp(originalTerminal/full,0,1)
- }
  const downwind=options.highDownwindNm??4
  if(!finite(downwind)||downwind<0||downwind>20)return unchanged
- const origin=passed?p: p.route.find(q=>q.name===profile.feeder&&positioned(q))??STAR_FEEDERS[profile.feeder]
+ const origin=p.route.find(q=>q.name===profile.feeder&&positioned(q))??STAR_FEEDERS[profile.feeder]
  if(!positioned(origin))return unchanged
  const physicalFloor=distanceNm(origin as any,threshold)
- const standard=Math.max(physicalFloor,profile.vectors*progress)
- const requested=(mode==='low'?profile.shortest:profile.vectors)*progress+(mode==='high'?2*downwind*progress:0)
+ // A usable cleared STAR supplies the standard path. Workbook distances
+ // identify the shortest-path option; they must not replace that path with
+ // an unrelated longer vector pattern before adding the High extension.
+ const standard=Math.max(physicalFloor,originalTerminal)
+ const requested=mode==='low'?Math.min(originalTerminal,profile.shortest):originalTerminal+(mode==='high'?2*downwind:0)
  const terminal=Math.max(physicalFloor,requested)
  if(!finite(terminal)||terminal<=0||terminal>200)return unchanged
  // Integrate only the terminal segment. Keeping the original feeder time
  // avoids changing upstream instructions when the expected vector path changes.
- const entryAltitude=passed?p.altitude:Math.min(p.altitude,config.starEntryAltitude??18000,Math.max(3000,originalTerminal*318.4+150))
- if(!passed&&current.feeder&&minimumDescentSeconds(p,config,entryAltitude)>current.feeder.seconds+1e-6)return unchanged
- const virtual={...p,assignedHeading:0,altitude:entryAltitude,groundspeed:passed?p.groundspeed:current.entryGroundspeed,positionAgeSeconds:passed?p.positionAgeSeconds:0}
+ const entryAltitude=Math.min(p.altitude,config.starEntryAltitude??18000,Math.max(3000,originalTerminal*318.4+150))
+ if(current.feeder&&minimumDescentSeconds(p,config,entryAltitude)>current.feeder.seconds+1e-6)return unchanged
+ const virtual={...p,assignedHeading:0,altitude:entryAltitude,groundspeed:current.entryGroundspeed,positionAgeSeconds:0}
  const timing=predictRouteTiming(virtual,config,undefined,{distanceNm:terminal})
- if(!timing)return unchanged
+ const neutralTiming=predictRouteTiming(virtual,config,undefined,{distanceNm:originalTerminal})
+ if(!timing||!neutralTiming)return unchanged
  const descent=minimumDescentSeconds(virtual,config)
- if(!finite(descent)||timing.seconds+1e-6<descent)return unchanged
- const feeder=passed?undefined:current.feeder
- const afterFeederSeconds=timing.seconds,seconds=(feeder?.seconds??0)+afterFeederSeconds
+ const afterFeederSeconds=current.afterFeederSeconds+timing.seconds-neutralTiming.seconds
+ if(!finite(descent)||afterFeederSeconds+1e-6<descent)return unchanged
+ const feeder=current.feeder
+ const seconds=(feeder?.seconds??0)+afterFeederSeconds
  if(!finite(seconds)||seconds<=0||seconds>14400)return unchanged
  const distance=before+terminal
  const routeTiming={...current,seconds,distanceNm:distance,beforeFeederNm:before,afterFeederSeconds,feeder}

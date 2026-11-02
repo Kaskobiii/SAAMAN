@@ -2,9 +2,12 @@ import {test} from 'node:test'
 import assert from 'node:assert/strict'
 import {runEngine,toJuhaSequence,toTopSkySequence,euroscopeInstruction} from '../src/maestro-engine.ts'
 import {predictLanding} from '../src/maestro-landing-prediction.ts'
-import {usableRecoveryApproach} from '../src/maestro-recovery.ts'
+import {usableRecoveryApproach,goAroundObservation} from '../src/maestro-recovery.ts'
+import {finalPosition} from '../src/maestro-geometry.ts'
+import {STAR_RUNWAYS} from '../src/maestro-star-prediction.ts'
 import {informationRoute} from '../src/maestro-operations.ts'
 import fixture from './fixtures/live-go-around-refresh.json' with {type:'json'}
+import liveFinal from './fixtures/live-profile-recovery-1343.json' with {type:'json'}
 const calls=['SAS77A','THY708'],get=(s,c)=>s.flights.find(f=>f.callsign===c)
 const evaluate=(input,c,edits,previous)=>runEngine(structuredClone(input),structuredClone(c),structuredClone(edits),{...structuredClone(previous),timestamp:input.timestamp-1})
 for(const f of fixture.cases)test(`live go-around frame ${f.frame}: Refresh cannot turn an unavailable approach ETA into lose/gain`,()=>{
@@ -135,4 +138,31 @@ test('confirmed rollout after a go-around completes recovery on the actual runwa
  assert.notEqual(get(next,'SAS77A').state,4,'one low sample is not a confirmed rollout')
  next=evaluate({...input,timestamp:input.timestamp+6000},f.config,f.edits,next)
  const landed=get(next,'SAS77A');assert.equal(landed.state,4);assert.equal(landed.missedRecovery,false);assert.equal(landed.landingEtaAvailable,true);assert.equal(landed.landingRunway,'ESSA/01L')
+})
+
+test('live inbound final with a 145-foot vertical-speed spike keeps its accepted approach',()=>{
+ const first=liveFinal.climb[0],threshold=STAR_RUNWAYS[first.p.runway]
+ let old={...first.p,mode:'sequenced',state:3,lastSeen:first.at,landingPrediction:{establishedFinal:true},finalAlongNm:finalPosition(first.p,threshold).along}
+ for(const frame of liveFinal.climb.slice(1)){
+  const observation=goAroundObservation(frame.p,JSON.parse(JSON.stringify(old)),frame.at)
+  assert.equal(observation.confirmed,false,new Date(frame.at).toISOString())
+  old={...old,...frame.p,lastSeen:frame.at,goAroundCandidate:observation.candidate,
+   finalAlongNm:finalPosition(frame.p,threshold).along,landingPrediction:predictLanding(frame.p,liveFinal.terminal.config,1,undefined,frame.at)}
+ }
+ assert.equal(old.goAroundCandidate,undefined,'resumed descent clears the tentative climb')
+})
+
+test('inbound go-around needs a continuing climb, while a corroborated outbound climb is immediate',()=>{
+ const sample=liveFinal.climb[0],p={...sample.p,altitude:1000,verticalSpeed:-700},stamp=sample.at
+ const initial={...p,mode:'sequenced',state:3,lastSeen:stamp,landingPrediction:{establishedFinal:true},finalAlongNm:3}
+ let old=initial
+ for(const [elapsed,altitude,expected]of [[2000,1100,false],[4000,1240,false],[8000,1340,true]]){
+  const current={...p,altitude,verticalSpeed:1800},observed=goAroundObservation(current,old,stamp+elapsed)
+  assert.equal(observed.confirmed,expected)
+  old={...old,...current,lastSeen:stamp+elapsed,landingPrediction:{establishedFinal:false},goAroundCandidate:observed.candidate}
+ }
+ const turned={...p,altitude:1300,verticalSpeed:1500,heading:(p.heading+90)%360}
+ assert.equal(goAroundObservation(turned,initial,stamp+2000).confirmed,true)
+ assert.equal(goAroundObservation({...turned,positionAgeSeconds:16},initial,stamp+2000).confirmed,false)
+ assert.equal(goAroundObservation({...turned,groundspeed:39},initial,stamp+2000).confirmed,false)
 })

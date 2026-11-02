@@ -6,6 +6,7 @@ import {APPLICATION_BUILD} from './build'
 import {SharedRelay} from './shared-relay'
 import {publicationBody} from './shared-http'
 import {LegacyRelay} from './legacy-relay'
+import {pruneRetiredLiveEdits} from './maestro-live-lifecycle'
 export const BUILD=APPLICATION_BUILD
 let relay:SharedRelay|null=null
 let relaySuspended=false
@@ -37,7 +38,7 @@ async function localApi(method:string,path:string,body:any={}){
     const plan=await state()
     if(method==='POST'&&path==='/maestro/ESSA/telemetry'){
         const telemetry=validateTelemetry(body),edits=reconcileRunwayAssignments(telemetry,plan.edits,plan.snapshot),snapshot=runEngine(telemetry,plan.config,edits,plan.snapshot||undefined)
-        await nativeRequest('plan:snapshot',{revision:plan.revision,snapshot,telemetry,edits});return state()
+        await nativeRequest('plan:snapshot',{revision:plan.revision,snapshot,telemetry,edits:pruneRetiredLiveEdits(edits,snapshot)});return state()
     }
     if(method==='PUT'&&['/maestro/ESSA','/maestro/ESSA/settings'].includes(path)){
         if(body.revision!==plan.revision)throw Object.assign(new Error('Shared plan changed; reload and retry'),{status:409})
@@ -48,7 +49,7 @@ async function localApi(method:string,path:string,body:any={}){
         if(!settings)validateLockedEdits(plan.snapshot,plan.edits,edits,config)
         const previous=plan.snapshot?{...plan.snapshot,timestamp:plan.snapshot.timestamp-1}:undefined
         const snapshot=plan.telemetry?runEngine(plan.telemetry,config,edits,previous):null
-        await nativeRequest(settings?'plan:settings':'plan:update',{revision:plan.revision,config,edits,snapshot});return state()
+        await nativeRequest(settings?'plan:settings':'plan:update',{revision:plan.revision,config,edits:snapshot?pruneRetiredLiveEdits(edits,snapshot):edits,snapshot});return state()
     }
     if(method==='GET'&&path==='/maestro/MAESTRO_sequence_data_ESSA.json')return toJuhaSequence(plan.snapshot??{timestamp:Date.now(),source:'EMPTY',flights:[],diagnostics:[]},plan.config,plan.edits)
     throw new Error('Unsupported native API operation')

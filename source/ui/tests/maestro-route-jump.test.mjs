@@ -171,7 +171,11 @@ test('a corrupted legacy checkpoint needs independent moving geometry; raw repet
 
 test('quarantine does not replace an expired retained slot with invented raw timing, and correction history stays bounded',()=>{
  const c=config(),s=start(c),blocked=runEngine(packet(raw(2),2),c,{},s)
- const late=runEngine(packet(raw(2000),2000),c,{},JSON.parse(JSON.stringify(blocked)))
+ // Keep observing the same quarantined flight while its original slot
+ // expires; a 33-minute absence would instead exercise flight lifecycle.
+ let late=blocked
+ for(let elapsed=12;elapsed<=1992;elapsed+=10)late=runEngine(packet(raw(elapsed),elapsed),c,{},JSON.parse(JSON.stringify(late)))
+ late=runEngine(packet(raw(2000),2000),c,{},JSON.parse(JSON.stringify(late)))
  assert.equal(flight(late).sta,flight(s).sta);assert.ok(flight(late).state>=flight(s).state)
  assert.equal(flight(late).delay,flight(s).delay);assert.equal(late.automaticCorrections.length,1)
  const events=[]

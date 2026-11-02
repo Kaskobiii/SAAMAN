@@ -1,6 +1,6 @@
 import type {TelemetryFlight,EngineConfig} from './maestro-engine'
-import {distanceNm,STAR_RUNWAYS} from './maestro-star-prediction'
-import {finalPosition,headingDifference,bearingBetween} from './maestro-geometry'
+import {distanceNm,STAR_RUNWAYS,STAR_FEEDERS,matchStarProfile} from './maestro-star-prediction'
+import {finalPosition,headingDifference,bearingBetween,localPosition} from './maestro-geometry'
 import {iasToTas,machToTas,performanceAt,aircraftType} from './maestro-aircraft-performance'
 import {bundledPhaseReferences,type PhaseReferences} from './maestro-phase-references'
 import phaseData from './data/eurocontrol-phase-profiles.json'
@@ -12,9 +12,14 @@ export interface RouteTiming {
  feeder?:{name:string;seconds:number;distanceNm:number}
  profile:{type:string;source:string;observedSpeedRatio:number}
 }
+export interface AssumedApproach {profileId:string;feeder:string;runway:string;terminalDistanceNm:number;basis:'published-star-distance'}
+interface TimingGeometry {distanceNm:number;feeder?:{name:string;distanceNm:number}}
 const positioned=(p:any)=>Number.isFinite(p?.latitude)&&Math.abs(p.latitude)<=90&&Number.isFinite(p?.longitude)&&Math.abs(p.longitude)<=180
 const feeders=['ELTOK','NILUG','XILAN','VACRA']
 const clamp=(v:number,a:number,b:number)=>Math.max(a,Math.min(b,v))
+const timingEligible=(p:TelemetryFlight)=>p.arrival==='ESSA'&&!(p.assignedHeading&&p.assignedHeading>0)&&!p.routeProblem&&p.speedDataValid!==false&&
+ Number.isFinite(p.altitude)&&p.altitude>=350&&p.altitude<=60000&&Number.isFinite(p.groundspeed)&&p.groundspeed>=60&&p.groundspeed<=1200&&
+ Number.isFinite(p.verticalSpeed??0)&&(p.verticalSpeed??0)<=300
 function straightInPoints(p:TelemetryFlight){
  // Some SDK routes append the cleared final fix after an obsolete STAR and
  // mark even its runway point as passed. Recover only an explicit direct to
@@ -49,10 +54,38 @@ export function remainingRoute(p:TelemetryFlight){
  return {distanceNm:distance,feeder}
 }
 export function predictRouteTiming(p:TelemetryFlight,config:EngineConfig,references:PhaseReferences=PHASE_REFERENCES,observedPath?:{distanceNm:number}):RouteTiming|undefined {
- if(p.arrival!=='ESSA'||p.assignedHeading&&p.assignedHeading>0||p.routeProblem||p.speedDataValid===false||
-  !Number.isFinite(p.altitude)||p.altitude<350||p.altitude>60000||!Number.isFinite(p.groundspeed)||p.groundspeed<60||p.groundspeed>1200||!Number.isFinite(p.verticalSpeed??0)||(p.verticalSpeed??0)>300)return undefined
- const geometry:ReturnType<typeof remainingRoute>=observedPath&&positioned(p)&&(p.positionAgeSeconds??0)<=15&&Number.isFinite(observedPath.distanceNm)&&observedPath.distanceNm>0&&observedPath.distanceNm<=200?{distanceNm:observedPath.distanceNm,feeder:undefined}:observedPath?undefined:remainingRoute(p)
- if(!geometry)return undefined
+ if(!timingEligible(p))return undefined
+ const geometry:TimingGeometry|undefined=observedPath&&positioned(p)&&(p.positionAgeSeconds??0)<=15&&Number.isFinite(observedPath.distanceNm)&&observedPath.distanceNm>0&&observedPath.distanceNm<=200?{distanceNm:observedPath.distanceNm,feeder:undefined}:observedPath?undefined:remainingRoute(p)
+ return integrateRouteTiming(p,config,references,geometry)
+}
+/** Planning-only completion when a source has the feeder but no approach yet. */
+export function predictAssumedApproachTiming(p:TelemetryFlight,config:EngineConfig):{timing:RouteTiming;assumption:AssumedApproach}|undefined {
+ if(!timingEligible(p)||!Array.isArray(p.route)||p.route.length>512||!positioned(p)||(p.positionAgeSeconds??0)>15||p.topskyMissedApproach||
+  (p.assignedHeading??0)>0||p.arrivalProfile||(p.star??'').toUpperCase().includes('RNP')||
+  p.route.some(q=>/^SA(01L|01R|08|19L|19R|26)$/.test(q.name)))return undefined
+ const profile=matchStarProfile(p),threshold=p.threshold??STAR_RUNWAYS[p.runway]
+ if(!profile||profile.kind!=='star'||!positioned(threshold))return undefined
+ const terminal=profile.ese??profile.vectors
+ if(!Number.isFinite(terminal)||terminal!<=0||terminal!>200)return undefined
+ const index=p.route.findIndex(q=>q.name===profile.feeder&&q.seconds>=0&&positioned(q))
+ if(index<0||p.route.slice(index+1).some(q=>q.seconds>=0&&q.name!==p.arrival))return undefined
+ const direct=p.direct?p.route.findIndex(q=>q.name===p.direct&&q.seconds>=0):-1
+ if(p.direct&&(direct<0||direct>index))return undefined
+ const fix=p.route[index]??STAR_FEEDERS[profile.feeder],a=localPosition(p as any,fix as any),b=localPosition(threshold!,fix as any)
+ // A newly discovered aircraft already inside TMA must not be sent back
+ // through its filed feeder by this incomplete-route assumption.
+ if(distanceNm(p as any,fix as any)<.8||a.x*b.x+a.y*b.y>0&&distanceNm(p as any,threshold!)<distanceNm(fix as any,threshold!)+1)return undefined
+ const points=p.route.slice(0,index+1).filter((q,i)=>q.seconds>=0&&(direct<0||i>=direct))
+ if(!points.length||!points.every(positioned))return undefined
+ let prior=p,before=0
+ for(const q of points){before+=distanceNm(prior as any,q as any);prior=q as any}
+ const distance=before+terminal!
+ if(!Number.isFinite(distance)||distance<=0||distance>1500)return undefined
+ const timing=integrateRouteTiming(p,config,PHASE_REFERENCES,{distanceNm:distance,feeder:{name:profile.feeder,distanceNm:before}})
+ return timing?{timing,assumption:{profileId:profile.id,feeder:profile.feeder,runway:p.runway,terminalDistanceNm:terminal!,basis:'published-star-distance'}}:undefined
+}
+function integrateRouteTiming(p:TelemetryFlight,config:EngineConfig,references:PhaseReferences,geometry:TimingGeometry|undefined):RouteTiming|undefined {
+ if(!timingEligible(p)||!geometry)return undefined
  const type=aircraftType(p.aircraft),reference=references[type]
  const profile=performanceAt(type,p.altitude,'descent',config.performanceModel)
  if(!reference&&!profile)return undefined

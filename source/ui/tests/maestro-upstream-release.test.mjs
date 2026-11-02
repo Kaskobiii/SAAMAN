@@ -6,10 +6,20 @@ import recording from './fixtures/live-sas1491-retained-slot.json' with {type:'j
 const frame=decodeRecording(recording)[0],get=(s,c='SAS1491')=>s.flights.find(p=>p.callsign===c)
 function tick(previous,seconds=2,input=frame.input,edits=frame.edits,config=frame.config){return runEngine({...structuredClone(input),timestamp:previous.timestamp+seconds*1000},config,edits,JSON.parse(JSON.stringify(previous)))}
 function spaced(s){const queue=s.flights.filter(f=>f.mode==='sequenced'&&!f.lost&&!f.issue&&f.state!==4).sort((a,b)=>a.order-b.order);for(let i=1;i<queue.length;i++)assert.ok(queue[i].sta-queue[i-1].sta>=frame.config.rates['ESSA/01R']*1000-1)}
-test('SAS1491 automatically gets ahead of the persistently later Unstable BEL19R without Recompute',()=>{
+test('SAS1491 reconciles a sustained automatic inversion before Superstable promotion freezes its old false delay',()=>{
  let s=structuredClone(recording.initial)
- for(let i=0;i<35;i++){s=tick(s);spaced(s)}
- assert.ok(get(s).order<get(s,'BEL19R').order);assert.ok(get(s).delay<300);assert.ok(get(s).state>=1)
+ for(let i=0;i<35;i++){
+  // Advance the recorded tracks at their reported speed. Repeating the exact
+  // same airborne position for 70 seconds correctly exercises the pause guard,
+  // whose accepted order must not change on an unobserved timing inversion.
+  const input=structuredClone(frame.input),elapsed=(s.timestamp+2000-frame.input.timestamp)/1000
+  for(const p of input.flights)if(Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)){
+   const distance=p.groundspeed*elapsed/3600,heading=(p.heading??0)*Math.PI/180,latitude=p.latitude
+   p.latitude+=Math.cos(heading)*distance/60;p.longitude+=Math.sin(heading)*distance/(60*Math.cos(latitude*Math.PI/180))
+  }
+  s=tick(s,2,input);spaced(s)
+ }
+ assert.ok(get(s).order<get(s,'BEL19R').order);assert.ok(get(s).delay<300);assert.equal(get(s).state,2)
  assert.ok(get(s).sta<get(s,'BEL19R').sta)
 })
 test('a brief inversion does not reorder an accepted Stable aircraft',()=>{
@@ -33,4 +43,15 @@ test('manual target, personal spacing and runway closure remain constraints when
 test('an accepted entered TMA assignment stays fixed even when alone with a positive instruction',()=>{
  const {previous,input,p}=isolated(2);p.passedFeeder=true;p.tmaAssignment={at:previous.timestamp-1000,sta:p.sta,instruction:60};p.guidance.scheduled=p.sta
  const s=tick(previous,2,input,{});assert.equal(get(s).sta,p.sta)
+})
+
+
+test('an already accepted upstream Superstable time cannot use the promotion exception to release its slot',()=>{
+ const previous=structuredClone(recording.initial),f=get(previous)
+ f.state=2;delete f.sequenceCorrectionCandidate
+ const originalOrder=f.order,originalSta=f.sta
+ let s=previous
+ for(let i=0;i<35;i++)s=tick(s)
+ assert.equal(get(s).sta,originalSta)
+ assert.equal(get(s).state,2);assert.equal(originalOrder,3)
 })

@@ -76,7 +76,7 @@ export const DEFAULT_CONFIG: EngineConfig = {
     automaticTrafficModes:true,trafficHighDownwindNm:4,
     predictionMode:'star',starDistanceMethod:'vectors',starApproachSpeed:250,starBaseSpeed:180,starFinalNm:10,starBaseNm:20,starEntryAltitude:18000,starDescentRate:1800,starCruiseSpeed:450,starClimbRate:1800,
     active: ['ESSA/19R'], departureRunway:'ESSA/26',
-    rates: Object.fromEntries(RUNWAYS.map(r => [r, r.endsWith('/08') ? 166 : r.endsWith('/26') || r.startsWith('ESSB/') ? 142 : 115])),
+    rates: Object.fromEntries(RUNWAYS.map(r => [r, r.startsWith('ESSB/') ? 142 : 95])),
     stableMinutes: STABLE_MINUTES, superStableMinutes: SUPERSTABLE_MINUTES, frozenMinutes: 3.5, unstableSeconds: 60,
     minimumNewSeconds: 600, slots: [],
     landingSpeedKnots: 140, surfaceWindDirection: 0, surfaceWindSpeed: 0,

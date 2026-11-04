@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {DEFAULT_CONFIG,runEngine} from '../src/maestro-engine.ts'
 import fixture from './fixtures/recording-10-unstable.json' with {type:'json'}
 const now=Date.UTC(2026,9,15,17)
-const config=()=>({...structuredClone(DEFAULT_CONFIG),unstableSeconds:0,minimumNewSeconds:0})
+const config=()=>({...structuredClone(DEFAULT_CONFIG),rates:{...DEFAULT_CONFIG.rates,'ESSA/19R':115},unstableSeconds:0,minimumNewSeconds:0})
 const flight=(extra={})=>({callsign:'FIRST',aircraft:'B38M',wake:'M',departure:'ESNS',arrival:'ESSA',runway:'19R',route:[{name:'VACRA',seconds:1600}],landingSeconds:2400,distanceNm:200,groundspeed:300,altitude:20000,positionAgeSeconds:0,...extra})
 const packet=(flights,timestamp=now)=>({source:'ESSA_FMP',timestamp,flights})
 

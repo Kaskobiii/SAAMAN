@@ -165,7 +165,11 @@ const popupAnchor = reactive<{x:number;y:number;labelLeft:number|null}>({x:10,y:
 const applyMinutes=ref(0)
 const applyBaseTime=ref(Math.floor(Date.now()/60000)*60000)
 const applyAt=computed(()=>applyBaseTime.value+applyMinutes.value*60000)
-const draftRateSeconds=ref(115)
+const draftRateSeconds=ref(95)
+const draftRatePerHour=computed({
+    get:()=>Math.round(3600/draftRateSeconds.value),
+    set:(rate:number)=>{if(Number.isFinite(rate)&&rate>=6&&rate<=60)draftRateSeconds.value=Math.round(3600/rate)},
+})
 const draftApplyRate=ref(false)
 const rateRunway=computed(()=>dialog.value==='configuration'?draftArrival.value:(effectiveConfig(config.value,applyMinutes.value>0?applyAt.value:now.value).active.find(r=>r.startsWith('ESSA/'))||'ESSA/19R'))
 const nextConfiguration=computed(()=>config.value.pending&&config.value.pending.at>now.value?config.value.pending:null)
@@ -969,7 +973,7 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
             <template v-else-if="dialog==='configuration'||dialog==='rates'">
                 <button v-if="dialog==='configuration'" data-action="sync-euroscope" :disabled="!editable||runwaySyncBusy" @click="syncEuroScope">Sync EuroScope</button><p v-if="runwaySyncError" role="alert">{{runwaySyncError}}</p>
                 <template v-if="dialog==='configuration'"><label>Arrival runway <select data-input="arrival-runway" v-model="draftArrival"><option v-for="r in RUNWAYS.filter(r=>r.startsWith('ESSA/'))" :key="r" :value="r">{{r.split('/')[1]}}</option></select></label><label>Departure runway <select data-input="departure-runway" v-model="draft.departureRunway"><option v-for="r in RUNWAYS.filter(r=>r.startsWith('ESSA/'))" :key="r" :value="r">{{r.split('/')[1]}}</option></select></label></template>
-                <div class="rate-row"><label>Arrival rate<br>{{rateRunway.split('/')[1]}}</label><input data-input="arrival-rate-slider" type="range" min="60" max="600" step="1" v-model.number="draftRateSeconds" @input="draftApplyRate=true" :aria-label="`${rateRunway} landing interval`"><output>{{Math.round(3600/draftRateSeconds)}} / h<br>{{draftRateSeconds}} s · {{rateDistanceNm(draftRateSeconds,rateRunway,draft).toFixed(1)}} NM</output></div>
+                <div class="rate-row"><label>Arrival rate<br>{{rateRunway.split('/')[1]}}</label><input data-input="arrival-rate-slider" type="range" min="6" max="60" step="1" v-model.number="draftRatePerHour" @input="draftApplyRate=true" :aria-label="`${rateRunway} arrivals per hour`"><output>{{Math.round(3600/draftRateSeconds)}} / h<br>{{draftRateSeconds}} s · {{rateDistanceNm(draftRateSeconds,rateRunway,draft).toFixed(1)}} NM</output></div>
                 <div class="apply-row"><label for="aman-apply-slider">{{applyMinutes===0?'Apply now':`Apply at ${utc(applyAt)} UTC`}}</label><input id="aman-apply-slider" data-input="apply-time-slider" aria-label="Change application time" type="range" min="0" max="60" step="1" v-model.number="applyMinutes"><span class="apply-range"><span>Now</span><span>+60 min</span></span></div><button v-if="dialog==='configuration'?nextConfiguration:config.pendingRate&&config.pendingRate.at>now" data-action="cancel-planned-change" :disabled="!editable" @click="cancelPlannedChange">Cancel planned changes</button><button data-action="save-rates" :disabled="!editable" @click="saveRates">{{(dialog==='configuration'?nextConfiguration:config.pendingRate&&config.pendingRate.at>now)?'Update change':'Apply'}}</button><button @click="dialog=''">Close</button>
             </template>
             <template v-else-if="dialog==='arrival-profile'&&current"><label>Arrival route <select data-input="arrival-profile" v-model="arrivalProfileDraft"><option value="">Auto from filed STAR / feeder</option><option v-for="profile in STAR_PROFILES.filter(p=>p.runway===rwy(current!).split('/')[1])" :key="profile.id" :value="profile.id">{{profile.procedure}} · {{profile.feeder}}</option></select></label><button data-action="save-arrival-profile" @click="editFlight({arrivalProfile:arrivalProfileDraft||undefined,recomputeAt:now,target:undefined});dialog=''">Apply and recompute</button></template>

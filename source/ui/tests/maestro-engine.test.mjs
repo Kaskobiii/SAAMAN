@@ -5,7 +5,8 @@ import { dubinsLength, vectoringSeconds } from '../src/maestro-geometry.ts'
 import { labelPositions, scrollingLabelPositions } from '../src/maestro-label-layout.ts'
 import scenarios from './fixtures/sweatbox-landing-scenarios.json' with {type:'json'}
 import sectorGeometry from './fixtures/essa-sector-runway-geometry.json' with {type:'json'}
-const DEFAULT_CONFIG={...RELEASE_DEFAULT_CONFIG,timingModel:'performance'}
+// These scheduling scenarios use fixed historical intervals, independently of release defaults.
+const DEFAULT_CONFIG={...RELEASE_DEFAULT_CONFIG,timingModel:'performance',rates:Object.fromEntries(Object.keys(RELEASE_DEFAULT_CONFIG.rates).map(r=>[r,r.endsWith('/08')?166:r.endsWith('/26')||r.startsWith('ESSB/')?142:115]))}
 
 const time = Date.UTC(2026, 9, 9, 12)
 test('invalid optional runway geometry is omitted while fresh aircraft and active selections remain usable',()=>{

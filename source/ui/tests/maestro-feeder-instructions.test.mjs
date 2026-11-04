@@ -17,6 +17,7 @@ function superstableSlot(){
 function bank(known=false){
  const c=config(),flights=Array.from({length:21},(_,i)=>({...plane,callsign:i===10?'UNKNOWN':'TEST'+String(i).padStart(2,'0'),altitude:30000,distanceNm:80,
   star:i===10&&known?'ELTOK1P':undefined,route:[{name:i===10?'TEB':['ELTOK','NILUG','XILAN','VACRA'][i%4],seconds:300+i*30}],landingSeconds:900+i*30}))
+ c.rates['ESSA/19L']=115 // Fixed recorded-bank spacing; unrelated to the startup default.
  return {c,flights,first:runEngine({source:'LIVE',timestamp:now,flights},c,{})}
 }
 

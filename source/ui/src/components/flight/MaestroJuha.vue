@@ -10,6 +10,7 @@ import {createAutomaticNoticeFeed} from '@/maestro-automatic-notices'
 import type {AutomaticCorrection} from '@/maestro-engine'
 import {useFloatingSurface} from '@/floating-surface'
 import {runwaySelections} from '@/maestro-runway-sync'
+import {suggestedRunwayRate} from '@/maestro-runway-rate'
 import {configureRelayAuth,leaveSharedRoom,suspendSharedRoom} from '@/native-transport'
 import {sharedSettings} from '@/maestro-settings'
 import {feederCoverage,type ControllerPresence} from '@/maestro-feeder-coverage'
@@ -194,16 +195,20 @@ const labels = computed(()=>config.value.displayPreferences?.labels??{ type: fal
 const columnWidth = computed(() => Math.max(450+2*((labels.value.feeder?60:0)+(labels.value.runway?40:0)+(labels.value.totalDelay?50:0)),plotWidth.value / Math.max(1,groups.value.length)))
 const panels = computed(()=>config.value.displayPreferences?.panels??{ winds: false, rates: false, tracks: true })
 const draft = ref<EngineConfig>(structuredClone(DEFAULT_CONFIG))
+let initializingRunwayDraft=false
+let runwayDraftGeneration=0
 const draftArrival = computed({get:()=>draft.value.active.find(r=>r.startsWith('ESSA/'))||'ESSA/19R',set:(r:string)=>draft.value.active=[...draft.value.active.filter(a=>!a.startsWith('ESSA/')),r]})
 const runwaySyncError=ref(''),runwaySyncBusy=ref(false)
 async function syncEuroScope(){
  if(!editable.value||runwaySyncBusy.value)return
+ const generation=runwayDraftGeneration
  runwaySyncBusy.value=true;runwaySyncError.value=''
  try{
-  const selections=runwaySelections(await nativeRequest('telemetry:get'),Date.now())
-  const next=clone(effectiveConfig(config.value,now.value));next.active=selections.active;next.departureRunway=selections.departureRunway;next.pending=undefined
-  if(await commit(edits.value,next,true)){draft.value=clone(next);applyMinutes.value=0;dialog.value=''}else runwaySyncError.value=error.value
- }catch(e:any){runwaySyncError.value=e.message}finally{runwaySyncBusy.value=false}
+  const telemetry=await nativeRequest('telemetry:get')
+  if(dialog.value!=='configuration'||generation!==runwayDraftGeneration)return
+  const selections=runwaySelections(telemetry,Date.now())
+  draft.value.active=selections.active;draft.value.departureRunway=selections.departureRunway
+ }catch(e:any){if(dialog.value==='configuration'&&generation===runwayDraftGeneration)runwaySyncError.value=e.message}finally{runwaySyncBusy.value=false}
 }
 const listSelection = ref<string[]>([])
 const slotDraft = reactive({ id: '', runway: 'ESSA/19R', start: '', duration: 8,kind:'closure' as 'closure'|'gap' })
@@ -240,7 +245,7 @@ const unsequenced = computed(() => all.value.filter(f => f.mode === 'desequenced
 const missedFlights=computed(()=>unsequenced.value.filter(f=>f.mode==='missed'||f.mode==='sequenced'&&f.landingEtaAvailable===false&&!f.recoveryManualSlot))
 const currentConfig = computed(() => windConfig(effectiveConfig(config.value,now.value),'ESSA',sequence.value?.winds,now.value))
 function trafficMode(runway:string){return config.value.automaticTrafficModes!==false?sequence.value?.trafficModes?.[runway]:undefined}
-const rateHeaderRunways=computed(()=>{const runways=[...currentConfig.value.active];if(config.value.automaticTrafficModes!==false)for(const f of sequenced.value){const runway=`${f.arrival}/${f.runway}`;if(f.arrival==='ESSA'&&sequence.value?.trafficModes?.[runway]&&!runways.includes(runway))runways.push(runway)}return runways})
+const rateHeaderRunways=computed(()=>{const runways=[...currentConfig.value.active];if(nextRate.value&&!runways.includes(nextRate.value.runway))runways.push(nextRate.value.runway);if(config.value.automaticTrafficModes!==false)for(const f of sequenced.value){const runway=`${f.arrival}/${f.runway}`;if(f.arrival==='ESSA'&&sequence.value?.trafficModes?.[runway]&&!runways.includes(runway))runways.push(runway)}return runways})
 const trafficModeLabel=(mode:string)=>mode==='medium'?'MED':mode.toUpperCase()
 function trafficModeTitle(runway:string){const mode=trafficMode(runway);return mode?`${mode.mode} traffic · ${mode.count15} arrivals in busiest 15 min of next 30 min · ${Math.round(mode.utilization15*100)}% capacity`:''}
 const entryPoints=['NILUG','ELTOK','VACRA','XILAN']
@@ -493,6 +498,9 @@ function relayChanged(event:Event){
     if(!demo.value&&!drag.value&&!gapDrag.value&&!settling.value&&!gapSettling.value){receive(data);if(bridge.value)void publishTiming()}
 }
 function openDialog(name: string) {
+    runwayDraftGeneration++
+    initializingRunwayDraft=true
+    try{
     runwaySyncError.value=''
     menu.value = ''; draft.value = clone(currentConfig.value); dialog.value = name;dialogPosition.value={...pointerPosition};dialogDrag.value=null;void nextTick(fitDialog)
     applyMinutes.value=0;applyBaseTime.value=Math.floor(now.value/60000)*60000
@@ -505,8 +513,14 @@ function openDialog(name: string) {
     if (name === 'flight-slots' && current.value) {
         flightSlots.before = current.value.slotBefore; flightSlots.after = current.value.slotAfter
     }
+    }finally{initializingRunwayDraft=false}
 }
-watch(draftArrival,r=>{if(dialog.value==='configuration'){draftRateSeconds.value=draft.value.rates[r];draftApplyRate.value=false}},{flush:'sync'})
+watch([draftArrival,()=>draft.value.departureRunway],([arrival,departure],[oldArrival,oldDeparture])=>{
+    if(initializingRunwayDraft||dialog.value!=='configuration'||arrival===oldArrival&&departure===oldDeparture)return
+    runwayDraftGeneration++
+    const seconds=suggestedRunwayRate(arrival,departure,draft.value)
+    if(seconds!==undefined){draftRateSeconds.value=seconds;draftApplyRate.value=true}
+},{flush:'sync'})
 function editFlight(patch: FlightEdit) {
     if (!current.value) return
     const callsign = current.value.callsign
@@ -881,7 +895,7 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
 <section class="juha-aman" ref="rootElement" @contextmenu.prevent @pointermove.capture="rememberPointer" @pointerdown.capture="rememberPointer" @click.capture="rememberPointer">
     <div class="toolbar">
         <button class="configuration-button" data-action="configuration" aria-label="Runway configuration" @click="openDialog('configuration')"><span v-if="!localPreview&&!demo&&!sequence" title="Waiting for the shared room configuration">— / —</span><span v-else>{{ currentConfig.active.find(r=>r.startsWith('ESSA/'))?.split('/')[1] }} / {{currentConfig.departureRunway?.split('/')[1]}}<template v-if="nextConfiguration"><em class="pill-arrow">→</em><strong class="pill-next">{{nextConfiguration.active.find(r=>r.startsWith('ESSA/'))?.split('/')[1]}} / {{nextConfiguration.departureRunway?.split('/')[1]}}</strong></template></span><small v-if="nextConfiguration" class="pill-change-time">{{utc(nextConfiguration.at)}} UTC</small></button>
-        <button class="rate-button" data-action="rates" aria-label="Arrival rate" @click="openDialog('rates')"><span v-if="!localPreview&&!demo&&!sequence">Waiting for shared configuration</span><span v-for="r in (!localPreview&&!demo&&!sequence?[]:rateHeaderRunways)" :key="r">{{r.split('/')[1]}} : {{Math.round(3600/currentConfig.rates[r])}} / h<b v-if="trafficMode(r)" class="traffic-mode" :class="trafficMode(r)!.mode" :data-runway="r" :data-traffic-mode="trafficMode(r)!.mode" :title="trafficModeTitle(r)" :aria-label="`${r.split('/')[1]} ${trafficMode(r)!.mode} traffic`">{{trafficModeLabel(trafficMode(r)!.mode)}}</b><template v-if="nextRate&&r===currentConfig.active.find(runway=>runway.startsWith('ESSA/'))"><em class="pill-arrow">→</em><strong class="pill-next">{{Math.round(3600/nextRate.seconds)}} / h</strong><small class="pill-change-time">{{utc(nextRate.at)}} UTC</small></template><small>{{currentConfig.rates[r]}}s · {{rateDistanceNm(currentConfig.rates[r],r,currentConfig).toFixed(1)}} NM</small></span></button>
+        <button class="rate-button" data-action="rates" aria-label="Arrival rate" @click="openDialog('rates')"><span v-if="!localPreview&&!demo&&!sequence">Waiting for shared configuration</span><span v-for="r in (!localPreview&&!demo&&!sequence?[]:rateHeaderRunways)" :key="r">{{r.split('/')[1]}} : {{Math.round(3600/currentConfig.rates[r])}} / h<b v-if="trafficMode(r)" class="traffic-mode" :class="trafficMode(r)!.mode" :data-runway="r" :data-traffic-mode="trafficMode(r)!.mode" :title="trafficModeTitle(r)" :aria-label="`${r.split('/')[1]} ${trafficMode(r)!.mode} traffic`">{{trafficModeLabel(trafficMode(r)!.mode)}}</b><template v-if="nextRate&&r===nextRate.runway"><em class="pill-arrow">→</em><strong class="pill-next">{{Math.round(3600/nextRate.seconds)}} / h</strong><small class="pill-change-time">{{utc(nextRate.at)}} UTC</small></template><small>{{currentConfig.rates[r]}}s · {{rateDistanceNm(currentConfig.rates[r],r,currentConfig).toFixed(1)}} NM</small></span></button>
         <div v-if="panels.tracks" class="tracks">TMA {{ sequenced.filter(f=>f.passedFeeder).length }}<br>TOT {{sequenced.length}}</div><div v-if="panels.winds" class="tracks">SFC {{currentConfig.surfaceWindDirection}}°<br>{{currentConfig.surfaceWindSpeed}} kt</div><div v-if="panels.rates" class="tracks"><span v-for="r in currentConfig.active" :key="r">{{r.split('/')[1]}} {{measuredRate(r)===null?'—':`${measuredRate(r)}s (${measuredRate(r)!-currentConfig.rates[r]}s)`}}<br></span></div><span class="updated"><strong v-if="backendLive" class="live-indicator" aria-label="Shared backend connected">LIVE</strong><span>{{sequence?utc(sequence.timestamp,true):'--:--:--'}}</span></span>
     </div>
     <nav class="view-buttons">
@@ -973,7 +987,7 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
             <template v-else-if="dialog==='configuration'||dialog==='rates'">
                 <button v-if="dialog==='configuration'" data-action="sync-euroscope" :disabled="!editable||runwaySyncBusy" @click="syncEuroScope">Sync EuroScope</button><p v-if="runwaySyncError" role="alert">{{runwaySyncError}}</p>
                 <template v-if="dialog==='configuration'"><label>Arrival runway <select data-input="arrival-runway" v-model="draftArrival"><option v-for="r in RUNWAYS.filter(r=>r.startsWith('ESSA/'))" :key="r" :value="r">{{r.split('/')[1]}}</option></select></label><label>Departure runway <select data-input="departure-runway" v-model="draft.departureRunway"><option v-for="r in RUNWAYS.filter(r=>r.startsWith('ESSA/'))" :key="r" :value="r">{{r.split('/')[1]}}</option></select></label></template>
-                <div class="rate-row"><label>Arrival rate<br>{{rateRunway.split('/')[1]}}</label><input data-input="arrival-rate-slider" type="range" min="6" max="60" step="1" v-model.number="draftRatePerHour" @input="draftApplyRate=true" :aria-label="`${rateRunway} arrivals per hour`"><output>{{Math.round(3600/draftRateSeconds)}} / h<br>{{draftRateSeconds}} s · {{rateDistanceNm(draftRateSeconds,rateRunway,draft).toFixed(1)}} NM</output></div>
+                <div class="rate-row"><label>Arrival rate<br>{{rateRunway.split('/')[1]}}</label><input data-input="arrival-rate-slider" type="range" min="6" max="60" step="1" v-model.number="draftRatePerHour" @input="draftApplyRate=true;runwayDraftGeneration++" :aria-label="`${rateRunway} arrivals per hour`"><output>{{Math.round(3600/draftRateSeconds)}} / h<br>{{draftRateSeconds}} s · {{rateDistanceNm(draftRateSeconds,rateRunway,draft).toFixed(1)}} NM</output></div>
                 <div class="apply-row"><label for="aman-apply-slider">{{applyMinutes===0?'Apply now':`Apply at ${utc(applyAt)} UTC`}}</label><input id="aman-apply-slider" data-input="apply-time-slider" aria-label="Change application time" type="range" min="0" max="60" step="1" v-model.number="applyMinutes"><span class="apply-range"><span>Now</span><span>+60 min</span></span></div><button v-if="dialog==='configuration'?nextConfiguration:config.pendingRate&&config.pendingRate.at>now" data-action="cancel-planned-change" :disabled="!editable" @click="cancelPlannedChange">Cancel planned changes</button><button data-action="save-rates" :disabled="!editable" @click="saveRates">{{(dialog==='configuration'?nextConfiguration:config.pendingRate&&config.pendingRate.at>now)?'Update change':'Apply'}}</button><button @click="dialog=''">Close</button>
             </template>
             <template v-else-if="dialog==='arrival-profile'&&current"><label>Arrival route <select data-input="arrival-profile" v-model="arrivalProfileDraft"><option value="">Auto from filed STAR / feeder</option><option v-for="profile in STAR_PROFILES.filter(p=>p.runway===rwy(current!).split('/')[1])" :key="profile.id" :value="profile.id">{{profile.procedure}} · {{profile.feeder}}</option></select></label><button data-action="save-arrival-profile" @click="editFlight({arrivalProfile:arrivalProfileDraft||undefined,recomputeAt:now,target:undefined});dialog=''">Apply and recompute</button></template>

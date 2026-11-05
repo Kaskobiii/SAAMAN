@@ -2,7 +2,7 @@
 
 ## Start
 
-Load the current DLL in every instance, with SAAMAN above TopSky. Select ESSA ARR/DEP, press **Sync EuroScope**, and check **LIVE**.
+Load the current DLL in every instance, with SAAMAN above TopSky. Select ESSA ARR/DEP, press **Sync EuroScope**, review the rate and press **Apply**. Check **LIVE**.
 
 ## Operating procedures
 
@@ -56,7 +56,7 @@ AMAN calculates a suggested sequence using the remaining flight distance along e
 
 **Runway configuration**
 
-Click the arrival/departure runway box in the header. **Sync EuroScope** immediately shares your current ESSA ARR/DEP selections. For a manual change, select both runways and press **Apply**. Use the time slider to apply now or up to 60 minutes ahead. **Cancel planned changes** removes a pending change.
+Click the arrival/departure runway box in the header. **Sync EuroScope** fills in your current ESSA ARR/DEP selections. Changing the runway pair preselects a suggested rate; adjust it if needed and press **Apply** to share the runway configuration and rate together. Use the time slider to apply now or up to 60 minutes ahead. **Cancel planned changes** removes a pending change.
 
 **Rate configuration**
 

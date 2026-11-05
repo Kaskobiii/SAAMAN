@@ -85,7 +85,20 @@ Drag across an empty timeline area to select several aircraft for the available 
 
 ## 6. Rates, runways and gaps
 
-Click the runway configuration box to change arrival/departure configuration. **Sync EuroScope** applies EuroScope's current ESSA ARR and DEP selections immediately. Click the rate box to change an arrival rate, from **6 to 60 aircraft per hour**. Use **Apply now** or choose a future application time and press **Apply**. Check any planned change shown in the header.
+Click the runway configuration box to change arrival/departure configuration. **Sync EuroScope** fills in EuroScope's current ESSA ARR and DEP selections. Changing either runway preselects a suggested rate, which you can adjust before pressing **Apply**. Click the rate box to change an arrival rate, from **6 to 60 aircraft per hour**. Use **Apply now** or choose a future application time and press **Apply**. Check any planned change shown in the header.
+
+Suggested rates use the arrival/departure pair:
+
+| Arrival / departure | Suggestion |
+|---|---|
+| Different runways, except the pairs below | 38 aircraft/hour |
+| Same runway, except 08 / 08 | 6.5 NM |
+| 08 / 08 | 8.3 NM |
+| 26 / 19R or 08 / 19L | 4.3 NM |
+| 01R / 08 | 4.0 NM |
+| 26 / 01L | 5.0 NM |
+
+Distance suggestions use the arrival runway's wind-adjusted landing speed. The selected interval remains fixed after Apply.
 
 In Runway view, right-click an empty timeline area and select **Insert closure** or **Insert gap**. You can also insert either before or after an aircraft from its callsign menu. Click the block to edit its start and duration or remove it; drag the body to move it, or an edge to adjust its length.
 

@@ -8,9 +8,9 @@ export interface InitialProfile {
 }
 // Only an unreliable initial forecast can receive this one-time handover.
 // Later speed/route changes are observations against the accepted allocation.
-export function initialProfileHandover(p:TelemetryFlight,old:EngineFlight|undefined,edit:FlightEdit,prediction:LandingPrediction,now:number,reset:boolean,usable=true,moving=false){
+export function initialProfileHandover(p:TelemetryFlight,old:EngineFlight|undefined,edit:FlightEdit,prediction:LandingPrediction,now:number,reset:boolean,usable=true,moving=false,resetReason:'controller'|'runway'='controller'){
  let state=old?.initialProfile?{...old.initialProfile}:undefined
- if(reset&&usable&&old?.euroscopeBaseline)return {state:state?{...state,pending:false,candidateSince:undefined}:undefined,ready:false}
+ if(reset&&usable&&old?.euroscopeBaseline&&!(resetReason==='runway'&&state?.pending))return {state:state?{...state,pending:false,candidateSince:undefined}:undefined,ready:false}
  const lowCapture=!old?.euroscopeBaseline&&p.altitude>=5000&&p.groundspeed<100
  const legacyLowCapture=!!old?.euroscopeBaseline&&!state&&old.euroscopeBaseline.groundspeed!==undefined&&old.euroscopeBaseline.groundspeed<120&&p.altitude>=5000&&p.groundspeed>=180
  const initialPause=!state&&old?.motionTiming?.held&&now-old.firstSeen<=60000
@@ -18,7 +18,7 @@ export function initialProfileHandover(p:TelemetryFlight,old:EngineFlight|undefi
  else if(!old?.euroscopeBaseline&&(p.verticalSpeed??0)>300&&prediction.method!=='aircraft-profile')
   state={pending:true,capture:now,workSeconds:0,reason:'climb'}
  if(!state?.pending)return {state,ready:false}
- const manual=edit.target!==undefined||edit.order!==undefined||!!edit.slotBefore||!!edit.slotAfter||!!old?.reorderTiming
+ const manual=edit.target!==undefined||edit.order!==undefined&&edit.orderExplicit!==false||!!edit.slotBefore||!!edit.slotAfter||!!old?.reorderTiming
  if(manual||old&&(![0,1].includes(old.state)||old.passedFeeder||old.mode!=='sequenced'||old.missedRecovery||old.minimumArrivalSource==='resume'))
   return {state:{...state,pending:false,candidateSince:undefined},ready:false}
  const spacing=old?.separation,constrained=old&&((old.closureDelayMs??0)>0||(old.feederDelayMs??0)>0||(old.wakeDelayMs??0)>0||(old.rateDelayMs??0)>0||

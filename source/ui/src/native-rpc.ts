@@ -2,6 +2,11 @@ type Result={id:number;ok:boolean;result?:any;error?:string;status?:number}
 let serial=0
 const pending=new Map<number,{resolve:(data:any)=>void;reject:(error:any)=>void;timer:ReturnType<typeof setTimeout>}>()
 const webview=(window as any).chrome?.webview
+let browserHandler:((method:string,data:any)=>Promise<any>|any)|undefined
+export function configureNativeRequestHandler(handler:typeof browserHandler){
+    if(webview&&location.hostname==='saaman.local'&&handler)throw new Error('A browser handler cannot replace the EuroScope connection')
+    browserHandler=handler
+}
 webview?.addEventListener('message',(event:{data:Result})=>{
     if((event.data as any).event==='pulse'){window.dispatchEvent(new Event('saaman-pulse'));return}
     if((event.data as any).event==='aircraft-selection'){window.dispatchEvent(new CustomEvent('saaman-aircraft-selection',{detail:{callsign:(event.data as any).callsign}}));return}
@@ -14,6 +19,7 @@ webview?.addEventListener('message',(event:{data:Result})=>{
     else request.reject(Object.assign(new Error(message.error||'Native request failed'),{status:message.status||500}))
 })
 export function nativeRequest(method:string,data:any={},timeout=10000):Promise<any>{
+    if(browserHandler)return Promise.resolve().then(()=>browserHandler!(method,data))
     if(!webview)return Promise.reject(new Error('Load SAAMAN.dll in EuroScope to use this interface'))
     const id=++serial
     return new Promise((resolve,reject)=>{

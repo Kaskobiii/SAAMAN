@@ -36,6 +36,7 @@ export function useFloatingSurface(key:string,open:Ref<string>,source:Ref<HTMLEl
   return true
  }
  watch(open,async(value)=>{
+  if((window as any).__SAAMAN_HOST__?.browser===true)return
   const current=++generation
   if(!value){observer?.disconnect();if(fitFrame&&popup){popup.cancelAnimationFrame(fitFrame);fitFrame=0}target.value=null;void request('host:floating-hide').catch(()=>{});return}
   try{

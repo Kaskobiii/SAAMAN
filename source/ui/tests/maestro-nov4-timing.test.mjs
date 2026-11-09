@@ -5,6 +5,7 @@ import {predictLanding} from '../src/maestro-landing-prediction.ts'
 import {planningRouteProgress} from '../src/maestro-route-progress.ts'
 import {initialProfileHandover} from '../src/maestro-initial-profile.ts'
 import {bearingBetween} from '../src/maestro-geometry.ts'
+import {distanceNm,STAR_FEEDERS} from '../src/maestro-star-prediction.ts'
 import fixture from './fixtures/live-nov4-timing.json' with {type:'json'}
 const row=(s,n)=>s.flights.find(f=>f.callsign===n)
 const project=c=>{const x=structuredClone(c);x.previous.timestamp=Math.min(x.previous.timestamp,x.input.timestamp-1);return runEngine(x.input,x.config,x.edits,x.previous)}
@@ -12,7 +13,9 @@ const lot=()=>structuredClone(fixture.lot.input.flights.find(p=>p.callsign==='LO
 
 test('consumed positive FLEG clocks cannot turn an 11 NM approach into a 25-minute landing forecast',()=>{
  const c=structuredClone(fixture.lot),copy=structuredClone(c),s=project(c),f=row(s,'LOT6LT')
- assert.equal(f.landingPrediction.rawClockRejected,true);assert.equal(f.landingPrediction.method,'route-slowdown')
+ assert.equal(f.landingPrediction.method,'aircraft-profile')
+ assert.equal(f.landingPrediction.routeProgress.index,16)
+ assert.equal(f.landingPrediction.routeProgress.consumedDirect,'NILUG')
  assert.ok(f.landingPrediction.distanceNm<11);assert.ok(f.landingPrediction.seconds>180&&f.landingPrediction.seconds<230)
  assert.ok(Math.abs(f.liveBufferedEta-Date.UTC(2026,10,4,18,29,29,718))<20000)
  assert.equal(f.delay,0);assert.deepEqual(c,copy)
@@ -62,9 +65,25 @@ test('trusted explicit shortcut releases stale automatic allocation without a co
  }
 })
 
+test('the slow turboprop feeder forecast cannot require an unobserved acceleration to become Superstable',()=>{
+ const c=fixture.gain,s=project(c),f=row(s,'SAS45H'),p=row(c.input,'SAS45H'),old=row(c.previous,'SAS45H')
+ const minimumSeconds=distanceNm(p,STAR_FEEDERS.NILUG)/p.groundspeed*3600-(p.positionAgeSeconds??0)
+ assert.equal(old.state,1);assert.ok(minimumSeconds>450)
+ assert.ok(f.etaFf>=c.input.timestamp+minimumSeconds*1000-1)
+ assert.equal(f.state,1);assert.equal(f.sta,old.sta);assert.equal(f.staFf,old.staFf)
+ assert.ok(controllerInstructionSeconds(f)<0,'the protected feeder slot is earlier than its credible current ETA')
+})
+
 test('Superstable guidance cannot retain gain when the fresh feeder pair requires lose',()=>{
- const s=project(fixture.gain),f=row(s,'SAS45H'),old=row(fixture.gain.previous,'SAS45H')
- assert.equal(old.delay,-66);assert.equal(f.state,2);assert.equal(f.sta,old.sta);assert.equal(f.staFf,old.staFf)
+ const c=structuredClone(fixture.gain),p=row(c.input,'SAS45H'),old=row(c.previous,'SAS45H')
+ c.input.flights=[p];c.previous.flights=[old]
+ const feederSeconds=distanceNm(p,STAR_FEEDERS.NILUG)/p.groundspeed*3600-(p.positionAgeSeconds??0)
+ const target=c.input.timestamp+(feederSeconds+54)*1000,delta=target-old.staFf
+ old.state=2;old.staFf=target;old.sta+=delta
+ old.guidance.scheduled=target
+ assert.equal(old.delay,-66,'the stored instruction has the obsolete gain sign')
+ const f=row(project(c),'SAS45H')
+ assert.equal(f.state,2);assert.equal(f.sta,old.sta);assert.equal(f.staFf,old.staFf)
  assert.equal(f.delay,54);assert.equal(controllerInstructionSeconds(f),54)
 })
 

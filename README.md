@@ -6,7 +6,7 @@ An embedded EuroScope arrival manager for Stockholm Arlanda (ESSA), with shared
 
 sequencing and controller coordination through the existing vatIRIS backend.
 
-The current version is **1.3.38**. This update adds temporary aircraft highlights, corrects unnecessary delay for a lone automatic Stable arrival, and manages TopSky High Speed flags and large route ETA jumps automatically. See the [release notes](docs/RELEASE-NOTES-1.3.38.md) for examples and update instructions. The matching vatIRIS backend update is deployed.
+Download the published DLL from [Releases](https://github.com/Kaskobiii/SAAMAN/releases). See the [browser editor](docs/browser-editor.md) and [TopSky without the DLL](docs/topsky-without-dll.md) for the new web and feed integrations, including their deployment requirements.
 
 
 

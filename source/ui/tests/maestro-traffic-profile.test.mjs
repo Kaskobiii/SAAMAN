@@ -96,7 +96,9 @@ test('live five-minute approach does not regain nine miles from a complete High-
  for(const mode of ['low','medium','high']){
   const adjusted=trafficProfilePrediction(p,config,base,mode,{passedFeeder:true,feeder:'VACRA'})
   assert.equal(adjusted.prediction,base);assert.equal(adjusted.assumption,undefined)
-  assert.ok(adjusted.prediction.seconds<310,'usable cleared route stays near the observed five-minute horizon')
+  // The current GS is still above the newly assigned 160 IAS; the model
+  // keeps that future restriction rather than treating the excess as wind.
+  assert.ok(adjusted.prediction.seconds>300&&adjusted.prediction.seconds<360,'usable cleared route stays near the observed five-minute horizon')
  }
 })
 test('live pre-feeder High planning adds only the configured track to the current route',()=>{

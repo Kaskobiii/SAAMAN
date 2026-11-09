@@ -60,6 +60,7 @@ export async function installNativeTransport(){
     const defaultAdapter=axios.getAdapter(axios.defaults.adapter!)
     if(info.shared){
         const send=async(method:string,path:string,body?:any)=>{
+                if(info.browser===true&&method==='PUT')throw Object.assign(new Error('Browser connections cannot publish sequence calculations'),{status:403})
                 const auth=relayAuth();if(!authenticated())throw Object.assign(new Error(auth.error||'Waiting for controller identity'),{status:401})
                 let result
                 const operation=path.endsWith('/poll')?'poll':path.endsWith('/command')?'controller edit':path.endsWith('/settings')?'settings':method==='PUT'?'publication':'request'
@@ -78,17 +79,17 @@ export async function installNativeTransport(){
                 if(result.status>=400)throw Object.assign(new Error(data?.error||'Shared AMAN unavailable'),{status:result.status,response:{status:result.status,data}})
                 return data
         }
-        const legacy=info.authProvider==='vatiris-callsign'?new LegacyRelay({network:info.relay.network,instanceId:info.instanceId,send,callsign:()=>relayAuth().callsign||'',cid:()=>relayAuth().cid,supervisor:(callsign,cid)=>relayAuth().supervisor?.(callsign,cid)??Promise.resolve(false)}):null
-        relay=new SharedRelay({...info.relay,instanceId:info.instanceId},{cid:()=>relayAuth().cid,telemetry:()=>nativeRequest('telemetry:get'),compactPublication:()=>info.authProvider==='keys'&&relayAuth().compactPublication===true,send:(method,path,body)=>legacy?legacy.send(method,path,body):send(method,path,body)})
+        const legacy=info.authProvider==='vatiris-callsign'?new LegacyRelay({network:info.relay.network,instanceId:info.instanceId,editorOnly:info.browser===true,send,callsign:()=>relayAuth().callsign||'',cid:()=>relayAuth().cid,supervisor:(callsign,cid)=>relayAuth().supervisor?.(callsign,cid)??Promise.resolve(false)}):null
+        relay=new SharedRelay({...info.relay,instanceId:info.instanceId},{editorOnly:info.browser===true,cid:()=>relayAuth().cid,telemetry:()=>nativeRequest('telemetry:get'),compactPublication:()=>info.authProvider==='keys'&&relayAuth().compactPublication===true,send:(method,path,body)=>legacy?legacy.send(method,path,body):send(method,path,body)})
         if(info.view==='aman'){
             let running=false
             const refresh=async()=>{
                 if(running)return
-                if(!authenticated()||relaySuspended){if(!relaySuspended)window.dispatchEvent(new CustomEvent('saaman-relay',{detail:{relayError:relayAuth().error||'Waiting for controller identity'}}));try{await nativeRequest('timing:set',{airport:'ESSA',generatedAt:Date.now(),nativeSequence:null,flights:[]})}catch{};return}
+                if(!authenticated()||relaySuspended){if(!relaySuspended)window.dispatchEvent(new CustomEvent('saaman-relay',{detail:{relayError:relayAuth().error||'Waiting for controller identity'}}));if(!info.browser)try{await nativeRequest('timing:set',{airport:'ESSA',generatedAt:Date.now(),nativeSequence:null,flights:[]})}catch{};return}
                 running=true
                 try{await relay!.tick();announceRelay()}catch(e:any){announceRelay(e.message)}finally{running=false}
                 const plan=relay!.view(),snapshot=plan.snapshot
-                try{await nativeRequest('timing:set',{airport:'ESSA',generatedAt:Date.now(),nativeSequence:snapshot?toTopSkySequence(snapshot,plan.config,plan.edits):null,flights:snapshot?snapshot.flights.filter(f=>f.arrival==='ESSA'&&f.mode==='sequenced'&&!f.issue&&!f.lost).map(f=>({callsign:f.callsign,deltaSeconds:euroscopeInstruction(f)})):[]})}catch{ /* Next fresh pulse retries local guidance. */ }
+                if(!info.browser)try{await nativeRequest('timing:set',{airport:'ESSA',generatedAt:Date.now(),nativeSequence:snapshot?toTopSkySequence(snapshot,plan.config,plan.edits):null,flights:snapshot?snapshot.flights.filter(f=>f.arrival==='ESSA'&&f.mode==='sequenced'&&!f.issue&&!f.lost).map(f=>({callsign:f.callsign,deltaSeconds:euroscopeInstruction(f)})):[]})}catch{ /* Next fresh pulse retries local guidance. */ }
             }
             const clock=setInterval(()=>void refresh(),2000)
             window.addEventListener('saaman-pulse',()=>void refresh())

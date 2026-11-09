@@ -108,8 +108,15 @@ test('a selected Superstable pair can be explicitly resequenced but Frozen traff
 })
 
 test('the live-session earlier drag advances THY708 and the delayed follower only as far as their current ETAs allow',()=>{
- const s=fixture.cases[0],recomputed=runEngine(s.input,s.config,s.edits,s.previous),leader=flight(recomputed,'SAS77A')
- const next=gainDragEdits(recomputed,s.edits,'SAS77A',leader.sta-60000,'Runway',s.config),moved=evaluate(s.input,s.config,next,recomputed)
+ const s=fixture.cases[0],initial=runEngine(s.input,s.config,s.edits,s.previous),leader=flight(initial,'SAS77A'),edits=structuredClone(s.edits)
+ // First create a real minute of controller-assigned delay. Updated terminal
+ // speeds can otherwise put SAS77A directly against SAS66P's spacing floor,
+ // leaving no available earlier slot for this release test to exercise.
+ edits.SAS77A={...edits.SAS77A,target:leader.sta+60000,targetKind:'time',changedAt:s.input.timestamp}
+ const recomputed=evaluate(s.input,s.config,edits,initial)
+ assert.equal(flight(recomputed,'SAS77A').sta,leader.sta+60000)
+ const next=gainDragEdits(recomputed,edits,'SAS77A',leader.sta,'Runway',s.config),moved=evaluate(s.input,s.config,next,recomputed)
+ assert.equal(flight(moved,'SAS77A').sta,flight(recomputed,'SAS77A').sta-60000,'the leader actually advances')
  for(const call of ['THY708','SAS72C']){
   assert.ok(flight(moved,call).sta<flight(recomputed,call).sta,call)
   assert.ok(flight(moved,call).sta>=flight(moved,call).eta,call)

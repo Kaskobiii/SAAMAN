@@ -12,7 +12,7 @@ import type {RecordingContext} from './maestro-recording'
 export interface RelayOptions { network:'live'|'sweatbox1'|'sweatbox2';session:string;channel:string;instanceId:string }
 type Plan = {epoch:string;revision:number;revisionGeneration?:string;config:EngineConfig;edits:Record<string,FlightEdit>;snapshot:EngineSnapshot|null;masterCid:number|null;relayRole:string;stale:boolean;sequencerWarning?:string;recordingContext?:RecordingContext}
 type Send = (method:string,path:string,body?:any)=>Promise<any>
-export interface RelayDependencies {send:Send;telemetry:()=>Promise<any>;cid:()=>number|null;compactPublication?:()=>boolean;now?:()=>number;requestId?:()=>string}
+export interface RelayDependencies {send:Send;telemetry:()=>Promise<any>;cid:()=>number|null;compactPublication?:()=>boolean;editorOnly?:boolean;now?:()=>number;requestId?:()=>string}
 const copy=<T>(v:T):T=>structuredClone(v)
 const canonical=(v:any):string=>JSON.stringify(v===undefined?null:v)
 const ops=(config:EngineConfig)=>Object.fromEntries(OPERATIONAL_KEYS.filter(k=>config[k]!==undefined).map(k=>[k,config[k]]))
@@ -122,7 +122,7 @@ export class SharedRelay {
         this.callsign=callsign
         // A secondary EuroScope proxy may share the direct client's callsign.
         // It follows that sequence and submits commands without publishing telemetry.
-        const proxy=raw.connectionType===2
+        const proxy=this.deps.editorOnly===true||raw.connectionType===2
         if(proxy!==this.proxy)this.pendingPublish=null
         this.proxy=proxy
         if(isTowerCallsign(callsign)){this.pendingCommand=null;this.pendingPublish=null}
@@ -218,6 +218,7 @@ export class SharedRelay {
         if(this.pendingCommand)fail('A previous command is awaiting delivery; check the room before retrying')
         if((message===undefined)===(acknowledge===undefined)||message!==undefined&&!(COORDINATION_MESSAGES as readonly string[]).includes(message))fail('Select a valid coordination message',400)
         await this.telemetry();await this.pollRoom()
+        if(this.deps.editorOnly&&this.view().stale)fail('Waiting for a fresh shared sequence',503)
         if(isTowerCallsign(this.callsign))fail('Tower positions are observers only',403)
         const command=message!==undefined?{op:'coordination',action:'send',message:{id:this.id(),message,sender:this.options.instanceId,senderCallsign:this.callsign,at:this.now(),acknowledgedBy:[this.options.instanceId]}}:{op:'coordination',action:'ack',id:acknowledge,operator:this.options.instanceId}
         this.pendingCommand={...this.identity(),epoch:this.plan.epoch,revision:this.plan.revision,requestId:this.id(),cmd:command}
@@ -245,8 +246,10 @@ export class SharedRelay {
         if(!settingsUnchanged(base.config,config))fail('Use the separate supervisory window',403)
         validateLockedEdits(base.snapshot,base.edits,edits,config)
         const difference=(before:any,after:any,keys:string[])=>keys.filter(k=>canonical(before[k])!==canonical(after[k])).map(key=>({key,before:before[key]??null,after:after[key]??null}))
-        const changes={op:'plan',...(takeSequencer?{takeSequencer:true}:{}),edits:difference(base.edits,edits,[...new Set([...Object.keys(base.edits),...Object.keys(edits)])]),operational:difference(base.config,config,[...OPERATIONAL_KEYS])}
+        const changes={op:'plan',...(takeSequencer&&!this.deps.editorOnly?{takeSequencer:true}:{}),edits:difference(base.edits,edits,[...new Set([...Object.keys(base.edits),...Object.keys(edits)])]),operational:difference(base.config,config,[...OPERATIONAL_KEYS])}
         await this.pollRoom()
+        if(this.deps.editorOnly&&this.view().stale)fail('Waiting for a fresh shared sequence',503)
+        if(this.deps.editorOnly&&(base.epoch!==this.plan.epoch||(base.revisionGeneration??base.epoch)!==(this.plan.revisionGeneration??this.plan.epoch)))fail('Shared sequence reset; reload and retry',409)
         this.pendingCommand={...this.identity(),epoch:this.plan.epoch,revision:this.plan.revision,requestId:this.id(),cmd:changes}
         let response:any
         try{response=await this.deps.send('POST',this.room+'/command',this.pendingCommand);this.pendingCommand=null}

@@ -32,7 +32,7 @@ export const useAuthStore = defineStore("auth", () => {
     if ((window as any).__SAAMAN_LOCAL__===true) {
         pending.value=false
     } else if (callsignMode) {
-        void refreshRegistered()
+        void refreshRegistered(host?.browser===true)
         const timer=setInterval(()=>void refreshRegistered(),2000)
         const pulse=()=>void refreshRegistered()
         window.addEventListener('saaman-pulse',pulse)

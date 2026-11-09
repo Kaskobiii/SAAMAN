@@ -172,7 +172,9 @@ test('new partial-source arrival uses a performance-based standard approach befo
   if(!fr.input.flights[0].star){
    assert.equal(f.landingPrediction.assumedApproach?.profileId,'19L:NILUG:NILUG3P')
    assert.equal(f.landingPrediction.assumedApproach?.terminalDistanceNm,88)
-   assert.ok(f.landingPrediction.routeTiming.afterFeederSeconds>1200,'missing approach cannot collapse to the short airport FLEG')
+   const timing=f.landingPrediction.routeTiming
+   assert.ok(Math.abs(timing.distanceNm-timing.beforeFeederNm-88)<1e-9,'the complete assumed STAR distance is retained after the feeder')
+   assert.ok(timing.afterFeederSeconds>=88/fr.input.flights[0].groundspeed*3600,'missing approach cannot collapse to the short airport FLEG or assume acceleration')
    assert.equal(f.initialTimingEvidence.model.assumedApproach?.basis,'published-star-distance')
   }
  }

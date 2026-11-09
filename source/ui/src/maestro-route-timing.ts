@@ -17,6 +17,16 @@ interface TimingGeometry {distanceNm:number;feeder?:{name:string;distanceNm:numb
 const positioned=(p:any)=>Number.isFinite(p?.latitude)&&Math.abs(p.latitude)<=90&&Number.isFinite(p?.longitude)&&Math.abs(p.longitude)<=180
 const feeders=['ELTOK','NILUG','XILAN','VACRA']
 const clamp=(v:number,a:number,b:number)=>Math.max(a,Math.min(b,v))
+// All speeds use the same units. The route integrator supplies TAS at each
+// altitude; tests can also exercise the distance stages directly in IAS.
+export function distanceGatedApproachSpeed(remainingNm:number,phaseSpeed:number,approachSpeed:number,landingSpeed:number){
+ if(!Number.isFinite(remainingNm)||remainingNm<0||![phaseSpeed,approachSpeed,landingSpeed].every(v=>Number.isFinite(v)&&v>0))return undefined
+ const approach=Math.min(phaseSpeed,approachSpeed),landing=Math.min(approach,landingSpeed)
+ if(remainingNm>=12)return phaseSpeed
+ if(remainingNm>8)return approach+(phaseSpeed-approach)*(remainingNm-8)/4
+ if(remainingNm>4)return landing+(approach-landing)*(remainingNm-4)/4
+ return landing
+}
 const timingEligible=(p:TelemetryFlight)=>p.arrival==='ESSA'&&!(p.assignedHeading&&p.assignedHeading>0)&&!p.routeProblem&&p.speedDataValid!==false&&
  Number.isFinite(p.altitude)&&p.altitude>=350&&p.altitude<=60000&&Number.isFinite(p.groundspeed)&&p.groundspeed>=60&&p.groundspeed<=1200&&
  Number.isFinite(p.verticalSpeed??0)&&(p.verticalSpeed??0)<=300
@@ -97,21 +107,38 @@ function integrateRouteTiming(p:TelemetryFlight,config:EngineConfig,references:P
   const actual=!reference||!reference.mach&&altitude>22000?performanceAt(type,altitude,'descent',config.performanceModel):undefined
   const approach=reference?.approachIas??approachIas,descent=reference?.descentIas??actual?.nominalIas??approach
   const descentBoundary=reference?.descentToFeet??10000,initialBoundary=reference?.initialDescentToFeet??24000
-  const descentIas=reference?approach+(descent-approach)*clamp((altitude-(descentBoundary-2000))/4000,0,1):undefined
-  const lower=descentIas===undefined?undefined:iasToTas(descentIas,altitude)
+  // Low altitude supplies a terminal descent speed, not the approach speed.
+  // A slow type keeps its own descent reference rather than being raised to
+  // 250 IAS. Approach/landing deceleration is gated by remaining route miles.
+  const terminal=Math.min(descent,250)
+  const descentIas=terminal+(descent-terminal)*clamp((altitude-(descentBoundary-2000))/4000,0,1)
+  const lower=iasToTas(descentIas,altitude)
   const high=reference?.mach?machToTas(reference.mach,altitude):actual?.nominalTas??lower
-  let tas=reference?lower!+(high!-lower!)*clamp((altitude-(initialBoundary-2000))/4000,0,1):actual?.nominalTas
+  const tas=reference?lower+(high!-lower)*clamp((altitude-(initialBoundary-2000))/4000,0,1):Math.min(actual?.nominalTas??Infinity,lower)
   if(!tas)return undefined
-  const terminalIas=remaining<=4?finalIas:remaining<=10?finalIas+(Math.min(180,approachIas)-finalIas)*(remaining-4)/6:
-   remaining<=20?Math.min(180,approachIas)+(approachIas-Math.min(180,approachIas))*(remaining-10)/10:Infinity
-  return Math.min(tas,iasToTas(terminalIas,altitude))
+  return distanceGatedApproachSpeed(remaining,tas,iasToTas(Math.min(180,approach),altitude),iasToTas(finalIas,altitude))
  }
- const initial=nominal(p.altitude,distance)
- if(!initial||!Number.isFinite(initial))return undefined
+ const phaseInitial=nominal(p.altitude,distance)
+ if(!phaseInitial||!Number.isFinite(phaseInitial))return undefined
+ const assignedInitial=p.assignedSpeed&&p.assignedSpeed>0?iasToTas(p.assignedSpeed,p.altitude):Infinity
+ const machInitial=p.assignedMach&&p.assignedMach>0?machToTas(p.assignedMach/100,p.altitude):Infinity
+ // A settled cleared speed supplies the calibration reference. While the
+ // aircraft is still faster than a new restriction, anchor to observed GS
+ // up to the phase reference so that the future clearance is not scaled by
+ // the same excess speed. This remains continuous as GS or a cap changes.
+ const clearedInitial=Math.min(phaseInitial,assignedInitial,machInitial)
+ const initial=Math.min(phaseInitial,Math.max(clearedInitial,p.groundspeed))
  // This is an observed speed offset, not a measured wind estimate. It also
  // includes simulator/pilot behaviour. Do not infer actual IAS from GS alone.
  const ratio=p.groundspeed/initial
- if(ratio<.65||ratio>1.4)return undefined
+ // A type already slowed to its approach speed far out is still credible.
+ // Accept that lower observation only against its type-specific reference or
+ // a slower explicit clearance, using the existing confidence range. Keep
+ // the timing ratio anchored to actual GS and the same cleared nominal;
+ // the integrator's observed-GS cap prevents any assumed acceleration.
+ const slowReference=Math.min(initial,iasToTas(Math.min(180,approachIas),p.altitude),assignedInitial,machInitial)
+ const slowRatio=p.groundspeed/slowReference
+ if(ratio>1.4||ratio<.65&&(slowRatio<.65||slowRatio>1.4))return undefined
  const entryAltitude=geometry.feeder?Math.min(p.altitude,config.starEntryAltitude??18000,Math.max(3000,after*318.4+150)):p.altitude
  // Far from the feeder, do not assume descent begins immediately. Estimate
  // its nominal distance and keep the remaining upstream segment at capture
@@ -150,6 +177,8 @@ function integrateRouteTiming(p:TelemetryFlight,config:EngineConfig,references:P
  if(!Number.isFinite(seconds)||seconds>14400||!Number.isFinite(feederTime))return undefined
  const feeder=geometry.feeder?{...geometry.feeder,seconds:Math.max(0,feederTime-age)}:undefined
  return {seconds,distanceNm:distance,beforeFeederNm:before,afterFeederSeconds:seconds-(feeder?.seconds??0),feeder,
-  entryGroundspeed:Math.min(p.groundspeed,(nominal(entryAltitude,after)??p.groundspeed)*ratio),
+  entryGroundspeed:Math.min(p.groundspeed,(nominal(entryAltitude,after)??p.groundspeed)*ratio,
+   (p.assignedSpeed&&p.assignedSpeed>0?iasToTas(p.assignedSpeed,entryAltitude):Infinity)*ratio,
+   (p.assignedMach&&p.assignedMach>0?machToTas(p.assignedMach/100,entryAltitude):Infinity)*ratio),
   profile:{type,source:reference?.source??profile!.source,observedSpeedRatio:ratio}}
 }

@@ -27,6 +27,24 @@ test('a persistent raw FLEG jump retains usable timing, phase and slots with one
  assert.deepEqual(saved,start(c),'previous checkpoints are not mutated by quarantine')
 })
 
+test('a positioned arrival keeps its accepted landing and feeder pair through raw ETA jumps in either direction',()=>{
+ const c={...config(),automaticTrafficModes:false,stableMinutes:30}
+ const tracked={...p,aircraft:'ZZZZ',latitude:62,longitude:18,heading:180,route:[{name:'ELTOK',seconds:800}]}
+ const first=start(c,tracked),previous=flight(first)
+ assert.equal(previous.state,1);assert.equal(previous.landingPrediction.method,'fallback')
+ for(const [landingSeconds,feederSeconds] of [[1498,300],[1498,1200],[800,350],[2200,1200]]){
+  let next=first
+  for(const elapsed of [2,8,16,24]){
+   const changed={...tracked,latitude:62-elapsed/720,landingSeconds:landingSeconds+2-elapsed,route:[{name:'ELTOK',seconds:feederSeconds+2-elapsed}]}
+   next=runEngine(packet(changed,elapsed),c,{},JSON.parse(JSON.stringify(next)))
+   const f=flight(next)
+   assert.equal(f.routeTimingQuarantined,true)
+   assert.deepEqual([f.eta,f.etaFf,f.sta,f.staFf,f.delay,f.state],[previous.eta,previous.etaFf,previous.sta,previous.staFf,previous.delay,previous.state])
+   assert.equal(next.automaticCorrections.length,1)
+  }
+ }
+})
+
 test('normal timing rearms a later independent anomaly without repeating the same episode after reload',()=>{
  const c=config(),first=start(c),blocked=runEngine(packet(raw(2),2),c,{},first)
  const normal={...p,landingSeconds:1490,route:[{name:'ELTOK',seconds:590}]}

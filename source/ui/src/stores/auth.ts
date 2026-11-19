@@ -4,6 +4,7 @@ import {nativeLogin,nativeRequest} from "@/native-rpc"
 import { defineStore } from "pinia"
 import { computed, ref, onScopeDispose } from "vue"
 import {CallsignIdentity} from '@/callsign-identity'
+import {elapsedNow} from '@/shared-clock'
 
 const clientId = import.meta.env.VITE_CLIENT_ID || "682"
 const redirectUri = import.meta.env.VITE_REDIRECT_URI || "http://localhost:5173/login"
@@ -20,12 +21,12 @@ export const useAuthStore = defineStore("auth", () => {
     const ready=computed(()=>callsignMode?!!user.value?.callsign:!!token.value.access_token)
     const requestHeaders=computed(()=>{const headers:Record<string,string>={};if(!callsignMode&&token.value.access_token)headers.Authorization=`Bearer ${token.value.access_token}`;return headers})
     const host=(window as any).__SAAMAN_HOST__
-    const registered=callsignMode?new CallsignIdentity({network:host.relay.network,cid:host.controllerCid||undefined,now:()=>Date.now(),telemetry:()=>nativeRequest('telemetry:get'),changed:identity=>{user.value=identity},controllers:async()=> (await axios.get('https://data.vatsim.net/v3/vatsim-data.json',{timeout:10000})).data}):undefined
+    const registered=callsignMode?new CallsignIdentity({network:host.relay.network,cid:host.controllerCid||undefined,now:Date.now,elapsed:elapsedNow,telemetry:()=>nativeRequest('telemetry:get'),changed:identity=>{user.value=identity},controllers:async()=> (await axios.get('https://data.vatsim.net/v3/vatsim-data.json',{timeout:10000})).data}):undefined
     let nextAttempt=0
     async function refreshRegistered(force=false){
-        if(!registered||(!force&&Date.now()<nextAttempt))return
+        if(!registered||(!force&&elapsedNow()<nextAttempt))return
         try{await registered.refresh(force);loginError.value='';nextAttempt=0}
-        catch(e:any){loginError.value=e.response?.data?.error||e.message;nextAttempt=Date.now()+8000}
+        catch(e:any){loginError.value=e.response?.data?.error||e.message;nextAttempt=elapsedNow()+8000}
         finally{pending.value=false}
     }
 

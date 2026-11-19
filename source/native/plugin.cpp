@@ -99,7 +99,7 @@ public:
             Report("Active ESSA runways "+context->telemetry.value("activeRunways",Json::object()).dump()+"; SDK "+context->telemetry.value("runwayStatus",Json::object()).dump());return true;
         }
         if(text==".saaman status"){
-            std::lock_guard lock(context->mutex);Report(std::string(context->telemetry.value("connectionType",0)==EuroScopePlugIn::CONNECTION_TYPE_VIA_PROXY?"Proxy connection; guidance ":"Direct/local connection; guidance ")+(Now()-context->timingAt<=15000?"fresh":"missing/stale")+"; capture age "+(context->captureSuccessAt?std::to_string((Now()-context->captureSuccessAt)/1000)+"s":"no successful capture")+"; capture error "+context->captureError+"; TopSky receivers "+std::to_string(context->receivers)+"; "+(context->shared?"shared backend":"local EuroScope"));return true;
+            std::lock_guard lock(context->mutex);Report(std::string(context->telemetry.value("connectionType",0)==EuroScopePlugIn::CONNECTION_TYPE_VIA_PROXY?"Proxy connection; guidance ":"Direct/local connection; guidance ")+(context->timingAt&&TickNow()-context->timingAt<=15000?"fresh":"missing/stale")+"; capture age "+(context->captureSuccessAt?std::to_string((TickNow()-context->captureSuccessAt)/1000)+"s":"no successful capture")+"; capture error "+context->captureError+"; TopSky receivers "+std::to_string(context->receivers)+"; "+(context->shared?"shared backend":"local EuroScope"));return true;
         }
         return false;
     }
@@ -114,16 +114,17 @@ public:
             const auto selectedTarget=connected&&!selected.IsValid()?RadarTargetSelectASEL():EuroScopePlugIn::CRadarTarget();
             host->SetAircraftSelection(selected.IsValid()?selected.GetCallsign():selectedTarget.IsValid()?selectedTarget.GetCallsign():"",connected);
             Json outgoing;
-            bool captureDue=false;{std::lock_guard lock(context->mutex);captureDue=Now()-context->captureAttemptAt>=1500;}
+            const auto captureTick=TickNow();
+            bool captureDue=false;{std::lock_guard lock(context->mutex);captureDue=!context->captureAttemptAt||captureTick-context->captureAttemptAt>=1500;}
             if(captureDue){
-                {std::lock_guard lock(context->mutex);context->captureAttemptAt=Now();}
-                try{if(GetConnectionType()==EuroScopePlugIn::CONNECTION_TYPE_NO)holding.Clear();auto data=CaptureTelemetry(*this,winds,holding);std::lock_guard lock(context->mutex);context->telemetry=std::move(data);context->captureSuccessAt=Now();context->captureError.clear();context->SeedRunwayConfig();}
+                {std::lock_guard lock(context->mutex);context->captureAttemptAt=captureTick;}
+                try{if(GetConnectionType()==EuroScopePlugIn::CONNECTION_TYPE_NO)holding.Clear();auto data=CaptureTelemetry(*this,winds,holding);std::lock_guard lock(context->mutex);context->telemetry=std::move(data);context->captureSuccessAt=captureTick;context->captureError.clear();context->SeedRunwayConfig();}
                 catch(const std::exception& error){std::lock_guard lock(context->mutex);context->captureError=std::string(error.what()).substr(0,240);}
                 catch(...){std::lock_guard lock(context->mutex);context->captureError="Unknown SDK capture error";}
                 host->Pulse();
             }
             {std::lock_guard lock(context->mutex);outgoing=context->sequence;
-                if(outgoing.is_object()&&!outgoing.empty()&&Now()-context->timingAt>15000){outgoing["sequence"]=Json::array();outgoing["data"]["source"]="STALE";outgoing["data"]["timestamp"]=Now()/1000;}}
+                if(outgoing.is_object()&&!outgoing.empty()&&(!context->timingAt||TickNow()-context->timingAt>15000)){outgoing["sequence"]=Json::array();outgoing["data"]["source"]="STALE";outgoing["data"]["timestamp"]=Now()/1000;}}
             const bool moved=host->ConsumeRadarRefresh();bool refresh=moved;
             if(outgoing.is_object()&&!outgoing.empty()){const auto count=MaestroBroadcastSequence(outgoing.dump());{std::lock_guard lock(context->mutex);context->receivers=count;}refresh=true;}
             if(refresh)for(auto* screen:screens)screen->RequestRefresh();
@@ -133,17 +134,17 @@ public:
         if(!station||!metar||std::string(station)!="ESSA")return;
         const std::string text(metar);std::smatch match;
         if(std::regex_search(text,match,std::regex(R"((\d{3}|VRB)(\d{2,3})(?:G\d{2,3})?(KT|MPS))"))){
-            const bool variable=match[1]=="VRB";winds[station]={{"direction",variable?0:std::stoi(match[1])},{"speed",std::stod(match[2])*(match[3]=="MPS"?1.943844:1.0)},{"timestamp",Now()}};
+            const bool variable=match[1]=="VRB";winds[station]={{"direction",variable?0:std::stoi(match[1])},{"speed",std::stod(match[2])*(match[3]=="MPS"?1.943844:1.0)},{"timestamp",TickNow()}};
         }
     }
     void OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPlan flight,int type) override {
         if(type!=EuroScopePlugIn::CTR_DATA_TYPE_SCRATCH_PAD_STRING||!flight.IsValid())return;
-        try{const auto fp=flight.GetFlightPlanData();const auto call=flight.GetCallsign();if(!call||!*call||!fp.IsReceived()||!fp.GetDestination()||strcmp(fp.GetDestination(),"ESSA"))return;holding.Command(call,flight.GetControllerAssignedData().GetScratchPadString(),Now());}catch(...){/* SDK callback must not unwind. */}
+        try{const auto fp=flight.GetFlightPlanData();const auto call=flight.GetCallsign();if(!call||!*call||!fp.IsReceived()||!fp.GetDestination()||strcmp(fp.GetDestination(),"ESSA"))return;holding.Command(call,flight.GetControllerAssignedData().GetScratchPadString(),TickNow());}catch(...){/* SDK callback must not unwind. */}
     }
     void OnGetTagItem(EuroScopePlugIn::CFlightPlan flight,EuroScopePlugIn::CRadarTarget,int item,int,char text[16],int* color,COLORREF* rgb,double*) override {
         if(item<71001||item>71003)return;text[0]='\0';if(color)*color=EuroScopePlugIn::TAG_COLOR_DEFAULT;
         if(!flight.IsValid())return;const auto fp=flight.GetFlightPlanData();if(!fp.IsReceived()||!fp.GetDestination()||strcmp(fp.GetDestination(),"ESSA"))return;
-        std::lock_guard lock(context->mutex);if(Now()-context->timingAt>15000)return;const auto value=context->timing.find(flight.GetCallsign());if(value==context->timing.end())return;
+        std::lock_guard lock(context->mutex);if(!context->timingAt||TickNow()-context->timingAt>15000)return;const auto value=context->timing.find(flight.GetCallsign());if(value==context->timing.end())return;
         const int seconds=value->get<int>();if((item==71002&&seconds>=0)||(item==71003&&seconds<=0))return;const int minutes=static_cast<int>(seconds<0?std::ceil(std::abs(seconds)/60.0):std::floor(seconds/60.0));if(!minutes)return;
         sprintf_s(text,16,"%s%d",seconds<0?"-":"",minutes);if(color&&rgb){*color=EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;*rgb=seconds<0?RGB(41,255,40):seconds<=150?RGB(240,225,41):RGB(225,25,25);}
     }

@@ -7,7 +7,7 @@ import {observeSnapshot,type SupervisionEvent} from '@/maestro-supervision'
 import {SessionRecording,sanitizeRecordingContext,type RecordingContext} from '@/maestro-recording'
 import {explainSlot} from '@/maestro-slot-reasons'
 import {predictRouteTiming} from '@/maestro-route-timing'
-const props=defineProps<{snapshot:EngineSnapshot|null;config:EngineConfig;edits:Record<string,FlightEdit>;now:number;revision:number;masterCid:number|null;error:string;recordingContext?:RecordingContext}>()
+const props=defineProps<{snapshot:EngineSnapshot|null;config:EngineConfig;edits:Record<string,FlightEdit>;now:number;snapshotAgeMs?:number;revision:number;masterCid:number|null;error:string;recordingContext?:RecordingContext}>()
 
 const search=ref(''),selected=ref(''),events=ref<SupervisionEvent[]>([])
 const recorder=new SessionRecording(),recording=ref(false),recordCount=ref(0),recordStatus=ref('')
@@ -44,7 +44,8 @@ const candidate=computed(()=>{
 })
 const history=computed(()=>events.value.filter(e=>(!selected.value||e.callsign===selected.value)&&e.callsign.toLowerCase().includes(search.value.toLowerCase())))
 const active=computed(()=>effectiveConfig(props.config,snapshot.value?.timestamp??props.now))
-const stale=computed(()=>!props.snapshot||props.now-props.snapshot.timestamp>15000)
+const age=computed(()=>props.snapshot?props.snapshotAgeMs??props.now-props.snapshot.timestamp:undefined)
+const stale=computed(()=>age.value===undefined||age.value>=(props.snapshotAgeMs===undefined?15000:30000)||props.recordingContext?.stale===true)
 function utc(value?:number){return value===undefined||!Number.isFinite(value)?'—':new Date(value).toISOString().slice(11,19)}
 function seconds(value?:number){return value===undefined||!Number.isFinite(value)?'—':`${Math.round(value)} s`}
 function remaining(value:number){return seconds((value-(snapshot.value?.timestamp??props.now))/1000)}
@@ -56,7 +57,7 @@ function exportData(){
 <template>
 
 <section class="supervision">
-    <header><strong>{{stale?'STALE DATA':'LIVE'}} · {{authority?'Publisher':'Source'}} {{authority?authority.publisher||'unknown':snapshot?.source||'Waiting for data'}}<template v-if="authority?.publisherVersion"> ({{authority.publisherVersion}})</template></strong><span v-if="authority">Elected {{authority.sequencer||'unknown'}}<template v-if="authority.sequencerVersion"> ({{authority.sequencerVersion}})</template></span><span>Snapshot {{utc(snapshot?.timestamp)}} UTC · age {{snapshot?seconds((now-snapshot.timestamp)/1000):'—'}} · revision {{revision}}</span></header>
+    <header><strong>{{stale?'STALE DATA':'LIVE'}} · {{authority?'Publisher':'Source'}} {{authority?authority.publisher||'unknown':snapshot?.source||'Waiting for data'}}<template v-if="authority?.publisherVersion"> ({{authority.publisherVersion}})</template></strong><span v-if="authority">Elected {{authority.sequencer||'unknown'}}<template v-if="authority.sequencerVersion"> ({{authority.sequencerVersion}})</template></span><span>Snapshot {{utc(snapshot?.timestamp)}} UTC · age {{age===undefined?'—':seconds(age/1000)}} · revision {{revision}}</span></header>
     <p v-if="error" class="warning">{{error}}</p>
     <nav><input v-model="search" aria-label="Filter supervision callsigns" placeholder="Search callsign"><button @click="exportData">Export snapshot + history</button><button @click="selected=''">All aircraft history</button><button @click="toggleRecording" :disabled="!snapshot&&!recording">{{recording?'Stop recording':'Start session recording'}}</button><button @click="exportRecording" :disabled="!recordCount">Export recording</button><span v-if="recordStatus">{{recordStatus}} · {{recordCount}} frames</span></nav>
     <p class="note" v-if="recordCount">Export recording before closing this window.</p>

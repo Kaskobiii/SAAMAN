@@ -13,6 +13,56 @@ const better=(seconds=2,extra={})=>({...follow,landingSeconds:1920-seconds,route
 const initial=(config=c(),flights=[lead,follow],edits={})=>runEngine(packet(flights),config,edits)
 const spacing=(s,config)=>{const rows=s.flights.filter(p=>p.mode==='sequenced'&&!p.issue&&!p.lost&&p.state!==4&&p.runway==='19L').sort((a,b)=>a.order-b.order);for(let i=1;i<rows.length;i++){const p=rows[i-1],q=rows[i],plan=effectiveConfig(config,q.sta);assert.ok(q.sta-p.sta>=Math.max(plan.rates['ESSA/19L'],wakeInterval(p.wake,q.wake,'ESSA/19L',plan))*1000-1)}}
 
+const revisedConfig=()=>({...c(),automaticTrafficModes:false,stableMinutes:120,superStableMinutes:3})
+const moving=(callsign,groundspeed,north,elapsed=0)=>({...follow,callsign,aircraft:'A20N',groundspeed,latitude:north-elapsed*groundspeed/216000,
+ longitude:18,altitude:30000,verticalSpeed:0,heading:180,landingSeconds:1060,
+ route:[{name:'ELTOK',seconds:500,latitude:60.4,longitude:18},{name:'FI19L',seconds:900,latitude:59.8,longitude:17.95},
+  {name:'SA19L',seconds:1000,latitude:59.6664,longitude:17.92377}]})
+
+test('sustained live timing repairs automatic Stable order while preserving controller order and both spacing constraints',()=>{
+ const config=revisedConfig()
+ for(const edits of [{},{A:{order:0,orderExplicit:true}}]){
+  const first=initial(config,[moving('A',440,61),moving('B',300,61.01)],edits)
+  let result=first
+  assert.ok(f(first,'A').order<f(first,'B').order)
+  for(let elapsed=5;elapsed<=55;elapsed+=5){
+   result=runEngine(packet([moving('A',300,61,elapsed),moving('B',440,61.01,elapsed)],elapsed),config,edits,JSON.parse(JSON.stringify(result)))
+   const a=f(result,'A'),b=f(result,'B')
+   assert.equal(a.state,1);assert.equal(b.state,1)
+   spacing(result,config)
+   if(elapsed<50||edits.A)assert.ok(a.order<b.order)
+   else{
+    assert.ok(b.order<a.order);assert.ok(Math.abs(b.delay)<=1);assert.ok(Math.abs(a.delay)<=1)
+    assert.ok(a.staFf-b.staFf>=config.rates['ESSA/19L']*1000-1)
+    assert.deepEqual(a.euroscopeBaseline,f(first,'A').euroscopeBaseline)
+    assert.deepEqual(b.euroscopeBaseline,f(first,'B').euroscopeBaseline)
+   }
+  }
+ }
+})
+
+test('a later automatic Stable forecast moves its pair after confirmation without displacing a protected follower',()=>{
+ const config=revisedConfig(),lead=moving('A',440,61),protectedTime=now+1150000
+ const follower={...follow,callsign:'B',landingSeconds:1030,route:[{name:'NILUG',seconds:420}]}
+ for(const protectedFollower of [false,true]){
+  const edits=protectedFollower?{B:{target:protectedTime}}:{}
+  const first=initial(config,protectedFollower?[lead,follower]:[lead],edits),initialSta=f(first,'A').sta
+  let result=first
+  for(let elapsed=5;elapsed<=55;elapsed+=5){
+   const p=moving('A',300,61,elapsed)
+   result=runEngine(packet(protectedFollower?[p,at(follower,elapsed)]:[p],elapsed),config,edits,result)
+   if(elapsed<50||protectedFollower)assert.equal(f(result,'A').sta,initialSta)
+   if(protectedFollower)assert.equal(f(result,'B').sta,protectedTime)
+   spacing(result,config)
+  }
+  if(!protectedFollower){
+   assert.ok(f(result,'A').sta>initialSta+60000)
+   assert.ok(Math.abs(f(result,'A').sta-f(result,'A').liveBufferedEta)<1000)
+   assert.ok(Math.abs(f(result,'A').delay)<=1)
+  }
+ }
+})
+
 test('a Stable follower releases eight artificial minutes into available runway space without recapturing history',()=>{
  const config=c(),start=initial(config),old=structuredClone(f(start));let s=start
  assert.equal(f(start,'LEAD').state,2);assert.equal(old.state,1)

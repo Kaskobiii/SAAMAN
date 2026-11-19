@@ -24,13 +24,14 @@ export function saveBrowserConnection(storage:Pick<Storage,'setItem'>,connection
 }
 
 /** Identity and controller coverage only. A browser never supplies aircraft telemetry. */
-export function createBrowserSession(connection:BrowserConnection,deps:{controllers:()=>Promise<any>;now?:()=>number;id?:()=>string}){
+export function createBrowserSession(connection:BrowserConnection,deps:{controllers:()=>Promise<any>;now?:()=>number;elapsed?:()=>number;id?:()=>string}){
  const settings=browserConnection(connection),now=deps.now??Date.now,instanceId=`browser-${(deps.id??(()=>crypto.randomUUID()))()}`
+ const elapsed=deps.elapsed??now
  let cid:number|null=null,controllers:BrowserController[]=[],feedAt=Number.NEGATIVE_INFINITY,pending:Promise<void>|undefined,controllerChanged=false
  async function identity(){
   if(controllerChanged)throw Error('This position changed controller. Disconnect and reconnect the browser.')
   if(settings.network==='live'){
-   if(now()-feedAt>=15000||now()<feedAt){
+   if(elapsed()-feedAt>=15000||elapsed()<feedAt){
     if(!pending){
      pending=Promise.resolve().then(async()=>{
       try{
@@ -41,7 +42,7 @@ export function createBrowserSession(connection:BrowserConnection,deps:{controll
        const selected=fresh.find(c=>c.callsign===settings.callsign)
        if(!selected)throw Error(`${settings.callsign} is not connected as ATC on VATSIM. The feed updates every 15 seconds.`)
        if(cid!==null&&selected.cid!==cid){controllerChanged=true;throw Error('This position changed controller. Disconnect and reconnect the browser.')}
-       cid=selected.cid;controllers=fresh;feedAt=now()
+       cid=selected.cid;controllers=fresh;feedAt=elapsed()
       }catch(error){controllers=[];feedAt=Number.NEGATIVE_INFINITY;throw error}
       finally{pending=undefined}
      })
@@ -53,7 +54,7 @@ export function createBrowserSession(connection:BrowserConnection,deps:{controll
  }
  async function telemetry(){
   const selected=await identity()
-  return {timestamp:now(),source:selected.callsign,connected:true,simulation:settings.network!=='live',connectionType:2,
+  return {timestamp:now(),captureAgeMs:0,source:selected.callsign,connected:true,simulation:settings.network!=='live',connectionType:2,
    controllerPositionId:selected.controllers.find(c=>c.callsign===settings.callsign)?.positionId??'',controllers:selected.controllers,flights:[]}
  }
  async function hostInfo(){

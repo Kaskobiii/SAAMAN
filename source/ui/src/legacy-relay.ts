@@ -3,7 +3,8 @@ import {mergeSharedSettings} from './maestro-settings'
 import {isTowerCallsign,canSequenceEssa} from './callsign-identity'
 import {APPLICATION_BUILD} from './build'
 import {sequencerVersionWarning} from './sequencer-version'
-type Send=(method:string,path:string,body?:any)=>Promise<any>
+import {publicationAge,type PublicationTiming} from './shared-clock'
+type Send=(method:string,path:string,body?:any,timing?:(value:PublicationTiming)=>void)=>Promise<any>
 type Receipt={digest:string;ok:boolean;message:string}
 type Envelope={protocol:'saaman-legacy-1';epoch:string;revision:number;owner:string;instanceId:string;lease:string;settingsRevision:number;settings:Record<string,unknown>;checkpoint:any;receipts:Record<string,Receipt>;publication:string;publishedAt:number;engineVersion?:string;counterReset?:{revision:number;publication:string;checkpointAt:number;at:number}}
 const copy=<T>(v:T):T=>JSON.parse(JSON.stringify(v))
@@ -32,13 +33,29 @@ export class LegacyRelay {
     private reportedVersion:unknown
     private reportedAt=Number.NEGATIVE_INFINITY
     private knownVersions:unknown[]=[]
-    constructor(private deps:{network:string;instanceId:string;send:Send;callsign:()=>string;cid:()=>number|null;supervisor:(callsign:string,claimedCid?:number)=>Promise<boolean>;editorOnly?:boolean;now?:()=>number;requestId?:()=>string}){
+    private receiptTiming:{publication:string;at:number;age:number}|undefined
+    constructor(private deps:{network:string;instanceId:string;send:Send;callsign:()=>string;cid:()=>number|null;supervisor:(callsign:string,claimedCid?:number)=>Promise<boolean>;editorOnly?:boolean;now?:()=>number;elapsed?:()=>number;requestId?:()=>string}){
         this.room=`/aman/${deps.network}/ESSA`;this.state=this.empty()
     }
     private now(){return this.deps.now?.()??Date.now()}
+    private elapsed(){return this.deps.elapsed?.()??this.now()}
+    private serverPublicationAge(){
+        const sample=this.receiptTiming
+        return sample&&sample.publication===this.state.publication?sample.age+Math.max(0,this.elapsed()-sample.at):undefined
+    }
+    private age(){return this.serverPublicationAge()??this.now()-this.state.publishedAt}
+    private rememberPublicationTime(publication:string,timing?:PublicationTiming){
+        if(!publication)return
+        const age=publicationAge(timing?.publicationAgeMs)
+        if(age===undefined&&!timing?.freshRoomRead)return
+        const prior=this.receiptTiming
+        if(age===undefined&&prior?.publication===publication)return
+        const at=this.elapsed()
+        this.receiptTiming={publication,at,age:age??0}
+    }
     private id(){return this.deps.requestId?.()??crypto.randomUUID()}
     private empty():Envelope{return {protocol:'saaman-legacy-1',epoch:this.id(),revision:0,owner:'',instanceId:'',lease:'',settingsRevision:0,settings:{},checkpoint:null,receipts:{},publication:'',publishedAt:0}}
-    private adopt(sequence:any,revision?:number){
+    private adopt(sequence:any,revision?:number,timing?:PublicationTiming){
         if(!sequence)return
         const e=sequence.saamanRelay
         if(!e||e.protocol!=='saaman-legacy-1')fail('This shared sequence belongs to another AMAN plugin. Stop that sequencer before using SAAMAN.')
@@ -51,14 +68,20 @@ export class LegacyRelay {
         // the same metadata cannot rewind a client already past that reset.
         const laterReset=Number.isSafeInteger(lineage?.revision)&&lineage.revision>=old.revision&&
             lineage.at>old.publishedAt&&lineage.checkpointAt>=old.checkpoint?.snapshot?.timestamp
+        const age=publicationAge(timing?.publicationAgeMs)??(timing?.freshRoomRead?0:this.now()-e.publishedAt)
         const restored=old.epoch===e.epoch&&old.revision>e.revision&&(samePublication||laterReset)&&
-            Number.isFinite(lineage?.at)&&e.publishedAt>=lineage.at&&this.now()-e.publishedAt>=0&&this.now()-e.publishedAt<30000
+            Number.isFinite(lineage?.at)&&e.publishedAt>=lineage.at&&age>=0&&age<30000
         this.state=copy(e);if(revision!==undefined)this.state.revision=revision
+        this.rememberPublicationTime(e.publication,timing)
         this.unavailable=false;this.recovery=restored?{kind:'legacy-restored-publication',fromRevision:old.revision,epoch:old.epoch,fromTimestamp:old.checkpoint.snapshot.timestamp}:undefined
     }
     private async read(){
         this.remoteAvailable=false
-        try{const sequence=await this.deps.send('GET',this.room);if(sequence){this.adopt(sequence);this.remoteAvailable=true}}
+        try{
+            let timing:PublicationTiming|undefined
+            const sequence=await this.deps.send('GET',this.room,undefined,value=>{timing=value})
+            if(sequence){this.adopt(sequence,undefined,timing);this.remoteAvailable=true}
+        }
         catch(e:any){if((e.status||e.response?.status)!==404)throw e}
         if(this.deps.editorOnly&&!this.remoteAvailable)this.unavailable=true
         // Same-callsign instances share the API's destructive results queue.
@@ -68,7 +91,7 @@ export class LegacyRelay {
         return this.state
     }
     private authority(){
-        const current=this.now()-this.reportedAt>=0&&this.now()-this.reportedAt<8000
+        const current=this.elapsed()-this.reportedAt>=0&&this.elapsed()-this.reportedAt<8000
         return {room:`${this.deps.network}/ESSA`,publisher:this.state.owner,publisherVersion:this.state.engineVersion,
             ...(current?{sequencer:this.reportedOwner,sequencerVersion:this.reportedVersion}:{}),recovery:this.recovery?.kind}
     }
@@ -79,7 +102,8 @@ export class LegacyRelay {
             [s.epoch,reset.at,reset.revision,reset.publication]:[s.epoch])
         return {epoch:s.epoch,revision:s.revision,revisionGeneration,role,authority:this.authority(),settingsRevision:s.settingsRevision,settings:copy(s.settings),checkpoint:copy(checkpoint),updated:s.publishedAt,
             sequencerWarning:sequencerVersionWarning(this.reportedOwner||s.owner,this.reportedVersion??s.engineVersion,[APPLICATION_BUILD.replace(/^SAAMAN /,''),...this.knownVersions]),
-            checkpointRecovery:this.recovery,stale:this.unavailable||!checkpoint||this.now()-s.publishedAt>=30000,...(role==='sequencer'?{lease:s.lease,preserveRunwayPlan:this.preserveRunwayPlan}:{}),results:[...this.results.values()]}
+            checkpointRecovery:this.recovery,stale:this.unavailable||!checkpoint||this.age()>=30000,publicationAgeMs:this.serverPublicationAge(),
+            ...(role==='sequencer'?{lease:s.lease,preserveRunwayPlan:this.preserveRunwayPlan}:{}),results:[...this.results.values()]}
     }
     private remember(requestId:string,receipt:Receipt){
         this.state.receipts[requestId]=receipt
@@ -125,7 +149,9 @@ export class LegacyRelay {
         this.callsign=body.callsign;this.observer=body.observer===true;this.proxy=this.deps.editorOnly===true||body.proxy===true
         if(this.observer||this.proxy||!canSequenceEssa(this.callsign)){await this.read();this.role=this.observer?'observer':'editor';return this.snapshot()}
         // Empty role forces an immediate answer; the API's normal long poll is 20 s.
-        const out=await this.deps.send('POST',this.room+'/poll',{callsign:this.callsign,role:'',version:body.revision||0,cmdAfter:0,engineVersion:body.engine?.version})
+        let timing:PublicationTiming|undefined
+        const out=await this.deps.send('POST',this.room+'/poll',{callsign:this.callsign,role:'',version:body.revision||0,cmdAfter:0,engineVersion:body.engine?.version},value=>{timing=value})
+        timing={...timing,publicationAgeMs:publicationAge(out?.publicationAgeMs)??timing?.publicationAgeMs,serverTimeMs:out?.serverTimeMs??timing?.serverTimeMs}
         if(!['sequencer','editor'].includes(out.role)||!Number.isSafeInteger(out.version))fail('Invalid vatIRIS AMAN response',502)
         let revision=out.version
         if(!out.sequence&&out.version>this.state.revision){
@@ -141,7 +167,7 @@ export class LegacyRelay {
             // a fresh sequence. First check for a real published successor.
             await this.read()
             if(this.remoteAvailable)revision=this.state.revision
-            else if(out.role==='sequencer'&&this.state.checkpoint&&this.now()-this.state.publishedAt>=0&&this.now()-this.state.publishedAt<30000){
+            else if(out.role==='sequencer'&&this.state.checkpoint&&this.age()>=0&&this.age()<30000){
                 this.recovery={kind:'legacy-empty-room',fromRevision:this.state.revision,epoch:this.state.epoch,fromTimestamp:this.state.checkpoint.snapshot.timestamp}
                 this.state.counterReset={revision:this.state.revision,publication:this.state.publication,checkpointAt:this.state.checkpoint.snapshot.timestamp,at:this.now()}
                 this.results.clear();this.commandIds.clear();this.pending.clear()
@@ -153,16 +179,18 @@ export class LegacyRelay {
                 this.unavailable=true;revision=this.state.revision
             }else{this.state=this.empty();this.recovery=undefined;this.unavailable=false}
         }
-        this.adopt(out.sequence,revision);this.state.revision=revision;this.role=out.role
+        this.adopt(out.sequence,revision,timing)
+        if(!out.sequence&&this.state.revision===out.version)this.rememberPublicationTime(this.state.publication,timing)
+        this.state.revision=revision;this.role=out.role
         this.reportedOwner=typeof out.sequencer==='string'?out.sequencer:''
-        this.reportedAt=this.now()
+        this.reportedAt=this.elapsed()
         this.reportedVersion=out.sequencerVersion
         this.knownVersions=Array.isArray(out.versions)?out.versions:[]
         this.preserveRunwayPlan=out.role==='sequencer'&&!!this.state.checkpoint&&(!!this.recovery||typeof out.handover?.callsign==='string'&&out.handover?.version===revision)
         for(const result of out.results||[])this.results.set(result.id,result)
         while(this.results.size>1000)this.results.delete(this.results.keys().next().value!)
         if(this.role==='sequencer'){
-            if(this.state.owner===this.callsign&&this.state.instanceId&&this.state.instanceId!==this.deps.instanceId&&this.now()-this.state.publishedAt<8000)fail('Another SAAMAN instance is using this EuroScope callsign')
+            if(this.state.owner===this.callsign&&this.state.instanceId&&this.state.instanceId!==this.deps.instanceId&&this.age()<8000)fail('Another SAAMAN instance is using this EuroScope callsign')
             if(this.state.owner!==this.callsign||this.state.instanceId!==this.deps.instanceId||!this.state.lease){this.state.owner=this.callsign;this.state.instanceId=this.deps.instanceId;this.state.lease=this.id()}
         }
         const commands=this.role==='sequencer'?await this.commands(out.commands||[]):[]
@@ -187,9 +215,11 @@ export class LegacyRelay {
             results.push({id,from:command.from,ok:receipt.ok,message:receipt.message});ack=id
         }
         const next={...copy(this.state),revision:body.revision+1,checkpoint:copy(body.checkpoint),publication:body.requestId,publishedAt:this.now(),engineVersion:body.engine?.version}
-        const reply=await this.deps.send('PUT',this.room,{callsign:body.callsign,sequence:{...body.sequence,saamanRelay:next},results,cmdAck:ack,expectedVersion:body.revision})
+        let timing:PublicationTiming|undefined
+        const reply=await this.deps.send('PUT',this.room,{callsign:body.callsign,sequence:{...body.sequence,saamanRelay:next},results,cmdAck:ack,expectedVersion:body.revision},value=>{timing=value})
         if(!Number.isSafeInteger(reply.version))fail('Invalid vatIRIS publication response',502)
-        this.state={...next,revision:reply.version};this.pending.clear();this.recovery=undefined;this.unavailable=false;return {revision:reply.version}
+        this.state={...next,revision:reply.version};this.rememberPublicationTime(next.publication,{...timing,publicationAgeMs:timing?.publicationAgeMs??0})
+        this.pending.clear();this.recovery=undefined;this.unavailable=false;return {revision:reply.version}
     }
     private async command(body:any){
         if(body.epoch!==this.state.epoch)fail('Shared sequence changed; reload and retry')
@@ -209,7 +239,7 @@ export class LegacyRelay {
         if(!await this.deps.supervisor(this.deps.callsign(),this.deps.cid()??undefined))fail('Supervisor access required',403)
         await this.read();const s=this.state
         const view=this.snapshot('supervisor')
-        return {epoch:view.epoch,revision:view.revision,revisionGeneration:view.revisionGeneration,authority:view.authority,settingsRevision:s.settingsRevision,settings:copy(s.settings),stale:!s.checkpoint||this.now()-s.publishedAt>=30000,
+        return {epoch:view.epoch,revision:view.revision,revisionGeneration:view.revisionGeneration,authority:view.authority,settingsRevision:s.settingsRevision,settings:copy(s.settings),stale:view.stale,publicationAgeMs:view.publicationAgeMs,
             supervision:s.checkpoint?{config:s.checkpoint.operational,edits:s.checkpoint.edits,snapshot:s.checkpoint.snapshot}:null}
     }
     private async settings(body:any){

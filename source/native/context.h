@@ -1,6 +1,7 @@
 #pragma once
 #include "json.hpp"
 #include "aircraft_highlight.h"
+#include "recent_diagnostics.h"
 #include <filesystem>
 #include <mutex>
 #include <chrono>
@@ -8,6 +9,7 @@
 namespace saaman {
 using Json=nlohmann::json;
 inline long long Now(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();}
+inline long long TickNow(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 struct Context {
     std::mutex mutex;
     std::filesystem::path directory,profile,storage;
@@ -25,6 +27,7 @@ struct Context {
     std::string instanceId;
     AircraftSelection aircraftSelection;
     AircraftHover aircraftHover;
+    RecentDiagnostics recentDiagnostics;
     bool aircraftLinkConnected=false;
     explicit Context(std::filesystem::path folder,std::filesystem::path stateFolder={});
     Json Request(const std::string& method,const Json& data,bool supervisor);

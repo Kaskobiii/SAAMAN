@@ -95,6 +95,18 @@ void Context::SeedRunwayConfig(){
 Json Context::Request(const std::string& method,const Json& data,bool supervisor){
     std::lock_guard lock(mutex);
     if(method=="host:info")return {{"shared",shared},{"backendBaseUrl",backend},{"authProvider",authProvider},{"controllerCid",controllerCid},{"relay",relay},{"instanceId",instanceId},{"view",supervisor?"supervisor":"aman"},{"test",test},{"sdkSurfaces",sdkSurfaces}};
+    if (method == "diagnostics:append") {
+        if (supervisor) throw RequestError(403, "Only the normal AMAN collects diagnostics");
+        const auto frame = data.find("frame");
+        if (frame == data.end() || !frame->contains("at") || !frame->at("at").is_number() ||
+            !frame->contains("flights") || !frame->at("flights").is_array() || frame->at("flights").size() > 500)
+            throw RequestError(400, "Invalid diagnostic frame");
+        return recentDiagnostics.Add(frame->dump());
+    }
+    if (method == "diagnostics:read") {
+        auto page = recentDiagnostics.Read(data.value("after", std::uint64_t{0}), data.value("through", std::uint64_t{0}));
+        return {{"after", page.after}, {"through", page.through}, {"complete", page.complete}, {"trimmed", page.trimmed}, {"frames", std::move(page.frames)}};
+    }
     if(method=="host:aircraft-selection")return {{"callsign",aircraftSelection.Active(AircraftLinkTick())}};
     if(method=="host:aircraft-hover"){
         const auto call=data.at("callsign").get<std::string>();
@@ -133,12 +145,19 @@ Json Context::Request(const std::string& method,const Json& data,bool supervisor
         if(!MoveFileExW(temp.c_str(),settings.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH))throw RequestError(500,"Cannot replace connection settings");
         backend=nextBackend;authProvider=nextProvider;controllerCid=nextCid;relay=nextRelay;shared=nextShared;timing.clear();if(sequence.is_object()&&!sequence.empty()){sequence["sequence"]=Json::array();sequence["data"]["source"]="MODE CHANGE";sequence["data"]["timestamp"]=Now()/1000;}timingAt=0;return {{"shared",shared},{"changed",true}};
     }
-    if(method=="telemetry:get"){if(telemetry.value("source","")=="Waiting for EuroScope"||captureSuccessAt&&Now()-captureSuccessAt>10000)throw RequestError(503,captureError.empty()?"Waiting for a fresh EuroScope telemetry update":"EuroScope telemetry capture failed: "+captureError);return telemetry;}
+    if(method=="telemetry:get"){
+        const auto age=captureSuccessAt?TickNow()-captureSuccessAt:0LL;
+        if(telemetry.value("source","")=="Waiting for EuroScope"||age>10000)throw RequestError(503,captureError.empty()?"Waiting for a fresh EuroScope telemetry update":"EuroScope telemetry capture failed: "+captureError);
+        auto result=telemetry;
+        if(captureSuccessAt)result["captureAgeMs"]=age;
+        return result;
+    }
     if(method=="plan:get")return plan;
     if(method=="plan:init"){if(plan["config"].is_null())plan["config"]=data.at("config");MigrateConfig(plan["config"]);SeedRunwayConfig();return true;}
     if(method=="timing:set"){
         const auto generated=data.at("generatedAt").get<long long>();
-        if(data.at("airport")!="ESSA"||std::abs(Now()-generated)>15000||!data.at("flights").is_array()||data.at("flights").size()>500)throw RequestError(400,"Invalid or stale guidance");
+        const auto age=Now()-generated;
+        if(data.at("airport")!="ESSA"||std::abs(age)>15000||!data.at("flights").is_array()||data.at("flights").size()>500)throw RequestError(400,"Invalid or stale guidance");
         Json next=Json::object();
         for(const auto& flight:data.at("flights")){const auto call=flight.at("callsign").get<std::string>();const auto value=MaestroInstructionSeconds(flight);if(call.empty()||call.size()>16||!value)throw RequestError(400,"Invalid instruction");next[call]=*value;}
         Json native=data.value("nativeSequence",Json());
@@ -146,7 +165,7 @@ Json Context::Request(const std::string& method,const Json& data,bool supervisor
         timing=std::move(next);
         if(native.is_object())sequence=std::move(native);
         else if(sequence.is_object()&&!sequence.empty()){sequence["sequence"]=Json::array();sequence["data"]["source"]="EMPTY";sequence["data"]["timestamp"]=Now()/1000;}
-        timingAt=generated;return true;
+        timingAt=TickNow()-std::max(0LL,age);return true;
     }
     if(shared&&method.rfind("plan:",0)==0)throw RequestError(403,"Shared plans must be saved through the authenticated backend");
     if(method=="plan:claim"){if(supervisor)throw RequestError(403,"Supervision cannot take MASTER");plan["masterCid"]=data.value("release",false)?Json():Json(0);return true;}

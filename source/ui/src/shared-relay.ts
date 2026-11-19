@@ -8,11 +8,12 @@ import {COORDINATION_MESSAGES,validateCoordinations} from './maestro-coordinatio
 import {isTowerCallsign} from './callsign-identity'
 import {sharedRecordingContext} from './shared-recording-context'
 import type {RecordingContext} from './maestro-recording'
+import {publicationAge} from './shared-clock'
 
 export interface RelayOptions { network:'live'|'sweatbox1'|'sweatbox2';session:string;channel:string;instanceId:string }
 type Plan = {epoch:string;revision:number;revisionGeneration?:string;config:EngineConfig;edits:Record<string,FlightEdit>;snapshot:EngineSnapshot|null;masterCid:number|null;relayRole:string;stale:boolean;sequencerWarning?:string;recordingContext?:RecordingContext}
 type Send = (method:string,path:string,body?:any)=>Promise<any>
-export interface RelayDependencies {send:Send;telemetry:()=>Promise<any>;cid:()=>number|null;compactPublication?:()=>boolean;editorOnly?:boolean;now?:()=>number;requestId?:()=>string}
+export interface RelayDependencies {send:Send;telemetry:()=>Promise<any>;cid:()=>number|null;compactPublication?:()=>boolean;editorOnly?:boolean;now?:()=>number;elapsed?:()=>number;wallNow?:()=>number;serverClockReady?:()=>boolean;requestId?:()=>string}
 const copy=<T>(v:T):T=>structuredClone(v)
 const canonical=(v:any):string=>JSON.stringify(v===undefined?null:v)
 const ops=(config:EngineConfig)=>Object.fromEntries(OPERATIONAL_KEYS.filter(k=>config[k]!==undefined).map(k=>[k,config[k]]))
@@ -40,18 +41,24 @@ export class SharedRelay {
     private pendingCommand:any=null
     private busy:Promise<any>|null=null
     private lastUpdated=0
+    private receiptAge:{age:number;at:number}|undefined
     private stopped=false
     private now:()=>number
+    private elapsed:()=>number
+    private wallNow:()=>number
     private id:()=>string
     constructor(readonly options:RelayOptions,private deps:RelayDependencies){
         for(const value of [options.session,options.channel])if(!/^[a-z0-9][a-z0-9_-]{0,47}$/.test(value))fail('Use letters, numbers, hyphens or underscores for the exercise and room',400)
         if(!['live','sweatbox1','sweatbox2'].includes(options.network))fail('Select a valid network',400)
         this.room=`/aman/rooms/${options.network}/ESSA/${options.session}/${options.channel}`
-        this.now=deps.now||Date.now;this.id=deps.requestId||(()=>crypto.randomUUID())
+        this.now=deps.now||Date.now;this.elapsed=deps.elapsed??this.now;this.wallNow=deps.wallNow??this.now
+        this.id=deps.requestId||(()=>crypto.randomUUID())
     }
     private identity(){return {instanceId:this.options.instanceId,callsign:this.callsign,engine:{name:'saaman',version:APPLICATION_BUILD.replace(/^SAAMAN /,''),schema:'saaman-1.1.9'},observer:this.observer||isTowerCallsign(this.callsign),...(this.proxy?{proxy:true}:{})}}
     private remember(){this.history.set(this.plan.revision,copy(this.plan));while(this.history.size>24)this.history.delete(this.history.keys().next().value!)}
-    view(){const stale=this.plan.stale||this.now()-this.lastUpdated>=30000;return {...copy(this.plan),recordingContext:this.plan.recordingContext?{...copy(this.plan.recordingContext),stale}:undefined,snapshot:stale?null:copy(this.plan.snapshot)}}
+    private knownAge(){return this.receiptAge?this.receiptAge.age+Math.max(0,this.elapsed()-this.receiptAge.at):undefined}
+    private trackAge(data:any){const age=publicationAge(data.publicationAgeMs);this.receiptAge=age===undefined?undefined:{age,at:this.elapsed()}}
+    view(){const age=this.knownAge(),stale=this.plan.stale||(age??this.now()-this.lastUpdated)>=30000;return {...copy(this.plan),stale,snapshotAgeMs:age,recordingContext:this.plan.recordingContext?{...copy(this.plan.recordingContext),stale}:undefined,snapshot:stale?null:copy(this.plan.snapshot)}}
     private serial<T>(action:()=>Promise<T>):Promise<T>{
         const prior=this.busy||Promise.resolve()
         const job=prior.catch(()=>{}).then(action)
@@ -62,13 +69,13 @@ export class SharedRelay {
     private accept(data:any){
         if(typeof data.epoch!=='string'||!Number.isSafeInteger(data.revision))fail('Invalid backend room response',502)
         const reset=this.plan.epoch!==data.epoch
-        const saved=this.plan.snapshot,age=saved?this.now()-saved.timestamp:Infinity
+        const saved=this.plan.snapshot,age=saved?this.knownAge()??this.now()-saved.timestamp:Infinity
         const recovery=data.checkpointRecovery
         // The callsign API has no server epoch. Its adapter can recover a
         // fresh, already accepted checkpoint after the server reports an empty
         // room, but only for the controller it has elected as sequencer.
         const confirmed=this.history.get(this.plan.revision)?.snapshot??saved
-        const checkpointAge=data.checkpoint?.snapshot?this.now()-data.checkpoint.snapshot.timestamp:Infinity
+        const checkpointAge=data.checkpoint?.snapshot?publicationAge(data.publicationAgeMs)??this.now()-data.checkpoint.snapshot.timestamp:Infinity
         const restore=!reset&&!!confirmed&&data.checkpoint?.schema==='saaman-1.1.9'&&
             recovery?.fromRevision===this.plan.revision&&recovery?.epoch===this.plan.epoch&&
             (data.role==='sequencer'&&data.revision===0&&recovery.kind==='legacy-empty-room'&&age>=0&&age<30000&&
@@ -106,7 +113,7 @@ export class SharedRelay {
         this.plan.sequencerWarning=typeof data.sequencerWarning==='string'?data.sequencerWarning:''
         this.plan.recordingContext=sharedRecordingContext(this.room.replace('/aman/rooms/',''),data)
         this.lease=data.lease||'';this.commands=data.commands||[]
-        this.lastUpdated=data.updated||0;this.plan.stale=data.stale===true
+        this.lastUpdated=data.updated||0;this.trackAge(data);this.plan.stale=data.stale===true
         this.remember()
     }
     private async pollRoom(force=false){
@@ -114,9 +121,11 @@ export class SharedRelay {
         this.accept(result)
     }
     private async telemetry(){
-        const raw=await this.deps.telemetry(),t=validateTelemetry(raw,this.now())
+        const raw=await this.deps.telemetry(),capturedAt=this.elapsed(),wallNow=this.wallNow()
+        const age=publicationAge(raw.captureAgeMs)??wallNow-raw.timestamp
+        const t=validateTelemetry(raw,raw.timestamp+age)
         if(raw.connected===false)fail('Connect EuroScope before joining a shared room',503)
-        if(Math.abs(this.now()-t.timestamp)>30000)fail('EuroScope telemetry is stale',503)
+        if(Math.abs(age)>30000)fail('EuroScope telemetry is stale',503)
         const callsign=String(t.source).toUpperCase()
         if(!/^[A-Z0-9_-]{1,20}$/.test(callsign)||callsign==='OFFLINE'||callsign==='DEMO')fail('Connect EuroScope before joining a shared room',503)
         this.callsign=callsign
@@ -126,7 +135,16 @@ export class SharedRelay {
         if(proxy!==this.proxy)this.pendingPublish=null
         this.proxy=proxy
         if(isTowerCallsign(callsign)){this.pendingCommand=null;this.pendingPublish=null}
-        return t
+        return {telemetry:t,age,capturedAt}
+    }
+    private normalizeTelemetry({telemetry,age,capturedAt}:Awaited<ReturnType<SharedRelay['telemetry']>>):Telemetry{
+        if(!this.deps.serverClockReady?.())return telemetry
+        const elapsed=this.elapsed()-capturedAt
+        if(age+elapsed>30000)fail('EuroScope telemetry is stale',503)
+        const timestamp=this.now()-Math.round(age+elapsed)
+        const shift=timestamp-telemetry.timestamp
+        const winds=telemetry.winds&&Object.fromEntries(Object.entries(telemetry.winds).map(([station,wind])=>[station,{...wind,timestamp:wind.timestamp+shift}]))
+        return {...telemetry,timestamp,winds}
     }
     private applyCommand(command:any){
         const known=this.applied[String(command.id)];if(known)return known
@@ -193,7 +211,7 @@ export class SharedRelay {
         this.pendingPublish={...this.identity(),epoch:this.plan.epoch,revision:this.plan.revision,lease:this.lease,settingsRevision:this.settingsRevision,requestId:this.id(),sequence:toJuhaSequence(this.plan.snapshot,this.plan.config,this.plan.edits),checkpoint,results,
             supervision:this.deps.compactPublication?.()===true?{sameAsCheckpoint:true}:{config:ops(this.plan.config),edits:this.plan.edits,snapshot:this.plan.snapshot}}
         const result=await this.deps.send('PUT',this.room,this.pendingPublish)
-        this.plan.revision=result.revision;this.lastUpdated=this.now();this.plan.stale=false
+        this.plan.revision=result.revision;this.lastUpdated=this.now();this.receiptAge={at:this.elapsed(),age:0};this.plan.stale=false
         this.plan.recordingContext={...this.plan.recordingContext!,room:this.plan.recordingContext?.room??this.room.replace('/aman/rooms/',''),epoch:this.plan.epoch,revisionGeneration:this.plan.revisionGeneration,revision:this.plan.revision,role:this.plan.relayRole,stale:false,recovery:'none',publisher:this.callsign,publisherVersion:APPLICATION_BUILD.replace(/^SAAMAN /,'')}
         this.pendingPublish=null;this.commands=[];this.remember()
     }
@@ -202,7 +220,7 @@ export class SharedRelay {
         try{
             const telemetry=await this.telemetry()
             await this.pollRoom()
-            if(!this.proxy&&!this.observer&&!isTowerCallsign(this.callsign)&&this.plan.relayRole==='sequencer')await this.publish(telemetry)
+            if(!this.proxy&&!this.observer&&!isTowerCallsign(this.callsign)&&this.plan.relayRole==='sequencer')await this.publish(this.normalizeTelemetry(telemetry))
             if(this.pendingCommand){
                 let response:any
                 try{response=await this.deps.send('POST',this.room+'/command',this.pendingCommand)}catch(e:any){if((e.status||e.response?.status)===409)this.pendingCommand=null;throw e}
@@ -210,7 +228,10 @@ export class SharedRelay {
                 return {...this.view(),commandId:response.id}
             }
             return this.view()
-        }catch(e:any){this.plan.stale=true;throw e}
+        }catch(e:any){
+            if(this.knownAge()===undefined||e.retryableTransport!==true)this.plan.stale=true
+            throw e
+        }
     }
     tick(){return this.serial(()=>this.cycle())}
     setObserver(observer:boolean){return this.serial(async()=>{this.observer=observer;this.pendingPublish=null;await this.telemetry();await this.pollRoom();return this.view()})}
@@ -218,7 +239,7 @@ export class SharedRelay {
         if(this.pendingCommand)fail('A previous command is awaiting delivery; check the room before retrying')
         if((message===undefined)===(acknowledge===undefined)||message!==undefined&&!(COORDINATION_MESSAGES as readonly string[]).includes(message))fail('Select a valid coordination message',400)
         await this.telemetry();await this.pollRoom()
-        if(this.deps.editorOnly&&this.view().stale)fail('Waiting for a fresh shared sequence',503)
+        if((this.deps.editorOnly||this.deps.serverClockReady?.())&&this.view().stale)fail('Waiting for a fresh shared sequence',503)
         if(isTowerCallsign(this.callsign))fail('Tower positions are observers only',403)
         const command=message!==undefined?{op:'coordination',action:'send',message:{id:this.id(),message,sender:this.options.instanceId,senderCallsign:this.callsign,at:this.now(),acknowledgedBy:[this.options.instanceId]}}:{op:'coordination',action:'ack',id:acknowledge,operator:this.options.instanceId}
         this.pendingCommand={...this.identity(),epoch:this.plan.epoch,revision:this.plan.revision,requestId:this.id(),cmd:command}
@@ -248,8 +269,8 @@ export class SharedRelay {
         const difference=(before:any,after:any,keys:string[])=>keys.filter(k=>canonical(before[k])!==canonical(after[k])).map(key=>({key,before:before[key]??null,after:after[key]??null}))
         const changes={op:'plan',...(takeSequencer&&!this.deps.editorOnly?{takeSequencer:true}:{}),edits:difference(base.edits,edits,[...new Set([...Object.keys(base.edits),...Object.keys(edits)])]),operational:difference(base.config,config,[...OPERATIONAL_KEYS])}
         await this.pollRoom()
-        if(this.deps.editorOnly&&this.view().stale)fail('Waiting for a fresh shared sequence',503)
-        if(this.deps.editorOnly&&(base.epoch!==this.plan.epoch||(base.revisionGeneration??base.epoch)!==(this.plan.revisionGeneration??this.plan.epoch)))fail('Shared sequence reset; reload and retry',409)
+        if((this.deps.editorOnly||this.deps.serverClockReady?.())&&this.view().stale)fail('Waiting for a fresh shared sequence',503)
+        if((this.deps.editorOnly||this.deps.serverClockReady?.())&&(base.epoch!==this.plan.epoch||(base.revisionGeneration??base.epoch)!==(this.plan.revisionGeneration??this.plan.epoch)))fail('Shared sequence reset; reload and retry',409)
         this.pendingCommand={...this.identity(),epoch:this.plan.epoch,revision:this.plan.revision,requestId:this.id(),cmd:changes}
         let response:any
         try{response=await this.deps.send('POST',this.room+'/command',this.pendingCommand);this.pendingCommand=null}
@@ -270,7 +291,7 @@ export class SharedRelay {
         const detail=data.supervision
         this.settings=data.settings||{};this.settingsRevision=data.settingsRevision
         this.plan={...this.plan,epoch:data.epoch,revision:data.revision,revisionGeneration:typeof data.revisionGeneration==='string'?data.revisionGeneration:data.epoch,config:configuration(detail?.config,this.settings),edits:validateEdits(detail?.edits||{}),snapshot:detail?.snapshot||null,stale:data.stale,relayRole:'supervisor',recordingContext:sharedRecordingContext(this.room.replace('/aman/rooms/',''),{...data,role:'supervisor'})}
-        this.lastUpdated=detail?.snapshot?.timestamp||0
+        this.lastUpdated=detail?.snapshot?.timestamp||0;this.trackAge(data)
         return this.view()
     }
     async saveSettings(revision:number,settings:Record<string,unknown>){

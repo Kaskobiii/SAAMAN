@@ -6,7 +6,35 @@
 #include "controller_key.h"
 #include <iostream>
 #define CHECK(expr) do {if(!(expr))throw std::runtime_error(#expr);}while(false)
+void CheckRecentDiagnostics() {
+    using Diagnostics = saaman::RecentDiagnostics;
+    const Diagnostics::Clock::time_point started;
+    Diagnostics history;
+    for (std::size_t i = 0; i < 49; ++i) CHECK(history.Add("frame", started));
+    const auto first = history.Read(0, 0, started);
+    CHECK(first.after == 48); CHECK(first.through == 49); CHECK(!first.complete);
+    CHECK(history.Add("new frame", started));
+    const auto last = history.Read(first.after, first.through, started);
+    CHECK(last.after == 49); CHECK(last.complete); CHECK(last.frames.size() == 1);
+    CHECK(history.Read(0, 0, started + Diagnostics::Retention).frames.empty());
+    CHECK(history.Read(first.after, first.through, started + Diagnostics::Retention).trimmed);
+
+    const std::string large(Diagnostics::PageLimit, 'a');
+    CHECK(!history.Add(large + 'a', started + Diagnostics::Retention));
+    for (std::size_t i = 0; i <= Diagnostics::ByteLimit / Diagnostics::PageLimit; ++i)
+        CHECK(history.Add(large, started + Diagnostics::Retention));
+    const auto limited = history.Read(0, 0, started + Diagnostics::Retention);
+    CHECK(limited.frames.size() == 1); CHECK(limited.after == 52);
+    CHECK(!limited.complete);
+
+    Diagnostics many;
+    for (std::size_t i = 0; i <= Diagnostics::FrameLimit; ++i) CHECK(many.Add("small", started));
+    const auto bounded = many.Read(0, 0, started);
+    CHECK(bounded.through == Diagnostics::FrameLimit + 1);
+    CHECK(bounded.after == bounded.frames.size() + 1);
+}
 int RunTests(int argc,wchar_t** argv){
+    CheckRecentDiagnostics();
     CHECK(saaman::AircraftLinkCallsign(""));CHECK(saaman::AircraftLinkCallsign("SAS123"));CHECK(saaman::AircraftLinkCallsign("N-TEST_1"));
     for(const auto* invalid:{"A","sas123","SAS 123","<script>","ABCDEFGHIJKLMNOPQ"})CHECK(!saaman::AircraftLinkCallsign(invalid));
     saaman::AircraftHover hover;CHECK(hover.Active(1000).empty());hover.Set("SAS123",1000);CHECK(hover.Active(1000)=="SAS123");CHECK(hover.Active(3500)=="SAS123");CHECK(hover.Active(3501).empty());CHECK(hover.Active(999).empty());
@@ -70,6 +98,14 @@ int RunTests(int argc,wchar_t** argv){
     hold.Command("SAS123","/XHOLD/",11000);CHECK(hold.Observe("SAS123","/XHOLD/","h/ELTOK/h",12000).empty());
     hold.Clear();CHECK(hold.Observe("SAS123","","",13000).empty());
     if(argc!=2)return 2;std::filesystem::create_directories(argv[1]);saaman::Context context(argv[1]);context.shared=false;context.plan={{"revision",0},{"config",nullptr},{"edits",saaman::Json::object()},{"snapshot",nullptr},{"masterCid",nullptr}};
+    const saaman::Json frame={{"at",1},{"flights",saaman::Json::array()}};
+    CHECK(context.Request("diagnostics:append",{{"frame",frame}},false)==true);
+    const auto evidence=context.Request("diagnostics:read",saaman::Json::object(),true);
+    CHECK(evidence["complete"]==true);CHECK(evidence["frames"].size()==1);
+    CHECK(saaman::Json::parse(evidence["frames"][0].get<std::string>())==frame);
+    bool diagnosticsDenied=false;
+    try{context.Request("diagnostics:append",{{"frame",frame}},true);}catch(const saaman::RequestError& e){diagnosticsDenied=e.status==403;}
+    CHECK(diagnosticsDenied);
     const auto planBeforeHover=context.plan;const auto telemetryBeforeHover=context.telemetry;
     CHECK(context.Request("host:aircraft-selection",saaman::Json::object(),false)["callsign"]=="");
     context.aircraftSelection.Observe("SAS123",saaman::AircraftLinkTick());CHECK(context.Request("host:aircraft-selection",saaman::Json::object(),false)["callsign"]=="SAS123");

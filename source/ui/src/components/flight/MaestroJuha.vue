@@ -5,6 +5,7 @@ import {APPLICATION_BUILD} from '@/build'
 import MaestroInformation from './MaestroInformation.vue'
 import {recomputeFlightEdits,reinsertRecoveryEdits,gainDragEdits,dragTargetTime,swapFlightEdits,insertRelative,maximumDelayEdits,manualTransferSeconds,instructionColor,zulu,COORDINATION_MESSAGES} from '@/maestro-operations'
 import {nativeRequest} from '@/native-rpc'
+import {exportRecentDiagnostics} from '@/native-diagnostics'
 import {useAircraftHighlight} from '@/use-aircraft-highlight'
 import {createAutomaticNoticeFeed} from '@/maestro-automatic-notices'
 import type {AutomaticCorrection} from '@/maestro-engine'
@@ -16,6 +17,7 @@ import {sharedSettings} from '@/maestro-settings'
 import {feederCoverage,type ControllerPresence} from '@/maestro-feeder-coverage'
 import {saveConnectionSettings} from '@/maestro-connection'
 import {isTowerCallsign} from '@/callsign-identity'
+import {elapsedNow,operationNow} from '@/shared-clock'
 
 import {STAR_PROFILES,STAR_SOURCE} from '@/maestro-star-prediction'
 import {recoveryIafOptions,type RecoveryEntry} from '@/maestro-recovery'
@@ -53,14 +55,17 @@ const config = ref<EngineConfig>(structuredClone(DEFAULT_CONFIG))
 const edits = ref<Record<string, FlightEdit>>({})
 const sequence = ref<EngineSnapshot | null>(null)
 
-const now = ref(Date.now())
+const clockNow=()=>demo.value?Date.now():operationNow()
+const now = ref(operationNow())
 const demo = ref(false)
 const view = ref('Runway')
 const revision = ref(-1)
 const masterCid = ref<number | null>(null)
 const sharedRole=ref('disconnected')
 const sequencerWarning=ref('')
-const backendContact=ref(0)
+const backendContact=ref(-Infinity)
+const elapsed=ref(elapsedNow())
+const snapshotReceipt=ref<{age:number;at:number}>()
 let relayEpoch=''
 let relayRevisionGeneration=''
 const busy = ref(false)
@@ -85,6 +90,15 @@ watch(sequence,s=>{
 })
 onUnmounted(()=>clearTimeout(automaticNoticeTimer))
 const menu = ref('')
+const exportingDiagnostics=ref(false)
+const diagnosticsExportMessage=ref('')
+async function downloadRecentDiagnostics(){
+    exportingDiagnostics.value=true
+    diagnosticsExportMessage.value=''
+    try{await exportRecentDiagnostics();menu.value=''}
+    catch(e){diagnosticsExportMessage.value=e instanceof Error?e.message:'Recent diagnostics could not be read'}
+    finally{exportingDiagnostics.value=false}
+}
 const selected = ref('')
 const {selectedCallsign:radarSelected,hoveredCallsign:radarHovered,hover:highlightRadar,leave:leaveRadar,clear:clearRadarHover}=useAircraftHighlight()
 const placementSelection=ref('')
@@ -165,7 +179,7 @@ const popupPosition = reactive({ x: 10, y: 80 })
 const popupElement = ref<HTMLElement>()
 const popupAnchor = reactive<{x:number;y:number;labelLeft:number|null}>({x:10,y:80,labelLeft:null})
 const applyMinutes=ref(0)
-const applyBaseTime=ref(Math.floor(Date.now()/60000)*60000)
+const applyBaseTime=ref(Math.floor(operationNow()/60000)*60000)
 const applyAt=computed(()=>applyBaseTime.value+applyMinutes.value*60000)
 const draftRateSeconds=ref(95)
 const draftRatePerHour=computed({
@@ -235,8 +249,8 @@ let timer: ReturnType<typeof setInterval>
 let pollingTimer: ReturnType<typeof setInterval>
 let demoEpoch = Date.now()
 const isMaster = computed(() => demo.value || (localPreview && masterCid.value === 0) || masterCid.value === Number(auth.user?.cid))
-const stale = computed(() => !sequence.value || now.value - sequence.value.timestamp > 30000)
-const backendLive=computed(()=>nativeInfo.shared!==false&&!localPreview&&!demo.value&&auth.ready&&sharedRole.value!=='disconnected'&&!stale.value&&now.value-backendContact.value<15000)
+const stale = computed(() => !sequence.value || (snapshotReceipt.value?snapshotReceipt.value.age+Math.max(0,elapsed.value-snapshotReceipt.value.at):now.value-sequence.value.timestamp)>30000)
+const backendLive=computed(()=>nativeInfo.shared!==false&&!localPreview&&!demo.value&&auth.ready&&sharedRole.value!=='disconnected'&&!stale.value&&elapsed.value-backendContact.value<15000)
 const towerController=computed(()=>isTowerCallsign(auth.user?.callsign||localCoverage.value.own.callsign||''))
 const editable = computed(() => !towerController.value&&(demo.value||localPreview?isMaster.value:auth.ready&&['sequencer','editor'].includes(sharedRole.value)) && !busy.value && !stale.value)
 const all = computed(() => (sequence.value?.flights || []).filter(f=>f.arrival==='ESSA'))
@@ -413,7 +427,8 @@ function refreshDemo(force = false) {
 }
 function headers() { return localPreview ? {} : auth.requestHeaders }
 function receive(data: any) {
-    backendContact.value=data.relayRole&&data.relayRole!=='disconnected'?Date.now():0
+    now.value=clockNow();elapsed.value=elapsedNow()
+    if(!data.relayError)backendContact.value=data.relayRole&&data.relayRole!=='disconnected'?elapsed.value:-Infinity
     if(data.epoch&&relayEpoch!==data.epoch){relayEpoch=data.epoch;relayRevisionGeneration='';revision.value=-1;coordinationBaseline.value=null}
     // A validated shared recovery can restart the backend's counter while
     // retaining the room and aircraft history. Accept its first revision once.
@@ -421,6 +436,7 @@ function receive(data: any) {
         relayRevisionGeneration=data.revisionGeneration;revision.value=-1
     }
     if (data.revision < revision.value) return
+    snapshotReceipt.value=Number.isFinite(data.snapshotAgeMs)?{age:data.snapshotAgeMs,at:elapsed.value}:undefined
     revision.value = data.revision; config.value = data.config; edits.value = data.edits
     if(coordinationBaseline.value===null)coordinationBaseline.value=new Set((data.config?.coordinations??[]).map((m:any)=>m.id))
     sequence.value = data.snapshot; masterCid.value = data.masterCid
@@ -428,7 +444,7 @@ function receive(data: any) {
     sequencerWarning.value=typeof data.sequencerWarning==='string'?data.sequencerWarning:''
 }
 async function poll() {
-    now.value = Date.now()
+    now.value = clockNow();elapsed.value=elapsedNow()
     if(engineMismatch.value&&!demo.value)return
     if(timeScroll.value||drag.value||settling.value||gapDrag.value||gapSettling.value||selectionDrag.value)return
     if (demo.value) { refreshDemo(); return }
@@ -446,7 +462,10 @@ async function poll() {
             receive((await axios.post(`${apiBase}/maestro/ESSA/telemetry`, telemetry, { headers: headers(), timeout: 7000 })).data)
         } else receive((await axios.get(`${apiBase}/maestro/ESSA`, { headers: headers(), timeout: 7000 })).data)
         error.value = ''
-    } catch (e: any) { backendContact.value=0;error.value = e.response?.data?.error || e.message || 'Shared AMAN unavailable' }
+    } catch (e: any) {
+        if(e.retryableTransport!==true){backendContact.value=-Infinity;if(!localPreview)sequence.value=null}
+        error.value = e.response?.data?.error || e.message || 'Shared AMAN unavailable'
+    }
     finally { polling.value = false }
     if (bridge.value) await publishTiming()
 }
@@ -501,7 +520,11 @@ async function chooseMode(mode: string,automatic=false) {
 }
 function relayChanged(event:Event){
     const data=(event as CustomEvent).detail
-    if(data.relayError){sequence.value=null;error.value=data.relayError;return}
+    if(data.relayError){
+        error.value=data.relayError
+        if(!data.retryableTransport||!data.snapshot){sequence.value=null;backendContact.value=-Infinity}
+        return
+    }
     if(!demo.value&&!drag.value&&!gapDrag.value&&!settling.value&&!gapSettling.value){receive(data);if(bridge.value)void publishTiming()}
 }
 function openDialog(name: string) {
@@ -827,14 +850,14 @@ onMounted(() => {
     window.addEventListener('saaman-pulse',nativePulse)
     window.addEventListener('saaman-relay',relayChanged)
     void refreshCoverage();void chooseMode('MASTER',true)
-    timer = setInterval(() => now.value = Date.now(), 1000)
+    timer = setInterval(() => {now.value=clockNow();elapsed.value=elapsedNow()}, 1000)
     pollingTimer = setInterval(()=>{void refreshCoverage();void poll()}, 3000)
     resizeObserver = new ResizeObserver(entries => {plotHeight.value=Math.max(200,entries[0].contentRect.height-28);plotWidth.value=Math.max(200,scrollElement.value?.clientWidth??entries[0].contentRect.width-19);void nextTick(()=>{fitPopup();fitDialog()})})
     if (displayElement.value) resizeObserver.observe(displayElement.value)
     window.addEventListener('keydown',cancelPlacement);window.addEventListener('pointermove',pointerMove,true);window.addEventListener('pointerup',pointerUp,true);window.addEventListener('pointercancel',pointerCancel,true)
 })
 function nativePulse(){void refreshCoverage();void poll()}
-function resumeBrowser(){if(browserEditor&&document.visibilityState!=='hidden'){now.value=Date.now();backendContact.value=0;void refreshCoverage();void poll()}}
+function resumeBrowser(){if(browserEditor&&document.visibilityState!=='hidden'){now.value=clockNow();elapsed.value=elapsedNow();backendContact.value=-Infinity;void refreshCoverage();void poll()}}
 onMounted(()=>{if(browserEditor){document.addEventListener('visibilitychange',resumeBrowser);window.addEventListener('focus',resumeBrowser)}})
 onUnmounted(()=>{document.removeEventListener('visibilitychange',resumeBrowser);window.removeEventListener('focus',resumeBrowser)})
 onUnmounted(() => { window.removeEventListener('saaman-coordination-ack',nativeCoordinationAck);window.removeEventListener('beforeunload',closeCoordinationPopup);closeCoordinationPopup();window.removeEventListener('saaman-relay',relayChanged);window.removeEventListener('saaman-pulse',nativePulse);clearTimeout(scrollAnimationTimer);clearInterval(timer); clearInterval(pollingTimer); resizeObserver?.disconnect();window.removeEventListener('keydown',cancelPlacement);window.removeEventListener('pointermove',pointerMove,true);window.removeEventListener('pointerup',pointerUp,true);window.removeEventListener('pointercancel',pointerCancel,true) })
@@ -921,7 +944,7 @@ async function acknowledgeCoordination(){const m=pendingCoordination.value;if(m)
         <span><span v-for="notice in automaticNotices" :key="notice.id" class="automatic-notice-line">{{notice.callsign}} — {{notice.detail}}</span></span><button type="button" aria-label="Dismiss automatic correction notice" @click.stop="dismissAutomaticNotices">×</button>
     </div>
     <Teleport :to="globalTarget||'body'" :disabled="!globalTarget">
-    <div v-if="menu==='maestro'" class="popup global-menu" ><div class="menu-title" @pointerdown="globalSurface.startDrag">MAESTRO<button @click="menu=''">×</button></div><button v-if="!browserEditor" @click="openDialog('setup')">ESSA · Operation mode</button><button @click="openDialog('feeders')">ACC feeders</button><small class="build-version">{{applicationBuild}}</small></div>
+    <div v-if="menu==='maestro'" class="popup global-menu" ><div class="menu-title" @pointerdown="globalSurface.startDrag">MAESTRO<button @click="menu=''">×</button></div><button v-if="!browserEditor" @click="openDialog('setup')">ESSA · Operation mode</button><button @click="openDialog('feeders')">ACC feeders</button><button v-if="!browserEditor" :disabled="exportingDiagnostics" @click="downloadRecentDiagnostics">{{exportingDiagnostics?'Exporting…':'Export recent diagnostics'}}</button><small v-if="diagnosticsExportMessage" role="status">{{diagnosticsExportMessage}}</small><small class="build-version">{{applicationBuild}}</small></div>
     </Teleport>
     <div class="display" ref="displayElement">
         <div class="time-overview" role="scrollbar" aria-label="Arrival overview — scroll timeline in time" aria-orientation="vertical" aria-controls="aman-timeline" :aria-valuemin="-60" :aria-valuemax="120" :aria-valuenow="clockOffset" :aria-valuetext="`${clockOffset} minutes from now`" tabindex="0" @pointerdown="startTimeScroll" @keydown="scrollTimeKey" @dblclick="clockOffset=0">

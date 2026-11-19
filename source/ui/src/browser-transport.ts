@@ -1,6 +1,7 @@
 import {browserConnection,createBrowserSession,type BrowserConnection} from './browser-session'
 import {configureNativeRequestHandler} from './native-rpc'
 import {installNativeTransport} from './native-transport'
+import {elapsedNow} from './shared-clock'
 
 export interface BrowserCoordination {message:{id:string;message:string;senderCallsign?:string;at:number}|null;enabled?:boolean;busy?:boolean;status?:string}
 let installed=false
@@ -17,7 +18,7 @@ async function controllerFeed(){
 
 export async function installBrowserTransport(connection:BrowserConnection,onCoordination:(value:BrowserCoordination)=>void){
  if(installed)throw Object.assign(new Error('Reload the browser to change its connection'),{reloadRequired:true})
- const session=createBrowserSession(browserConnection(connection),{controllers:controllerFeed})
+ const session=createBrowserSession(browserConnection(connection),{controllers:controllerFeed,elapsed:elapsedNow})
  await session.identity()
  configureNativeRequestHandler(async(method,data)=>{
   if(method==='host:info')return session.hostInfo()

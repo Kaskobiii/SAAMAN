@@ -14,13 +14,14 @@ export class CallsignIdentity {
     private feedAt=0
     private manuallyConnectedCallsign=''
     private lastConnectedCallsign=''
-    constructor(private deps:{network:string;cid?:number;now:()=>number;telemetry:()=>Promise<any>;controllers:()=>Promise<any>;changed:(identity:ControllerIdentity|undefined)=>void}){}
+    constructor(private deps:{network:string;cid?:number;now:()=>number;elapsed?:()=>number;telemetry:()=>Promise<any>;controllers:()=>Promise<any>;changed:(identity:ControllerIdentity|undefined)=>void}){}
+    private elapsed(){return this.deps.elapsed?.()??this.deps.now()}
     private async feed(){
-        if(!this.feedAt||this.deps.now()-this.feedAt>=15000){
+        if(!this.feedAt||this.elapsed()-this.feedAt>=15000){
             const response=await this.deps.controllers()
             if(!Array.isArray(response?.controllers))throw new Error('Invalid VATSIM controller feed')
             this.controllers=response.controllers.filter((c:any)=>c.facility>0&&Number.isSafeInteger(c.cid)&&c.cid>=1000&&typeof c.callsign==='string').map((c:any)=>({cid:c.cid,callsign:c.callsign.toUpperCase()}))
-            this.feedAt=this.deps.now()
+            this.feedAt=this.elapsed()
         }
         return this.controllers
     }
@@ -34,7 +35,8 @@ export class CallsignIdentity {
         this.running=true
         try{
             const raw=await this.deps.telemetry(),now=this.deps.now(),callsign=String(raw.source||'').trim().toUpperCase()
-            if(raw.connected!==true||!Number.isFinite(raw.timestamp)||Math.abs(now-raw.timestamp)>10000||!/^[A-Z0-9_-]{1,20}$/.test(callsign)||['OFFLINE','DEMO'].includes(callsign))throw new Error('Waiting for a connected EuroScope callsign')
+            const age=Number.isFinite(raw.captureAgeMs)&&raw.captureAgeMs>=0?raw.captureAgeMs:Math.abs(now-raw.timestamp)
+            if(raw.connected!==true||!Number.isFinite(raw.timestamp)||age>10000||!/^[A-Z0-9_-]{1,20}$/.test(callsign)||['OFFLINE','DEMO'].includes(callsign))throw new Error('Waiting for a connected EuroScope callsign')
             if(callsign!==this.lastConnectedCallsign){this.lastConnectedCallsign=callsign;this.manuallyConnectedCallsign=''}
             if(manual)this.manuallyConnectedCallsign=callsign
             if(!canAutoConnectShared(callsign)&&this.manuallyConnectedCallsign!==callsign)throw new Error('These positions do not connect automatically. Select Shared mode to connect.')

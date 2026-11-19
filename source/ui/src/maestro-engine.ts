@@ -130,7 +130,7 @@ export function appendAutomaticCorrection(events:AutomaticCorrection[],event:Aut
 interface RouteTimingPair {eta:number;etaFf:number;rawEta?:number;rawEtaFf?:number}
 interface RouteTimingGuard {
     trusted?:RouteTimingPair
-    episode?:{id:string;signature:string;since:number;candidateSince?:number;candidateEta?:number;lastSample?:string;samples:number;retainedNotified?:boolean}
+    episode?:{id:string;signature:string;since:number;candidateSince?:number;candidateEta?:number;candidateEtaFf?:number;lastSample?:string;samples:number;retainedNotified?:boolean}
 }
 function trafficRouteSignature(p:TelemetryFlight){
     let hash=2166136261
@@ -139,8 +139,14 @@ function trafficRouteSignature(p:TelemetryFlight){
     return 'fnv1a32:'+(hash>>>0).toString(16).padStart(8,'0')
 }
 const ROUTE_JUMP_ISSUE='Route ETA jumped by more than 10 minutes; review route and Recompute'
+const LANDING_TIMING_JUMP_MS=600000
+const FEEDER_TIMING_JUMP_MS=240000
+interface RouteTimingGuardResult {
+    state?:RouteTimingGuard;quarantined:boolean;pair:RouteTimingPair;legacyCleared:boolean
+    accepted:boolean;landingChanged?:boolean;event?:AutomaticCorrection
+}
 function guardRouteTiming(p:TelemetryFlight,old:EngineFlight|undefined,pair:RouteTimingPair,method:LandingPrediction['method']|undefined,now:number,
-    options:{reset:boolean;transition:boolean;held:boolean;holding:boolean;available:boolean;enabled:boolean}){
+    options:{reset:boolean;transition:boolean;held:boolean;holding:boolean;available:boolean;enabled:boolean;checkFeeder:boolean;feederEvidence:boolean}):RouteTimingGuardResult{
     const valid=(v:RouteTimingPair|undefined)=>!!v&&Number.isFinite(v.eta)&&Number.isFinite(v.etaFf)&&v.etaFf<=v.eta
     const legacy=old?.issue===ROUTE_JUMP_ISSUE
     const identity=old?.arrival===p.arrival&&old.departure===p.departure
@@ -149,23 +155,30 @@ function guardRouteTiming(p:TelemetryFlight,old:EngineFlight|undefined,pair:Rout
         etaFf:old.liveBufferedEtaFf??old.etaFf,rawEta:old.liveEuroscopeEta,rawEtaFf:old.liveEuroscopeEtaFf}:undefined
     let trusted=valid(retained?.trusted)?{...retained!.trusted!}:valid(seed)?seed!:undefined
     const fresh=(p.positionAgeSeconds??0)<=15&&p.groundspeed>=60&&p.speedDataValid!==false&&options.available&&valid(pair)
-    if(!options.enabled)return {state:undefined,quarantined:false,pair,legacyCleared:false,accepted:false,event:undefined as AutomaticCorrection|undefined}
+    if(!options.enabled)return {quarantined:false,pair,legacyCleared:false,accepted:false}
     if(options.held)return {state:retained??(trusted?{trusted}:undefined),quarantined:!!retained?.episode,pair:trusted??pair,
-        legacyCleared:false,accepted:false,event:undefined as AutomaticCorrection|undefined}
+        legacyCleared:false,accepted:false}
     if(options.reset||!old||!identity){
-        return {state:fresh?{trusted:{...pair}}:retained,quarantined:false,pair,legacyCleared:false,accepted:false,event:undefined as AutomaticCorrection|undefined}
+        return {state:fresh?{trusted:{...pair}}:retained,quarantined:false,pair,legacyCleared:false,accepted:false}
     }
     // Explicit runway changes and the separately confirmed initial profile
     // handover are not unexplained raw-route discontinuities.
+    const positioned=Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)
+    const landingShift=trusted?pair.eta-trusted.eta:0
+    const feederShift=trusted?pair.etaFf-trusted.etaFf:0
+    // A positionless source may legitimately replace a coarse route estimate
+    // with its first usable one. Keep the existing late-FLEG protection there.
+    const landingJump=landingShift>LANDING_TIMING_JUMP_MS||positioned&&landingShift<-LANDING_TIMING_JUMP_MS
+    const feederJump=positioned&&options.checkFeeder&&!options.holding&&Math.abs(feederShift)>FEEDER_TIMING_JUMP_MS&&
+        Math.abs(feederShift-landingShift)>FEEDER_TIMING_JUMP_MS
+    const jump=landingJump||feederJump
     if(options.transition&&fresh&&!options.held){
-        const changed=!!trusted&&Math.abs(pair.eta-trusted.eta)>600000
         const id=retained?.episode?.id??`route:${p.callsign}:${old.firstSeen}:${now}`
         return {state:{trusted:{...pair}},quarantined:false,pair,legacyCleared:legacy,accepted:true,
-            event:changed||legacy?{id,callsign:p.callsign,at:now,kind:'route-timing' as const,detail:'Route timing updated automatically after a confirmed approach or aircraft-profile change'}:undefined}
+            event:jump||legacy?{id,callsign:p.callsign,at:now,kind:'route-timing' as const,detail:'Route timing updated automatically after a confirmed approach or aircraft-profile change'}:undefined}
     }
-    const jump=!!trusted&&pair.eta-trusted.eta>600000
     if(!jump&&!legacy){
-        return {state:fresh&&!options.held?{trusted:{...pair}}:retained,quarantined:false,pair,legacyCleared:false,accepted:false,event:undefined as AutomaticCorrection|undefined}
+        return {state:fresh?{trusted:{...pair}}:retained,quarantined:false,pair,legacyCleared:false,accepted:false}
     }
     const signature=JSON.stringify([p.arrival,p.runway,p.direct??'',p.assignedHeading??0,p.route.filter(q=>q.seconds>=0).map(q=>q.name)])
     const prior=retained?.episode
@@ -178,19 +191,23 @@ function guardRouteTiming(p:TelemetryFlight,old:EngineFlight|undefined,pair:Rout
     const restored=p.route.some(q=>consumed.has(q.name)&&q.seconds>=0)
     const independent=['aircraft-profile','vector-position','final-position','recovery-iaf'].includes(method??'')&&
         (!(shortcut||restored)||method==='vector-position'||method==='final-position'||method==='recovery-iaf')
-    const sample=JSON.stringify([p.latitude,p.longitude,p.altitude,p.groundspeed,p.heading])
-    const corroborated=fresh&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)&&independent&&!options.held&&!options.holding&&options.available
+    const sample=JSON.stringify([p.latitude,p.longitude,p.altitude])
+    const corroborated=fresh&&positioned&&!options.holding&&
+        (!landingJump&&!legacy||independent)&&(!feederJump||options.feederEvidence&&!restored)
     if(corroborated){
-        const consistent=episode.candidateSince!==undefined&&episode.candidateEta!==undefined&&Math.abs(pair.eta-episode.candidateEta)<=60000
+        const consistent=episode.candidateSince!==undefined&&episode.candidateEta!==undefined&&
+            Math.abs(pair.eta-episode.candidateEta)<=60000&&
+            (!options.checkFeeder||episode.candidateEtaFf!==undefined&&Math.abs(pair.etaFf-episode.candidateEtaFf)<=60000)
         episode.candidateSince=consistent?episode.candidateSince:now
         episode.candidateEta=pair.eta
-        if(!consistent)episode.samples=0
+        episode.candidateEtaFf=pair.etaFf
+        if(!consistent){episode.samples=0;episode.lastSample=undefined}
         if(episode.lastSample!==sample){episode.samples++;episode.lastSample=sample}
         if(episode.samples>=2&&now-episode.candidateSince!>=15000){
-            return {state:{trusted:{...pair}},quarantined:false,pair,legacyCleared:legacy,accepted:true,
+            return {state:{trusted:{...pair}},quarantined:false,pair,legacyCleared:legacy,accepted:true,landingChanged:landingJump||legacy,
                 event:{id:episode.id+':confirmed',callsign:p.callsign,at:now,kind:'route-timing' as const,detail:'Route timing corrected automatically from confirmed aircraft position and performance'}}
         }
-    }else{episode.candidateSince=undefined;episode.candidateEta=undefined;episode.samples=0;episode.lastSample=undefined}
+    }else{episode.candidateSince=undefined;episode.candidateEta=undefined;episode.candidateEtaFf=undefined;episode.samples=0;episode.lastSample=undefined}
     // Older versions may already have discarded their pre-error slot. Never
     // invent replacement timing when that checkpoint has no usable history.
     const usableRetained=valid(trusted)&&trusted!.eta>=now-60000
@@ -265,6 +282,7 @@ export interface EngineFlight extends TelemetryFlight {
     planningEta?:number
     stableTiming?:{at:number;baselineAt:number;runway:string;ff:string;eta:number;etaFf:number}
     planningEtaCandidate?:{eta:number;since:number}
+    stableForecastCandidate?:{eta:number;etaFf:number;since:number}
     sequenceCorrectionCandidate?:{leader:string;since:number}
     editTracking?:boolean;appliedOrder?:number;appliedTarget?:number;appliedChangedAt?:number;appliedOrderGroup?:string
     aircraftPerformance?:{type:string;status:'matched'|'missing'|'ambiguous';nominalIas?:number;descentFpm?:number;blobSha:string;provider?:string;profileType?:string;match?:string;gainEligible?:boolean;vmo?:number;mmo?:number}
@@ -999,6 +1017,10 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         // forecast. Allocate it just like Recompute, without fabricating a
         // controller command or changing manual targets/holds/protected phases.
         const shortcutIndex=p.direct?p.route.findIndex(q=>q.name===p.direct&&q.seconds>=0):-1
+        const confirmedDirect=!!p.direct&&p.direct!==old?.direct&&shortcutIndex>=0&&!p.routeProblem&&!p.assignedHeading&&
+            Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)&&Number.isFinite(p.heading)&&
+            Number.isFinite(p.route[shortcutIndex].latitude)&&Number.isFinite(p.route[shortcutIndex].longitude)&&
+            headingDifference(p.heading!,bearingBetween(p as GeoPoint,p.route[shortcutIndex] as GeoPoint))<=45
         const shortcut=bufferMode&&!recompute&&old?.state===1&&old.mode==='sequenced'&&old.runway===runway.split('/')[1]&&
             !old.passedFeeder&&!old.missedRecovery&&!old.initialProfile?.pending&&!motion?.held&&!p.topskyHoldingPoint&&!old.topskyHoldingPoint&&
             !waitingRecovery&&!waitingRunwayChange&&!p.routeProblem&&!p.assignedHeading&&(p.positionAgeSeconds??0)<=15&&p.speedDataValid!==false&&
@@ -1021,6 +1043,14 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         const useProfileFeeder=profileFeeder&&!feederObservation?.passed&&profileFeeder.name===feederObservation?.feeder&&e.etaFfOverride===undefined
         let liveBufferedEtaFf=manualPlan?.landing?e.etaFfOverride??now+ms(modelFeederSeconds):liveEuroscopeEtaFf===undefined?undefined:feederObservation?.source==='holding'&&e.etaFfOverride===undefined?now+ms(feederObservation.seconds):feederObservation?.available===false&&e.etaFfOverride===undefined?old?.etaFf??old?.euroscopeBaseline?.etaFf??liveEuroscopeEtaFf:feederObservation?.source==='track'&&e.etaFfOverride===undefined?now+ms(feederObservation.seconds):useProfileFeeder?now+ms(profileFeeder.seconds):liveEuroscopeEtaFf+ms(feederBufferMinutes*60)
         let liveBufferedEta=!bufferMode||waitingRecovery||!usableArrival?undefined:now+ms(landingPrediction!.seconds)
+        const guardFeeder=feederObservation?.feeder??prediction.feeder??p.route.find(point=>point.name===old?.ff&&point.seconds>=0)?.name
+        const checkFeeder=!!guardFeeder&&old?.ff===guardFeeder&&!old.passedFeeder&&!feederObservation?.passed&&
+            !prediction.passedFeeder&&feederObservation?.available!==false&&e.etaFfOverride===undefined
+        const feederEvidence=feederObservation?.source==='track'||!!useProfileFeeder
+        const headingClearance=(p.assignedHeading??0)>0&&p.assignedHeading!==old?.assignedHeading&&landingPrediction?.method==='retained-slowdown'
+        const timingTransition=!!confirmedRunwayChange||!!profileHandover?.ready||confirmedDirect||headingClearance||
+            !!landingPrediction?.establishedFinal&&!old?.landingPrediction?.establishedFinal||
+            !!old?.trafficRouteOverride&&!trafficRouteOverride&&trafficNeutralPrediction?.method==='aircraft-profile'
         // A workbook path assumption must not conceal a discontinuity in the
         // actual retained route. Keep its independent trusted neutral reference.
         const neutralOld=automaticTraffic&&old&&(old.trafficNeutralEta!==undefined||!old.trafficProfile)?{
@@ -1032,8 +1062,8 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             {eta:now+ms(trafficNeutralPrediction.seconds),etaFf:liveBufferedEtaFf??e.etaFfOverride??now+ms(modelFeederSeconds),rawEta:liveEuroscopeEta,rawEtaFf:liveEuroscopeEtaFf},trafficNeutralPrediction.method,now,
             {enabled:!manualCalls.has(p.callsign)&&bufferMode&&!manualPlan?.landing&&!profileBlocked&&!recoveryContext,
                 reset:recompute||!old?.euroscopeBaseline||resumed||requeued||old?.state===4||e.mode!==undefined&&e.mode!=='sequenced',
-                transition:!!confirmedRunwayChange||!!profileHandover?.ready,held:!!motion?.held,holding:!!p.topskyHoldingPoint,available:usableArrival}):undefined
-        if(neutralGuard?.accepted&&neutralGuard.event?.id.endsWith(':confirmed')&&trafficNeutralPrediction){
+                transition:timingTransition,held:!!motion?.held,holding:!!p.topskyHoldingPoint,available:usableArrival,checkFeeder,feederEvidence}):undefined
+        if(neutralGuard?.landingChanged&&neutralGuard.event?.id.endsWith(':confirmed')&&trafficNeutralPrediction){
             trafficRouteOverride={signature:trafficSignature!,at:now}
             trafficProfile=undefined;landingPrediction=trafficNeutralPrediction
             liveBufferedEta=now+ms(landingPrediction.seconds);selectedBufferMinutes=landingPrediction.correctionSeconds/60
@@ -1042,8 +1072,8 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             {eta:liveBufferedEta??now+ms(prediction.seconds)+manualFeederShift,etaFf:liveBufferedEtaFf??e.etaFfOverride??now+ms(modelFeederSeconds),rawEta:liveEuroscopeEta,rawEtaFf:liveEuroscopeEtaFf},landingPrediction?.method,now,
             {enabled:!manualCalls.has(p.callsign)&&(bufferMode||prediction.source==='route'||old?.issue===ROUTE_JUMP_ISSUE),
                 reset:!!trafficProfile&&!!old?.trafficProfile&&trafficProfile.mode!==old.trafficProfile.mode||recompute||bufferMode&&!old?.euroscopeBaseline||resumed||requeued||recoveryContext||old?.state===4||e.mode!==undefined&&e.mode!=='sequenced',
-                transition:!!confirmedRunwayChange||!!profileHandover?.ready||!!neutralGuard?.accepted&&!!trafficRouteOverride,held:!!motion?.held,holding:!!p.topskyHoldingPoint,
-                available:bufferMode?usableArrival:(p.positionAgeSeconds??0)<=15})
+                transition:timingTransition||!!neutralGuard?.accepted&&!!trafficRouteOverride,held:!!motion?.held,holding:!!p.topskyHoldingPoint,
+                available:bufferMode?usableArrival:(p.positionAgeSeconds??0)<=15,checkFeeder,feederEvidence})
         if(neutralGuard?.quarantined&&old){
             const adapted=old.routeTimingGuard?.trusted??{eta:old.liveBufferedEta??old.lastTrustedEta??old.eta,etaFf:old.liveBufferedEtaFf??old.etaFf,rawEta:old.liveEuroscopeEta,rawEtaFf:old.liveEuroscopeEtaFf}
             routeGuard={...routeGuard,state:routeGuard.quarantined?routeGuard.state:old.routeTimingGuard??routeGuard.state,quarantined:true,pair:adapted,event:neutralGuard.event}
@@ -1487,13 +1517,39 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             }
             fixed.splice(0,fixed.length,...merged)
         }
-        // Automatic forecast order is not a controller commitment. Reconcile
-        // only a material, sustained inversion; retain explicit slots, gaps
-        // and same-entry upstream order. A transient ETA never swaps a pair.
+        // Reconcile sustained forecast inversions while retaining explicit
+        // slots and gaps. Stable repairs are local to one feeder and require
+        // both fresh feeder and landing forecasts to agree on the order.
         const promotingCorrection=(f:EngineFlight)=>f.state===2&&oldByCallsign.get(f.callsign)?.state===1&&
             !!oldByCallsign.get(f.callsign)?.sequenceCorrectionCandidate&&!f.topskyHoldingPoint&&f.feederObservationSource!=='holding'
         const automatic=(f:EngineFlight)=>(f.state<=1||promotingCorrection(f))&&!f.motionTiming?.held&&(!!f.trajectory||!!f.landingPrediction&&f.landingEtaAvailable!==false)&&!f.routeTimingQuarantined&&!f.lost&&!f.issue&&!f.passedFeeder&&!oldByCallsign.get(f.callsign)?.passedFeeder&&edits[f.callsign]?.target===undefined&&!explicitOrder(edits[f.callsign])&&
-            !f.slotBefore&&!f.slotAfter&&!f.closurePosition&&!f.missedRecovery
+            !f.slotBefore&&!f.slotAfter&&!f.closurePosition&&!f.missedRecovery&&!f.topskyHoldingPoint&&f.feederObservationSource!=='holding'&&
+            !f.runwayTransition?.pending&&f.feederEtaAvailable!==false&&edits[f.callsign]?.etaFfOverride===undefined
+        const stableOrderEvidence=(f:EngineFlight)=>config.timingModel==='euroscope-buffer'&&input.source!=='DEMO'&&
+            f.feederGuidanceAvailable===true&&f.speedDataValid!==false&&!f.initialProfile?.pending&&
+            (f.positionAgeSeconds??0)<=15&&f.motionTiming?.movingSince!==undefined&&!f.motionTiming.recovery&&
+            f.liveBufferedEta!==undefined&&Number.isFinite(f.etaFf)&&f.liveBufferedEta>=f.etaFf&&
+            (f.landingPrediction?.method==='aircraft-profile'&&f.landingPrediction.routeTiming?.feeder?.name===f.ff||
+                f.landingPrediction?.rawClockRejected===true&&f.feederObservationSource==='track')
+        const stablePairFits=(first:EngineFlight,second:EngineFlight,before:EngineFlight|undefined,after:EngineFlight|undefined)=>{
+            const reservations=entryReservations.get(first.ff)??[]
+            const previousSlot=before&&(oldByCallsign.get(before.callsign)??before)
+            const firstSlot=currentStableSlot(first,previousSlot,config,winds,now,reservations)
+            if(!firstSlot||firstSlot.time-first.liveBufferedEta!>60000)return false
+            const firstReservation={...first,sta:firstSlot.time,staFf:firstSlot.time-(first.liveBufferedEta!-first.etaFf)}
+            const secondSlot=currentStableSlot(second,firstReservation,config,winds,now,[...reservations,firstReservation])
+            if(!secondSlot||secondSlot.time-second.liveBufferedEta!>60000)return false
+            if(!after)return true
+            // A repair must fit ahead of the next accepted slot. Moving one
+            // pair must not create fresh delivery work for the rest of the bank.
+            const next=oldByCallsign.get(after.callsign)??after
+            const plan=windConfig(effectiveConfig(config,next.sta),after.arrival,winds,now)
+            const runwayGap=ms(Math.max(plan.rates[runway],wakeInterval(second.wake,after.wake,runway,plan)))+
+                ms((second.slotAfter+after.slotBefore)*60)
+            if(secondSlot.time+runwayGap>next.sta+1)return false
+            return after.ff!==second.ff||after.passedFeeder||
+                secondSlot.time-(second.liveBufferedEta!-second.etaFf)+ms(plan.rates[runway])<=next.staFf+1
+        }
         const corrected=new Set<string>()
         for(const f of fixed){
             const candidate=oldByCallsign.get(f.callsign)?.sequenceCorrectionCandidate
@@ -1516,28 +1572,47 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
         for(let i=1;i<fixed.length;i++){
             const follower=fixed[i]
             if(!automatic(follower))continue
-            let destination=i,allFinal=true
+            let destination=i,allFinal=true,crossesStable=false
             for(let j=i-1;j>=0;j--){
                 const leader=fixed[j]
                 const upstream=follower.ff===leader.ff&&(!follower.passedFeeder||!leader.passedFeeder)
                 const observedFinal=follower.finalAlongNm!==undefined&&leader.finalAlongNm!==undefined&&follower.finalAlongNm<leader.finalAlongNm
-                const inversion=upstream ? follower.passedFeeder&&!leader.passedFeeder || !leader.passedFeeder&&!follower.passedFeeder&&leader.etaFf-follower.etaFf>60000 :
-                    (leader.planningEta!-follower.planningEta!)>(observedFinal?30000:60000)
-                if(!automatic(leader)||leader.state>=1||!inversion)break
+                const stableLeader=leader.state===1&&!promotingCorrection(follower)
+                const landingLead=stableLeader?leader.liveBufferedEta!:leader.planningEta!
+                const landingFollow=stableLeader?follower.liveBufferedEta!:follower.planningEta!
+                const inversion=upstream ? leader.etaFf-follower.etaFf>60000 :
+                    landingLead-landingFollow>(observedFinal?30000:60000)
+                if(!automatic(leader)||leader.state>=2||!inversion)break
+                // Finish any provisional correction before extending it
+                // into Stable history. Promotion must still release work
+                // caused by the provisional neighbour in the current tick.
+                if(leader.state===1&&(!stableLeader||j!==i-1||!upstream||
+                    recomputing.size||freshOrderEdit||!stableOrderEvidence(leader)||!stableOrderEvidence(follower)||
+                    landingLead-landingFollow<=60000))break
+                crossesStable ||= stableLeader
                 destination=j;allFinal=allFinal&&observedFinal
+                if(crossesStable)break
             }
             if(destination===i)continue
             const leader=fixed[destination]
             const candidate=oldByCallsign.get(follower.callsign)?.sequenceCorrectionCandidate
             follower.sequenceCorrectionCandidate=candidate?.leader===leader.callsign?candidate:{leader:leader.callsign,since:now}
-            const forecastReconciled=fixed.slice(destination,i).some(f=>laterProvisional.has(f.callsign))
+            const forecastReconciled=!crossesStable&&fixed.slice(destination,i).some(f=>laterProvisional.has(f.callsign))
             // Accept a sustained pending correction before promotion protects
             // its old erroneous slot. Existing Superstable history stays fixed.
-            const confirmation=allFinal||promotingCorrection(follower)?15000:45000
+            const confirmation=!crossesStable&&(allFinal||promotingCorrection(follower))?15000:45000
             if(!forecastReconciled&&now-follower.sequenceCorrectionCandidate.since<confirmation)continue
+            if(crossesStable&&!stablePairFits(follower,leader,fixed[destination-1],fixed[i+1]))continue
             // Reinsert once across the confirmed automatic block instead of
             // imposing another full timer for every individual queue place.
-            for(const crossed of fixed.slice(destination,i+1))corrected.add(crossed.callsign)
+            for(const crossed of fixed.slice(destination,i+1)){
+                corrected.add(crossed.callsign)
+                if(crossesStable&&crossed.state===1&&crossed.euroscopeBaseline&&stableOrderEvidence(crossed)){
+                    const eta=crossed.liveBufferedEta!
+                    crossed.eta=eta;crossed.planningEta=eta;crossed.planningEtaCandidate=undefined
+                    crossed.stableTiming={at:now,baselineAt:crossed.euroscopeBaseline.at,runway,ff:crossed.ff,eta,etaFf:crossed.etaFf}
+                }
+            }
             fixed.splice(i,1);fixed.splice(destination,0,follower)
             follower.sequenceCorrectionCandidate=undefined
         }
@@ -1620,7 +1695,8 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             const inconsistentHistory=!!old?.guidance&&Math.abs(old.guidance.scheduled-(old.passedFeeder?old.sta:old.staFf))>1000
             const targetRemoved=retiredTargets.has(f.callsign)||old?.appliedTarget!==undefined&&edits[f.callsign]?.target===undefined
             const releaseUpstream=!f.routeTimingQuarantined&&!f.motionTiming?.held&&!f.topskyHoldingPoint&&f.feederObservationSource!=='holding'&&!recomputing.size&&!freshOrderEdit&&f.state<=1&&!f.passedFeeder&&!!old&&old.delay>0&&old.mode==='sequenced'&&
-                edits[f.callsign]?.target===undefined&&!selectedClosure&&!f.slotBefore&&!f.slotAfter&&!f.missedRecovery&&(f.liveBufferedEta??f.eta)<old.sta-1000
+                edits[f.callsign]?.target===undefined&&edits[f.callsign]?.etaFfOverride===undefined&&!explicitOrder(edits[f.callsign])&&
+                !selectedClosure&&!f.slotBefore&&!f.slotAfter&&!f.missedRecovery&&(f.liveBufferedEta??f.eta)<old.sta-1000
             // An automatic Stable arrival has no delivery work to retain
             // when its current landing/feeder pair fits behind its actual leader.
             // Keep capture history, controller slots, holds and later phases;
@@ -1635,13 +1711,34 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
                 !((f.assignedHeading??0)>0&&f.feederObservationSource!=='track')&&(!f.direct||f.direct===f.ff||f.route.findIndex(p=>p.name===f.direct)>=0&&f.route.findIndex(p=>p.name===f.direct)<=f.route.findIndex(p=>p.name===f.ff))&&
                 !f.initialProfile?.pending&&f.initialProfile?.appliedAt!==now&&!fallbackBufferChanged&&!manualCalls.has(f.callsign)&&!recomputing.size&&!freshOrderEdit&&!recomputed&&!explicitlyReordered&&
                 edits[f.callsign]?.target===undefined&&edits[f.callsign]?.etaFfOverride===undefined&&!explicitOrder(edits[f.callsign])&&!selectedClosure&&!closurePosition&&!f.slotBefore&&!f.slotAfter&&
-                f.liveBufferedEta!==undefined&&Number.isFinite(liveTransfer)&&liveTransfer!>=0&&(lowTrafficRefresh||f.liveBufferedEta<=old.sta+1)&&(lowTrafficRefresh||f.liveBufferedEta<old.sta-1000||f.etaFf<old.staFf-1000)
-            const stableSlot=stableForecastCandidate?currentStableSlot(f,last,config,winds,now,entryReservations.get(f.ff)??[]):undefined
-            const releaseStableForecast=!!stableSlot&&(lowTrafficRefresh||stableSlot.time<=old!.sta+1)
+                f.liveBufferedEta!==undefined&&Number.isFinite(liveTransfer)&&liveTransfer!>=0
+            const earlierPair=stableForecastCandidate&&f.liveBufferedEta!<=old.sta+1&&
+                (f.liveBufferedEta!<old.sta-1000||f.etaFf<old.staFf-1000)
+            const laterPair=stableForecastCandidate&&!lowTrafficRefresh&&f.liveBufferedEta!>old.sta+60000
+            if(laterPair&&stableOrderEvidence(f)){
+                const prior=old.stableForecastCandidate
+                const consistent=prior&&Math.abs(prior.eta-f.liveBufferedEta!)<=30000&&Math.abs(prior.etaFf-f.etaFf)<=30000
+                f.stableForecastCandidate={eta:f.liveBufferedEta!,etaFf:f.etaFf,since:consistent?prior.since:now}
+            }
+            const confirmedLater=!!f.stableForecastCandidate&&now-f.stableForecastCandidate.since>=45000
+            const stableSlot=stableForecastCandidate&&(lowTrafficRefresh||earlierPair||confirmedLater)?
+                currentStableSlot(f,last,config,winds,now,entryReservations.get(f.ff)??[]):undefined
+            // A later automatic forecast may give up its old slot, but must
+            // not advance into a following controller commitment.
+            const following=confirmedLater?fixed[i+1]:undefined
+            let latestAvailable=Infinity
+            if(following){
+                const followingTime=edits[following.callsign]?.target??oldByCallsign.get(following.callsign)?.sta??accepted(following)
+                const plan=windConfig(effectiveConfig(config,followingTime),following.arrival,winds,now)
+                latestAvailable=followingTime-ms(Math.max(plan.rates[runway],wakeInterval(f.wake,following.wake,runway,plan)))-
+                    ms((f.slotAfter+following.slotBefore)*60)
+            }
+            const releaseStableForecast=!!stableSlot&&(lowTrafficRefresh||stableSlot.time<=old!.sta+1||confirmedLater&&stableSlot.time<=latestAvailable+1)
             if(releaseStableForecast){
-                if(lowTrafficRefresh)f.eta=f.liveBufferedEta!
+                if(lowTrafficRefresh||confirmedLater)f.eta=f.liveBufferedEta!
                 f.stableTiming={at:now,baselineAt:f.euroscopeBaseline!.at,runway,ff:f.ff,eta:f.liveBufferedEta!,etaFf:f.etaFf}
                 f.planningEta=f.liveBufferedEta!;f.planningEtaCandidate=undefined
+                f.stableForecastCandidate=undefined
                 arrivalConfig=stableSlot!.plan;acceptedRate=stableSlot!.rate;gap=stableSlot!.gap
                 planKey=JSON.stringify([runway,acceptedRate,config.slots,f.slotBefore,f.slotAfter])
             }
@@ -1845,6 +1942,7 @@ export function runEngine(input: Telemetry, config: EngineConfig, edits: Record<
             if(holdTma)constraints.push('accepted TMA assignment; Recompute refreshes time')
             if(f.feederEtaAvailable===false&&f.feederGuidanceAvailable!==false)constraints.push('feeder bypassed or crossing ETA unavailable; previous instruction retained')
             if(corrected.has(f.callsign))constraints.push('automatic order reconciled after sustained trajectory inversion')
+            if(confirmedLater&&releaseStableForecast)constraints.push('upstream slot updated from sustained flight timing')
             if(unsupportedGain)constraints.push('requested gain exceeds current capability estimate; controller review required')
             if(edits[f.callsign]?.target!==undefined)constraints.push('manual time / slot')
             if((f.runwayAvailableFrom??0)>f.eta)constraints.push('planned runway availability')

@@ -5,8 +5,10 @@
 #include <cstring>
 namespace saaman {
 Json CaptureTelemetry(EuroScopePlugIn::CPlugIn& plugin,const Json& winds,TopSkyHoldingCache& holding){
+        const auto captureTick=TickNow();
         nlohmann::json data = { {"source", plugin.ControllerMyself().IsValid() ? TelemetryText(plugin.ControllerMyself().GetCallsign(),"OFFLINE") : "OFFLINE"},
             {"timestamp", Now()}, {"flights", nlohmann::json::array()}, {"winds", winds}, {"terminatedCallsigns",nlohmann::json::array()}, {"knownFlights",nlohmann::json::array()}, {"captureErrors",nlohmann::json::array()} };
+        for(auto& wind:data["winds"])wind["timestamp"]=data["timestamp"].get<long long>()-(captureTick-wind["timestamp"].get<long long>());
         data["controllerPositionId"]=plugin.ControllerMyself().IsValid()?TelemetryText(plugin.ControllerMyself().GetPositionId()):"";
         data["controllers"]=Json::array();
         for(auto controller=plugin.ControllerSelectFirst();controller.IsValid()&&data["controllers"].size()<500;controller=plugin.ControllerSelectNext(controller)){
@@ -105,7 +107,7 @@ Json CaptureTelemetry(EuroScopePlugIn::CPlugIn& plugin,const Json& winds,TopSkyH
                     {"clearedAltitude",ctr.GetClearedAltitude()}, {"finalAltitude",ctr.GetFinalAltitude()>0?ctr.GetFinalAltitude():fpd.GetFinalAltitude()},
                     {"assignedMach",ctr.GetAssignedMach()},
                     {"topskyMissedApproach",TopSkyMissedApproach(ctr.GetScratchPadString())},
-                    {"topskyHoldingPoint",holding.Observe(callsign,ctr.GetScratchPadString(),ctr.GetFlightStripAnnotation(6),Now())},
+                    {"topskyHoldingPoint",holding.Observe(callsign,ctr.GetScratchPadString(),ctr.GetFlightStripAnnotation(6),captureTick)},
                     {"landingSeconds", points > 0 ? route.GetPointDistanceInMinutes(points - 1) * 60 : 0},
                     {"distanceNm", fp.GetDistanceToDestination()}, {"groundspeed", target.GetGS()},
                     {"altitude", position.GetPressureAltitude()}, {"heading", position.GetReportedHeadingTrueNorth()},

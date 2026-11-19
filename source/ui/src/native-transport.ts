@@ -2,11 +2,13 @@ import axios from 'axios'
 import {DEFAULT_CONFIG,runEngine,validateConfig,validateEdits,validateTelemetry,validateLockedEdits,toJuhaSequence,toTopSkySequence,reconcileRunwayAssignments,euroscopeInstruction,migrateSequenceEdits} from './maestro-engine'
 import {mergeSharedSettings,settingsUnchanged} from './maestro-settings'
 import {nativeRequest} from './native-rpc'
+import {captureRecentDiagnostics} from './native-diagnostics'
 import {APPLICATION_BUILD} from './build'
 import {SharedRelay} from './shared-relay'
 import {publicationBody} from './shared-http'
 import {LegacyRelay} from './legacy-relay'
 import {pruneRetiredLiveEdits} from './maestro-live-lifecycle'
+import {elapsedNow,operationNow,publicationAge,SharedClock,setOperationClock,type PublicationTiming} from './shared-clock'
 export const BUILD=APPLICATION_BUILD
 let relay:SharedRelay|null=null
 let relaySuspended=false
@@ -16,9 +18,14 @@ export function configureRelayAuth(provider:typeof relayAuth){relayAuth=provider
 export function relayState(){return relay?.view()}
 export async function leaveSharedRoom(){if(relay)await relay.leave()}
 export function suspendSharedRoom(value:boolean){relaySuspended=value;if(value&&authenticated())void relay?.setObserver(true).catch(()=>{})}
-function announceRelay(error=''){
+function announceRelay(clockSynchronized:boolean,error='',retryableTransport=false){
     if(!relay)return
-    window.dispatchEvent(new CustomEvent('saaman-relay',{detail:{...relay.view(),relayError:error}}))
+    const plan=relay.view(),at=operationNow()
+    if(!(window as any).__SAAMAN_HOST__?.browser)captureRecentDiagnostics({
+        at,snapshot:plan.snapshot,config:plan.config,edits:plan.edits,context:plan.recordingContext,
+        snapshotAgeMs:plan.snapshotAgeMs,clockSynchronized,backendMinusLocalMs:clockSynchronized?at-Date.now():undefined,error,
+    })
+    window.dispatchEvent(new CustomEvent('saaman-relay',{detail:{...plan,relayError:error,retryableTransport}}))
 }
 async function relayApi(method:string,path:string,body:any={}){
     if(!relay)throw new Error('Shared room is not configured')
@@ -31,6 +38,14 @@ async function relayApi(method:string,path:string,body:any={}){
     throw new Error('Unsupported shared plugin operation')
 }
 async function state(){const plan=await nativeRequest('plan:get');return {...plan,config:validateConfig({...DEFAULT_CONFIG,...plan.config??{}}),edits:migrateSequenceEdits(plan.edits||{},plan.snapshot),stale:!plan.snapshot||Date.now()-plan.snapshot.timestamp>30000}}
+async function observeLocalPlan(){
+    const plan=await state()
+    if((window as any).__SAAMAN_HOST__?.view==='aman')captureRecentDiagnostics({
+        at:operationNow(),snapshot:plan.snapshot,config:plan.config,edits:plan.edits,
+        context:{room:'local/ESSA',role:'local',revision:plan.revision,stale:plan.stale},
+    })
+    return plan
+}
 async function localApi(method:string,path:string,body:any={}){
     if(path==='/aman-preview-health')return {applicationBuild:BUILD}
     if(method==='GET'&&['/maestro/ESSA','/maestro/ESSA/supervision'].includes(path))return state()
@@ -38,7 +53,7 @@ async function localApi(method:string,path:string,body:any={}){
     const plan=await state()
     if(method==='POST'&&path==='/maestro/ESSA/telemetry'){
         const telemetry=validateTelemetry(body),edits=reconcileRunwayAssignments(telemetry,plan.edits,plan.snapshot),snapshot=runEngine(telemetry,plan.config,edits,plan.snapshot||undefined)
-        await nativeRequest('plan:snapshot',{revision:plan.revision,snapshot,telemetry,edits:pruneRetiredLiveEdits(edits,snapshot)});return state()
+        await nativeRequest('plan:snapshot',{revision:plan.revision,snapshot,telemetry,edits:pruneRetiredLiveEdits(edits,snapshot)});return observeLocalPlan()
     }
     if(method==='PUT'&&['/maestro/ESSA','/maestro/ESSA/settings'].includes(path)){
         if(body.revision!==plan.revision)throw Object.assign(new Error('Shared plan changed; reload and retry'),{status:409})
@@ -49,7 +64,7 @@ async function localApi(method:string,path:string,body:any={}){
         if(!settings)validateLockedEdits(plan.snapshot,plan.edits,edits,config)
         const previous=plan.snapshot?{...plan.snapshot,timestamp:plan.snapshot.timestamp-1}:undefined
         const snapshot=plan.telemetry?runEngine(plan.telemetry,config,edits,previous):null
-        await nativeRequest(settings?'plan:settings':'plan:update',{revision:plan.revision,config,edits:snapshot?pruneRetiredLiveEdits(edits,snapshot):edits,snapshot});return state()
+        await nativeRequest(settings?'plan:settings':'plan:update',{revision:plan.revision,config,edits:snapshot?pruneRetiredLiveEdits(edits,snapshot):edits,snapshot});return observeLocalPlan()
     }
     if(method==='GET'&&path==='/maestro/MAESTRO_sequence_data_ESSA.json')return toJuhaSequence(plan.snapshot??{timestamp:Date.now(),source:'EMPTY',flights:[],diagnostics:[]},plan.config,plan.edits)
     throw new Error('Unsupported native API operation')
@@ -58,8 +73,10 @@ export async function installNativeTransport(){
     const info=await nativeRequest('host:info')
     ;(window as any).__SAAMAN_HOST__=info;(window as any).__SAAMAN_LOCAL__=!info.shared
     const defaultAdapter=axios.getAdapter(axios.defaults.adapter!)
+    const sharedClock=info.shared?new SharedClock():undefined
+    setOperationClock(sharedClock)
     if(info.shared){
-        const send=async(method:string,path:string,body?:any)=>{
+        const send=async(method:string,path:string,body?:any,timing?:(value:PublicationTiming)=>void)=>{
                 if(info.browser===true&&method==='PUT')throw Object.assign(new Error('Browser connections cannot publish sequence calculations'),{status:403})
                 const auth=relayAuth();if(!authenticated())throw Object.assign(new Error(auth.error||'Waiting for controller identity'),{status:401})
                 let result
@@ -68,26 +85,52 @@ export async function installNativeTransport(){
                 const headers=axios.AxiosHeaders.from({...auth.headers??{Authorization:`Bearer ${auth.token}`},'Content-Type':'application/json'})
                 if(encoded.compressed)headers.set('Content-Encoding','gzip')
                 const timeout=info.authProvider==='vatiris-callsign'?12000:5000
+                const sent=elapsedNow()
                 try{result=await defaultAdapter({method,url:info.backendBaseUrl+path,headers,data:encoded.data,timeout,validateStatus:()=>true})}
                 catch(e:any){
-                    if(['ECONNABORTED','ETIMEDOUT'].includes(e.code))throw Object.assign(new Error(`Shared backend ${operation} timed out after ${timeout/1000} seconds; waiting for a fresh connection`),{status:504})
-                    if(e.code==='ERR_NETWORK')throw Object.assign(new Error(`Cannot reach shared backend for ${operation}; check its HTTPS address and connection`),{status:503})
+                    if(['ECONNABORTED','ETIMEDOUT'].includes(e.code))throw Object.assign(new Error(`Shared backend ${operation} timed out after ${timeout/1000} seconds; waiting for a fresh connection`),{status:504,retryableTransport:true})
+                    if(e.code==='ERR_NETWORK')throw Object.assign(new Error(`Cannot reach shared backend for ${operation}; check its HTTPS address and connection`),{status:503,retryableTransport:true})
                     throw e
                 }
+                const received=elapsedNow()
                 let data:any=result.data
-                if(typeof data==='string'){try{data=JSON.parse(data)}catch{if(result.status>=400)throw Object.assign(new Error(data.length<400?data:'Shared AMAN unavailable'),{status:result.status});if(!path.endsWith('/leave'))throw Object.assign(new Error('Invalid response from the shared backend'),{status:502})}}
-                if(result.status>=400)throw Object.assign(new Error(data?.error||'Shared AMAN unavailable'),{status:result.status,response:{status:result.status,data}})
+                const responseHeader=(name:string)=>result.headers instanceof axios.AxiosHeaders?result.headers.get(name):result.headers[name]
+                if(typeof data==='string'){
+                    try{data=JSON.parse(data)}catch{
+                        if(result.status<400&&!path.endsWith('/leave'))throw Object.assign(new Error('Invalid response from the shared backend'),{status:502})
+                    }
+                }
+                const timestampHeader=responseHeader('x-saaman-server-time')
+                const ageHeader=responseHeader('x-saaman-publication-age')
+                const serverTimeMs=typeof data?.serverTimeMs==='number'?data.serverTimeMs:typeof timestampHeader==='string'?Number(timestampHeader):NaN
+                const age=publicationAge(data?.publicationAgeMs)??(typeof ageHeader==='string'&&ageHeader!==''?publicationAge(Number(ageHeader)):undefined)
+                sharedClock!.observe(serverTimeMs,sent,received)
+                if(result.status>=400){
+                    const message=typeof data==='string'&&data.length<400?data:data?.error
+                    throw Object.assign(new Error(message||'Shared AMAN unavailable'),{status:result.status,response:{status:result.status,data},retryableTransport:[502,503,504].includes(result.status)})
+                }
+                timing?.({serverTimeMs,publicationAgeMs:age,freshRoomRead:method==='GET'&&/^\/aman\/(live|sweatbox[12])\/ESSA$/.test(path)})
+                if(info.authProvider==='keys'&&data&&age!==undefined)return {...data,publicationAgeMs:age}
                 return data
         }
-        const legacy=info.authProvider==='vatiris-callsign'?new LegacyRelay({network:info.relay.network,instanceId:info.instanceId,editorOnly:info.browser===true,send,callsign:()=>relayAuth().callsign||'',cid:()=>relayAuth().cid,supervisor:(callsign,cid)=>relayAuth().supervisor?.(callsign,cid)??Promise.resolve(false)}):null
-        relay=new SharedRelay({...info.relay,instanceId:info.instanceId},{editorOnly:info.browser===true,cid:()=>relayAuth().cid,telemetry:()=>nativeRequest('telemetry:get'),compactPublication:()=>info.authProvider==='keys'&&relayAuth().compactPublication===true,send:(method,path,body)=>legacy?legacy.send(method,path,body):send(method,path,body)})
+        const now=()=>sharedClock!.now()
+        const legacy=info.authProvider==='vatiris-callsign'?new LegacyRelay({network:info.relay.network,instanceId:info.instanceId,editorOnly:info.browser===true,send,now,elapsed:elapsedNow,callsign:()=>relayAuth().callsign||'',cid:()=>relayAuth().cid,supervisor:(callsign,cid)=>relayAuth().supervisor?.(callsign,cid)??Promise.resolve(false)}):null
+        relay=new SharedRelay({...info.relay,instanceId:info.instanceId},{editorOnly:info.browser===true,cid:()=>relayAuth().cid,telemetry:()=>nativeRequest('telemetry:get'),now,wallNow:Date.now,elapsed:elapsedNow,serverClockReady:()=>sharedClock!.synchronized,compactPublication:()=>info.authProvider==='keys'&&relayAuth().compactPublication===true,send:(method,path,body)=>legacy?legacy.send(method,path,body):send(method,path,body)})
         if(info.view==='aman'){
             let running=false
             const refresh=async()=>{
                 if(running)return
-                if(!authenticated()||relaySuspended){if(!relaySuspended)window.dispatchEvent(new CustomEvent('saaman-relay',{detail:{relayError:relayAuth().error||'Waiting for controller identity'}}));if(!info.browser)try{await nativeRequest('timing:set',{airport:'ESSA',generatedAt:Date.now(),nativeSequence:null,flights:[]})}catch{};return}
+                if(!authenticated()||relaySuspended){
+                    const error=relaySuspended?'Shared connection paused':relayAuth().error||'Waiting for controller identity'
+                    if(!relaySuspended)window.dispatchEvent(new CustomEvent('saaman-relay',{detail:{relayError:error}}))
+                    if(!info.browser){
+                        captureRecentDiagnostics({at:operationNow(),error,clockSynchronized:sharedClock!.synchronized})
+                        try{await nativeRequest('timing:set',{airport:'ESSA',generatedAt:Date.now(),nativeSequence:null,flights:[]})}catch{}
+                    }
+                    return
+                }
                 running=true
-                try{await relay!.tick();announceRelay()}catch(e:any){announceRelay(e.message)}finally{running=false}
+                try{await relay!.tick();announceRelay(sharedClock!.synchronized)}catch(e:any){announceRelay(sharedClock!.synchronized,e.message,e.retryableTransport===true)}finally{running=false}
                 const plan=relay!.view(),snapshot=plan.snapshot
                 if(!info.browser)try{await nativeRequest('timing:set',{airport:'ESSA',generatedAt:Date.now(),nativeSequence:snapshot?toTopSkySequence(snapshot,plan.config,plan.edits):null,flights:snapshot?snapshot.flights.filter(f=>f.arrival==='ESSA'&&f.mode==='sequenced'&&!f.issue&&!f.lost).map(f=>({callsign:f.callsign,deltaSeconds:euroscopeInstruction(f)})):[]})}catch{ /* Next fresh pulse retries local guidance. */ }
             }
